@@ -18,3 +18,6 @@ export interface FunFeedPage { items: FunPost[]; nextCursor: string|null; }
 export interface CoinPackage { _id: Id; title: string; coins: number; price: number; originalPrice?: number; badge?: string; active: boolean; sortOrder: number; }
 export interface CoinTransaction { _id: Id; type: 'purchase'|'daily_reward'; status: 'pending'|'processing'|'completed'|'failed'; coins: number; balanceAfter?: number; packageTitle?: string; price?: number; currency: 'IRT'; provider: 'test'|'none'; completedAt?: string; createdAt: string; }
 export interface StoreData { balance: number; packages: CoinPackage[]; dailyReward: { amount: number; claimable: boolean; nextClaimAt: string|null }; transactions: CoinTransaction[]; paymentMode: 'test'|'unavailable'; }
+export type SquadFormation = '4-3-3'|'4-4-2'|'4-2-3-1';
+export interface ClubPlayer { _id: Id; name: string; position: 'GK'|'RB'|'CB'|'LB'|'DM'|'CM'|'AM'|'RW'|'LW'|'ST'; overall: number; photoUrl?: string; nationality?: string; }
+export interface SquadData { formation: SquadFormation; starters: Array<ClubPlayer|null>; substitutes: ClubPlayer[]; }

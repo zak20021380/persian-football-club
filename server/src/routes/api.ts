@@ -18,6 +18,7 @@ import { AppError } from '../utils/errors.js';
 import { asyncHandler } from '../utils/asyncHandler.js';
 import funRouter from './fun.js';
 import storeRouter from './store.js';
+import clubRouter from './club.js';
 
 const router = Router();
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 2 * 1024 * 1024, files: 1 }, fileFilter: (_req, file, cb) => cb(null, /^image\/(png|jpeg|webp|gif)$/.test(file.mimetype)) });
@@ -34,6 +35,7 @@ router.get('/sponsors/:id/redirect', asyncHandler(async (req, res) => {
 router.use(authenticate);
 router.use('/fun', funRouter);
 router.use('/store', storeRouter);
+router.use('/club', clubRouter);
 
 router.get('/bootstrap', asyncHandler(async (req, res) => {
   const user = req.authUser!;
