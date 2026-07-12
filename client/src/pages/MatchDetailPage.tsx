@@ -79,7 +79,7 @@ export function MatchDetailPage() {
     <main className="match-detail-page min-h-screen pb-8">
       <header className="safe-top sticky top-0 z-40 border-b border-white/[.06] bg-ink-950/88 px-4 pb-3 backdrop-blur-2xl">
         <div className="mx-auto flex max-w-xl items-center gap-3">
-          <button type="button" onClick={() => navigate(-1)} aria-label="بازگشت" className="grid h-11 w-11 shrink-0 place-items-center rounded-2xl border border-white/[.07] bg-white/[.05] text-slate-300 transition active:scale-90"><ArrowRight size={20}/></button>
+          <button type="button" onClick={() => navigate('/matches', { replace: true })} aria-label="بازگشت به بازی‌ها" className="grid h-11 w-11 shrink-0 place-items-center rounded-2xl border border-white/[.07] bg-white/[.05] text-slate-300 transition active:scale-90"><ArrowRight size={20}/></button>
           <div className="min-w-0 flex-1 text-center"><h1 className="truncate text-sm font-black">{match.homeTeam} — {match.awayTeam}</h1><p className="mt-1 truncate text-[9px] text-slate-500">{match.competitionName}</p></div>
           <span className={cn('grid h-11 min-w-11 place-items-center rounded-2xl border px-2 text-[9px] font-black', match.status === 'live' ? 'border-rose-300/20 bg-rose-400/[.1] text-rose-300' : 'border-emerald-300/15 bg-emerald-300/[.07] text-emerald-300')}>{statusLabel(match.status)}</span>
         </div>
