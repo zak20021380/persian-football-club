@@ -9,6 +9,9 @@ export interface IClubPlayer {
   overall: number;
   photoUrl?: string;
   nationality?: string;
+  club?: string;
+  marketValue?: number;
+  contractStatus?: string;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -19,7 +22,10 @@ const schema = new Schema<IClubPlayer>({
   position: { type: String, enum: ['GK','RB','CB','LB','DM','CM','AM','RW','LW','ST'], required: true },
   overall: { type: Number, required: true, min: 1, max: 99, validate: Number.isInteger },
   photoUrl: { type: String, trim: true, maxlength: 500 },
-  nationality: { type: String, trim: true, maxlength: 60 }
+  nationality: { type: String, trim: true, maxlength: 60 },
+  club: { type: String, trim: true, maxlength: 80 },
+  marketValue: { type: Number, min: 0 },
+  contractStatus: { type: String, trim: true, maxlength: 80 }
 }, { timestamps: true });
 
 schema.index({ ownerId: 1, createdAt: 1 });

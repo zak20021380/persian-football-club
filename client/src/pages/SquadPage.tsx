@@ -1,6 +1,6 @@
-import { useEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent } from 'react';
+import { useEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent, type ReactNode } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { ArrowLeftRight, Check, CircleAlert, Edit3, Plus, RotateCcw, Save, Shirt, Sparkles, Trash2, UserRound, UsersRound, X } from 'lucide-react';
+import { ArrowLeft, ArrowLeftRight, BadgeDollarSign, BriefcaseBusiness, Building2, CalendarClock, Check, CircleAlert, Edit3, Eye, Flag, ListRestart, Plus, RotateCcw, Save, Shirt, Sparkles, Trash2, UserRound, UsersRound, X } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import { PageHeader } from '@/components/PageHeader';
@@ -328,6 +328,7 @@ export function SquadPage() {
       loading={false}
       onClose={() => setSelectedSlot(null)}
       onRemove={() => { replaceSlot(selectedSlot, null); setSelectedSlot(null); }}
+      onDelete={() => { replaceSlot(selectedSlot, null); setSelectedSlot(null); }}
       onReplace={player => { replaceSlot(selectedSlot, player); setSelectedSlot(null); }}
     />}
     {nameDialog && <NameDialog state={nameDialog} loading={customMutation.isPending} onChange={value => setNameDialog(current => current ? { ...current, value } : current)} onClose={() => setNameDialog(null)} onSubmit={submitNameDialog}/>}
@@ -339,13 +340,13 @@ function PitchSlot({ position, player, index, selected, dragging, dropTarget, dr
   onPointerDown: (event: ReactPointerEvent<HTMLButtonElement>) => void; onPointerMove: (event: ReactPointerEvent<HTMLButtonElement>) => void;
   onPointerUp: (event: ReactPointerEvent<HTMLButtonElement>) => void; onPointerCancel: (event: ReactPointerEvent<HTMLButtonElement>) => void; onClick: () => void;
 }) {
-  return <button type="button" onClick={onClick} onPointerDown={onPointerDown} onPointerMove={onPointerMove} onPointerUp={onPointerUp} onPointerCancel={onPointerCancel} aria-label={player ? `${player.name}، ${player.position}، امتیاز ${player.overall}` : `افزودن بازیکن به پست ${position.role}`} style={{ left: `${position.x}%`, top: `${position.y}%`, zIndex: dragging ? 40 : dropTarget ? 30 : 10, animationDelay: `${index * 22}ms` }} className={cn('lineup-player absolute flex w-[56px] -translate-x-1/2 -translate-y-1/2 touch-none flex-col items-center text-center transition-[left,top,transform,filter] duration-300 min-[390px]:w-[62px]', dragging && 'scale-110 cursor-grabbing drop-shadow-[0_16px_14px_rgba(0,0,0,.48)]', selected && !dragging && 'scale-105')}>
+  return <button type="button" onClick={onClick} onPointerDown={onPointerDown} onPointerMove={onPointerMove} onPointerUp={onPointerUp} onPointerCancel={onPointerCancel} aria-label={player ? `${player.name}، ${player.position}` : `افزودن بازیکن به پست ${position.role}`} style={{ left: `${position.x}%`, top: `${position.y}%`, zIndex: dragging ? 40 : dropTarget ? 30 : 10, animationDelay: `${index * 22}ms` }} className={cn('lineup-player absolute flex w-[56px] -translate-x-1/2 -translate-y-1/2 touch-none flex-col items-center text-center transition-[left,top,transform,filter] duration-300 min-[390px]:w-[62px]', dragging && 'scale-110 cursor-grabbing drop-shadow-[0_16px_14px_rgba(0,0,0,.48)]', selected && !dragging && 'scale-105')}>
     {dropTarget && <span className={cn('pointer-events-none absolute -inset-2 -z-10 rounded-[1.35rem] border-2 border-dashed animate-pulse', dropValid ? 'border-emerald-200 bg-emerald-300/15' : 'border-rose-200 bg-rose-300/15')}/>}
     {player ? <>
       <span className={cn('relative rounded-[1.1rem] border bg-gradient-to-b from-slate-800/95 to-ink-950/95 px-1.5 pb-1.5 pt-1 shadow-[0_8px_18px_rgba(0,0,0,.32)] backdrop-blur transition', dragging ? 'border-emerald-200/70 shadow-[0_18px_32px_rgba(0,0,0,.42)]' : 'border-white/20')}>
         <PlayerAvatar player={player} className="mx-auto h-9 w-9 min-[390px]:h-10 min-[390px]:w-10"/>
         <span className="mt-1 flex items-center justify-center gap-1"><i className="h-1.5 w-1.5 rounded-full bg-emerald-400 shadow-[0_0_7px_rgba(52,211,153,.8)]"/><strong className="max-w-[40px] truncate text-[7px] leading-none text-white min-[390px]:max-w-[46px]">{shortName(player.name)}</strong></span>
-        <span className="mt-1 flex items-center justify-center gap-1 text-[6px] font-bold text-slate-400"><b className="text-emerald-200">{position.role}</b><span>·</span><span>{faNumber(player.overall)}</span></span>
+        <span className="mt-1 text-[6px] font-bold text-emerald-200">{position.role}</span>
       </span>
     </> : <span className={cn('flex min-h-[58px] w-[50px] flex-col items-center justify-center rounded-[1.1rem] border border-dashed bg-ink-950/35 text-white/75 shadow-[0_8px_18px_rgba(0,0,0,.16)] backdrop-blur-sm transition min-[390px]:w-[54px]', selected ? 'border-amber-300 text-amber-300' : 'border-white/35', dropTarget && 'border-emerald-100 bg-emerald-950/50')}><span className="grid h-7 w-7 place-items-center rounded-full bg-white/[.07]"><Plus size={14}/></span><strong className="mt-1 text-[6px]">افزودن بازیکن</strong><span className="mt-0.5 text-[6px] font-black text-emerald-100/75">{position.role}</span></span>}
   </button>;
@@ -364,24 +365,89 @@ function BenchPlayer({ player }: { player: DisplayPlayer }) {
   return <div className="min-w-0 rounded-2xl border border-white/[.05] bg-white/[.03] p-2 text-center"><PlayerAvatar player={player} className="mx-auto h-9 w-9"/><strong className="mt-1.5 block truncate text-[8px]">{shortName(player.name)}</strong><span className="mt-0.5 block text-[7px] text-slate-500">{player.position}</span></div>;
 }
 
-function PlayerSheet({ slotRole, player, substitutes, loading, onClose, onRemove, onReplace }: { slotRole: string; player: DisplayPlayer|null; substitutes: DisplayPlayer[]; loading: boolean; onClose: () => void; onRemove: () => void; onReplace: (player: DisplayPlayer) => void }) {
+function PlayerSheet({ slotRole, player, substitutes, loading, onClose, onRemove, onDelete, onReplace }: { slotRole: string; player: DisplayPlayer|null; substitutes: DisplayPlayer[]; loading: boolean; onClose: () => void; onRemove: () => void; onDelete: () => void; onReplace: (player: DisplayPlayer) => void }) {
   const [showReplacements, setShowReplacements] = useState(!player);
-  return <div className="fixed inset-0 z-[90] flex items-end bg-black/75 backdrop-blur-sm" role="dialog" aria-modal="true" aria-label={player ? `جزئیات ${player.name}` : `افزودن بازیکن به ${slotRole}`} onMouseDown={event => { if (event.target === event.currentTarget) onClose(); }}>
-    <div className="safe-bottom squad-sheet max-h-[78vh] w-full overflow-y-auto rounded-t-[2rem] border-t border-white/10 bg-ink-900 p-4">
-      <div className="mx-auto max-w-xl">
-        <div className="mx-auto mb-3 h-1 w-10 rounded-full bg-white/15"/>
-        <div className="flex items-start gap-3">
-          {player ? <PlayerAvatar player={player} className="h-12 w-12"/> : <span className="grid h-12 w-12 shrink-0 place-items-center rounded-full bg-emerald-400/[.1] text-emerald-300"><Plus size={22}/></span>}
-          <div className="min-w-0 flex-1"><p className="text-[8px] font-bold text-emerald-300">پست {slotRole}</p><h2 className="mt-1 truncate text-base font-black">{player?.name || 'افزودن بازیکن'}</h2>{player && <p className="mt-1 text-[9px] text-slate-500">{player.position} · امتیاز کلی {faNumber(player.overall)}{player.nationality ? ` · ${player.nationality}` : ''}</p>}</div>
-          <button type="button" disabled={loading} onClick={onClose} className="grid h-10 w-10 shrink-0 place-items-center rounded-2xl bg-white/[.05] text-slate-400"><X size={18}/></button>
+  const [dragOffset, setDragOffset] = useState(0);
+  const [swiping, setSwiping] = useState(false);
+  const swipeRef = useRef<{ pointerId: number; startY: number; startedAt: number }|null>(null);
+
+  useEffect(() => {
+    const closeOnEscape = (event: KeyboardEvent) => { if (event.key === 'Escape') onClose(); };
+    window.addEventListener('keydown', closeOnEscape);
+    return () => window.removeEventListener('keydown', closeOnEscape);
+  }, [onClose]);
+
+  const startSwipe = (event: ReactPointerEvent<HTMLDivElement>) => {
+    if (loading) return;
+    event.currentTarget.setPointerCapture(event.pointerId);
+    swipeRef.current = { pointerId: event.pointerId, startY: event.clientY, startedAt: Date.now() };
+    setSwiping(true);
+  };
+  const moveSwipe = (event: ReactPointerEvent<HTMLDivElement>) => {
+    const gesture = swipeRef.current;
+    if (!gesture || gesture.pointerId !== event.pointerId) return;
+    event.preventDefault();
+    setDragOffset(Math.max(0, event.clientY - gesture.startY));
+  };
+  const endSwipe = (event: ReactPointerEvent<HTMLDivElement>, cancelled = false) => {
+    const gesture = swipeRef.current;
+    if (!gesture || gesture.pointerId !== event.pointerId) return;
+    if (event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId);
+    const distance = Math.max(0, event.clientY - gesture.startY);
+    const velocity = distance / Math.max(1, Date.now() - gesture.startedAt);
+    swipeRef.current = null;
+    setSwiping(false);
+    if (!cancelled && (distance > 82 || velocity > .55)) onClose();
+    else setDragOffset(0);
+  };
+
+  return <div className="squad-backdrop fixed inset-0 z-[90] flex items-end bg-black/70 backdrop-blur-[7px]" role="dialog" aria-modal="true" aria-label={player ? `پنل ${player.name}` : `افزودن بازیکن به ${slotRole}`} onMouseDown={event => { if (event.target === event.currentTarget) onClose(); }}>
+    <div style={{ transform: `translateY(${dragOffset}px)` }} className={cn('safe-bottom squad-sheet h-[62dvh] min-h-[360px] max-h-[680px] w-full overflow-hidden rounded-t-[2rem] border-t border-emerald-200/[.12] bg-[linear-gradient(180deg,#0d1c2f_0%,#091625_100%)] shadow-[0_-24px_70px_rgba(0,0,0,.48)]', swiping ? 'transition-none' : 'transition-transform duration-300 ease-out')}>
+      <div onPointerDown={startSwipe} onPointerMove={moveSwipe} onPointerUp={event => endSwipe(event)} onPointerCancel={event => endSwipe(event, true)} className="relative flex h-12 touch-none cursor-grab items-center justify-center active:cursor-grabbing">
+        <span className="h-1.5 w-14 rounded-full bg-gradient-to-r from-white/10 via-white/35 to-white/10 shadow-[0_1px_8px_rgba(255,255,255,.08)]"/>
+        <button type="button" disabled={loading} onClick={onClose} aria-label="بستن پنل" className="absolute left-4 top-2 grid h-9 w-9 place-items-center rounded-full border border-white/[.06] bg-white/[.05] text-slate-400 transition active:scale-95"><X size={17}/></button>
+      </div>
+
+      <div className="h-[calc(100%-3rem)] overflow-y-auto overscroll-contain px-4 pb-5 scrollbar-none">
+        <div className="mx-auto max-w-xl">
+          {player ? <>
+            <section className="relative overflow-hidden rounded-[1.6rem] border border-white/[.07] bg-white/[.035] p-4">
+              <div className="pointer-events-none absolute -left-10 -top-12 h-36 w-36 rounded-full bg-emerald-400/[.08] blur-3xl"/>
+              <div className="relative flex items-center gap-3.5">
+                <div className="relative shrink-0"><PlayerAvatar player={player} className="h-[76px] w-[76px] border-2 border-emerald-200/35 shadow-[0_12px_28px_rgba(0,0,0,.35)]"/><span className="absolute bottom-0.5 right-0.5 h-3.5 w-3.5 rounded-full border-[3px] border-ink-900 bg-emerald-400 shadow-[0_0_12px_rgba(52,211,153,.55)]"/></div>
+                <div className="min-w-0 flex-1"><span className="inline-flex items-center gap-1 rounded-full border border-emerald-300/15 bg-emerald-400/[.08] px-2 py-1 text-[8px] font-bold text-emerald-200"><Shirt size={10}/>ترکیب اصلی</span><h2 className="mt-2 truncate text-lg font-black tracking-tight">{player.name}</h2><div className="mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-[9px] text-slate-400"><span className="flex items-center gap-1"><Building2 size={12}/>{player.club || 'باشگاه ثبت نشده'}</span><span className="text-white/15">•</span><span className="flex items-center gap-1"><Flag size={12}/>{player.nationality || 'ملیت ثبت نشده'}</span></div></div>
+              </div>
+            </section>
+
+            <section className="mt-3 grid grid-cols-2 gap-2" aria-label="اطلاعات بازیکن">
+              <PlayerInfoCard icon={<Shirt size={16}/>} label="پست اصلی" value={positionLabel(player.position)}/>
+              <PlayerInfoCard icon={<BadgeDollarSign size={16}/>} label="ارزش بازیکن" value={formatMarketValue(player.marketValue)}/>
+              <PlayerInfoCard icon={<CalendarClock size={16}/>} label="وضعیت قرارداد" value={player.contractStatus || 'ثبت نشده'}/>
+              <PlayerInfoCard icon={<BriefcaseBusiness size={16}/>} label="حضور در ترکیب" value={`جایگاه ${slotRole}`}/>
+            </section>
+
+            <section className="mt-5" aria-label="عملیات بازیکن">
+              <div className="mb-2.5 flex items-center justify-between"><div><p className="text-[8px] font-bold text-emerald-300">مدیریت بازیکن</p><h3 className="mt-0.5 text-xs font-black">عملیات در دسترس</h3></div><span className="text-[7px] text-slate-500">برای تغییر ترکیب انتخاب کن</span></div>
+              <button type="button" disabled={!substitutes.length || loading} onClick={() => setShowReplacements(value => !value)} className="flex min-h-12 w-full items-center justify-between rounded-2xl bg-gradient-to-l from-emerald-400 to-emerald-500 px-4 text-[10px] font-black text-ink-950 shadow-[0_12px_30px_rgba(16,185,129,.18)] transition active:scale-[.985] disabled:opacity-40"><span className="flex items-center gap-2"><ArrowLeftRight size={17}/>تعویض بازیکن</span><ArrowLeft size={15}/></button>
+              <div className="mt-2 grid grid-cols-2 gap-2">
+                <button type="button" disabled={loading} onClick={onRemove} className="flex min-h-11 items-center justify-center gap-2 rounded-2xl border border-white/[.07] bg-white/[.045] text-[9px] font-bold text-slate-200 transition active:scale-[.98]"><ListRestart size={15} className="text-sky-300"/>انتقال به نیمکت</button>
+                <Link to={`/club/players?player=${player._id}`} className="flex min-h-11 items-center justify-center gap-2 rounded-2xl border border-white/[.07] bg-white/[.045] text-[9px] font-bold text-slate-200 transition active:scale-[.98]"><Eye size={15} className="text-violet-300"/>مشاهده جزئیات</Link>
+              </div>
+              <div className="mt-3 border-t border-white/[.06] pt-3"><button type="button" disabled={loading} onClick={() => { if (confirm(`«${player.name}» از ترکیب خارج شود؟`)) onDelete(); }} className="flex min-h-10 w-full items-center justify-center gap-2 rounded-2xl border border-rose-300/10 bg-rose-400/[.055] text-[9px] font-bold text-rose-300 transition active:scale-[.985]"><Trash2 size={14}/>حذف از ترکیب</button></div>
+            </section>
+          </> : <section className="rounded-[1.6rem] border border-white/[.07] bg-white/[.035] p-4 text-center"><span className="mx-auto grid h-16 w-16 place-items-center rounded-full border border-dashed border-emerald-300/25 bg-emerald-400/[.08] text-emerald-300"><Plus size={25}/></span><p className="mt-3 text-[8px] font-bold text-emerald-300">جایگاه {slotRole}</p><h2 className="mt-1 text-base font-black">افزودن بازیکن</h2><p className="mt-1.5 text-[9px] leading-5 text-slate-500">یکی از بازیکنان نیمکت را برای این جایگاه انتخاب کن.</p></section>}
+
+          {showReplacements && <section className="mt-5 pb-2"><div className="mb-2.5 flex items-center justify-between"><h3 className="text-xs font-black">بازیکنان قابل انتخاب</h3><span className="rounded-full bg-white/[.045] px-2 py-1 text-[8px] text-slate-500">{faNumber(substitutes.length)} ذخیره</span></div>
+            {substitutes.length ? <div className="grid grid-cols-2 gap-2">{substitutes.map(substitute => <button type="button" key={substitute._id} disabled={loading} onClick={() => onReplace(substitute)} className="flex min-h-16 min-w-0 items-center gap-2 rounded-2xl border border-white/[.06] bg-white/[.035] p-2.5 text-right transition active:scale-[.98] active:bg-emerald-400/[.08]"><PlayerAvatar player={substitute} className="h-10 w-10"/><span className="min-w-0 flex-1"><strong className="block truncate text-[9px]">{substitute.name}</strong><span className="mt-1 block text-[7px] text-slate-500">{positionLabel(substitute.position)}{substitute.club ? ` · ${substitute.club}` : ''}</span></span></button>)}</div> : <div className="rounded-2xl border border-dashed border-white/[.07] bg-white/[.02] p-4 text-center"><p className="text-[9px] text-slate-500">بازیکن ذخیره‌ای برای این جایگاه وجود ندارد.</p><Link to="/club/transfer-market" className="btn-secondary mt-3 min-h-9 px-4 py-2 text-[8px]">رفتن به بازار بازیکنان</Link></div>}
+          </section>}
         </div>
-        {player && <div className="mt-4 grid grid-cols-2 gap-2"><button type="button" disabled={!substitutes.length || loading} onClick={() => setShowReplacements(true)} className="btn-secondary min-h-10 py-2 text-[9px]"><ArrowLeftRight size={15}/>تعویض بازیکن</button><button type="button" disabled={loading} onClick={onRemove} className="btn-secondary min-h-10 border-rose-300/10 py-2 text-[9px] text-rose-300"><Trash2 size={15}/>حذف از ترکیب</button></div>}
-        {showReplacements && <div className="mt-5"><div className="mb-2.5 flex items-center justify-between"><h3 className="text-xs font-black">بازیکنان قابل انتخاب</h3><span className="text-[8px] text-slate-500">{faNumber(substitutes.length)} ذخیره</span></div>
-          {substitutes.length ? <div className="grid grid-cols-2 gap-2">{substitutes.map(substitute => <button type="button" key={substitute._id} disabled={loading} onClick={() => onReplace(substitute)} className="flex min-h-14 min-w-0 items-center gap-2 rounded-2xl bg-white/[.035] p-2 text-right transition active:scale-[.98] active:bg-emerald-400/[.08]"><PlayerAvatar player={substitute} className="h-9 w-9"/><span className="min-w-0 flex-1"><strong className="block truncate text-[9px]">{substitute.name}</strong><span className="mt-1 block text-[7px] text-slate-500">{substitute.position} · {faNumber(substitute.overall)}</span></span></button>)}</div> : <div className="rounded-2xl bg-white/[.025] p-4 text-center"><p className="text-[9px] text-slate-500">بازیکن ذخیره‌ای برای این جایگاه وجود ندارد.</p><Link to="/club/transfer-market" className="btn-secondary mt-3 min-h-9 px-4 py-2 text-[8px]">رفتن به بازار بازیکنان</Link></div>}
-        </div>}
       </div>
     </div>
   </div>;
+}
+
+function PlayerInfoCard({ icon, label, value }: { icon: ReactNode; label: string; value: string }) {
+  return <div className="rounded-2xl border border-white/[.06] bg-white/[.035] p-3"><span className="grid h-8 w-8 place-items-center rounded-xl bg-emerald-400/[.08] text-emerald-300">{icon}</span><span className="mt-2 block text-[7px] font-medium text-slate-500">{label}</span><strong className="mt-1 block truncate text-[9px] font-extrabold text-slate-100">{value}</strong></div>;
 }
 
 function NameDialog({ state, loading, onChange, onClose, onSubmit }: { state: { mode: 'create'|'rename'; value: string }; loading: boolean; onChange: (value: string) => void; onClose: () => void; onSubmit: () => void }) {
@@ -448,5 +514,10 @@ function pixelDistance(first: Pick<SquadPosition, 'x'|'y'>, second: Pick<SquadPo
 function clonePositions(positions: SquadPosition[]): SquadPosition[] { return positions.map(position => ({ ...position })); }
 function uniquePlayers(players: DisplayPlayer[]) { return players.filter((player, index) => players.findIndex(item => item._id === player._id) === index); }
 function shortName(name: string) { const parts = name.trim().split(/\s+/); return parts.at(-1) || name; }
+function positionLabel(position: ClubPlayer['position']) {
+  const labels: Record<ClubPlayer['position'], string> = { GK: 'دروازه‌بان', RB: 'مدافع راست', CB: 'مدافع میانی', LB: 'مدافع چپ', DM: 'هافبک دفاعی', CM: 'هافبک میانی', AM: 'هافبک هجومی', RW: 'وینگر راست', LW: 'وینگر چپ', ST: 'مهاجم' };
+  return `${labels[position]} · ${position}`;
+}
+function formatMarketValue(value?: number) { return value === undefined ? 'ثبت نشده' : `${faNumber(value)} سکه`; }
 function clamp(value: number, min: number, max: number) { return Math.min(max, Math.max(min, value)); }
 function roundCoordinate(value: number) { return Math.round(value * 10) / 10; }
