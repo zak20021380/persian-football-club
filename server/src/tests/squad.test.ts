@@ -2,9 +2,10 @@ import mongoose from 'mongoose';
 import { describe, expect, it } from 'vitest';
 import { ClubPlayer, Squad } from '../models/index.js';
 import { reassignSquadSlot } from '../services/squad.js';
+import { validateSquadPositions } from '../services/squad.js';
 
 describe('squad validation', () => {
-  it.each(['4-3-3','4-4-2','4-2-3-1'])('accepts formation %s', formation => {
+  it.each(['4-3-3','4-4-2','4-2-3-1','3-5-2','3-4-3','5-3-2','4-1-4-1','custom'])('accepts formation %s', formation => {
     const squad = new Squad({ userId: new mongoose.Types.ObjectId(), formation, starterIds: Array.from({ length: 11 }, () => null) });
     expect(squad.validateSync()).toBeUndefined();
   });
@@ -43,5 +44,16 @@ describe('squad validation', () => {
     const result = reassignSquadSlot(starters, [], 2, null);
     expect(result.starters[2]).toBeNull();
     expect(result.substitutes).toEqual([starter]);
+  });
+
+  it('accepts eleven separated custom positions', () => {
+    const positions = Array.from({ length: 11 }, (_, index) => ({ role: index ? 'CM' : 'GK', x: 10 + (index % 4) * 26, y: 10 + Math.floor(index / 4) * 38 }));
+    expect(validateSquadPositions(positions)).toBeNull();
+  });
+
+  it('rejects overlapping custom positions', () => {
+    const positions = Array.from({ length: 11 }, (_, index) => ({ role: index ? 'CM' : 'GK', x: 10 + (index % 4) * 26, y: 10 + Math.floor(index / 4) * 38 }));
+    positions[5] = { ...positions[4] };
+    expect(validateSquadPositions(positions)).toContain('روی هم');
   });
 });

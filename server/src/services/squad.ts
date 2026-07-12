@@ -1,5 +1,24 @@
 import type { Types } from 'mongoose';
 
+export interface SquadPosition { role: string; x: number; y: number }
+
+export function validateSquadPositions(positions: SquadPosition[]): string|null {
+  if (positions.length !== 11) return 'آرایش باید دقیقاً ۱۱ جایگاه داشته باشد.';
+  for (const position of positions) {
+    if (!Number.isFinite(position.x) || !Number.isFinite(position.y) || position.x < 5 || position.x > 95 || position.y < 5 || position.y > 95) {
+      return 'همه جایگاه‌ها باید داخل محدوده زمین باشند.';
+    }
+  }
+  for (let first = 0; first < positions.length; first += 1) {
+    for (let second = first + 1; second < positions.length; second += 1) {
+      const dx = positions[first].x - positions[second].x;
+      const dy = (positions[first].y - positions[second].y) * 1.45;
+      if (Math.hypot(dx, dy) < 11) return 'فاصله جایگاه‌ها کافی نیست؛ بازیکن‌ها نباید روی هم قرار بگیرند.';
+    }
+  }
+  return null;
+}
+
 export function reassignSquadSlot(
   starters: Array<Types.ObjectId|null>,
   substitutes: Types.ObjectId[],
