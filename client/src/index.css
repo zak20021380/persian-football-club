@@ -24,6 +24,7 @@ button { touch-action: manipulation; }
 .home-hero { background: linear-gradient(155deg,rgba(9,31,36,.98),rgba(7,17,31,.98) 58%,rgba(8,23,37,.98)); }
 .home-hero-grid { background-image: linear-gradient(rgba(255,255,255,.022) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,.022) 1px,transparent 1px); background-size: 24px 24px; -webkit-mask-image: linear-gradient(to bottom,#000,transparent 92%); mask-image: linear-gradient(to bottom,#000,transparent 92%); }
 .featured-match { background-image: radial-gradient(circle at 50% 58%,rgba(16,185,129,.07),transparent 35%),linear-gradient(145deg,rgba(15,31,49,.98),rgba(9,21,37,.98)); }
+.home-cup-card { animation: home-cup-in .5s cubic-bezier(.22,1,.36,1) both; }
 .quiz-banner { box-shadow: inset 0 1px rgba(255,255,255,.04),0 16px 35px rgba(0,0,0,.18); }
 .ranking-hero { background: linear-gradient(155deg,rgba(8,29,34,.98),rgba(7,17,31,.99) 58%,rgba(15,24,38,.98)); }
 .matches-hero { background: linear-gradient(155deg,rgba(7,28,38,.99),rgba(7,17,31,.99) 58%,rgba(10,25,39,.98)); }
@@ -44,6 +45,7 @@ button { touch-action: manipulation; }
 .fun-sheet { animation: fun-sheet-in .38s cubic-bezier(.22,1,.36,1) both; }
 .fun-like[aria-pressed="true"] svg { animation: fun-heart .35s cubic-bezier(.22,1,.36,1); }
 @keyframes profile-rise { from { opacity: 0; transform: translateY(14px); } to { opacity: 1; transform: translateY(0); } }
+@keyframes home-cup-in { from { opacity: 0; transform: translateY(10px) scale(.99); } to { opacity: 1; transform: translateY(0) scale(1); } }
 @keyframes matches-glow { from { opacity: .6; transform: translate(-8px,-6px) scale(.92); } to { opacity: 1; transform: translate(10px,8px) scale(1.08); } }
 @keyframes match-card-in { from { opacity: 0; transform: translateY(10px) scale(.99); } to { opacity: 1; transform: translateY(0) scale(1); } }
 @keyframes match-panel-in { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: translateY(0); } }
@@ -54,7 +56,7 @@ button { touch-action: manipulation; }
 @keyframes fun-orbit { from { opacity: .65; transform: translate(-8px,-5px) scale(.92); } to { opacity: 1; transform: translate(12px,8px) scale(1.08); } }
 @keyframes fun-heart { 0% { transform: scale(.7); } 65% { transform: scale(1.22) rotate(-8deg); } 100% { transform: scale(1); } }
 @media (prefers-reduced-motion: reduce) {
-  .profile-animate,.profile-hero-glow,.fun-orb,.fun-card,.fun-sheet,.fun-like[aria-pressed="true"] svg,.matches-orb,.match-card,.match-panel-animate,.exact-score-reveal { animation: none; }
+  .profile-animate,.profile-hero-glow,.fun-orb,.fun-card,.fun-sheet,.fun-like[aria-pressed="true"] svg,.matches-orb,.match-card,.match-panel-animate,.exact-score-reveal,.home-cup-card { animation: none; }
   .referral-card { transition: none; }
 }
 @media (min-width: 640px) {

@@ -24,7 +24,7 @@ import { SponsorCard } from '@/components/SponsorCard';
 import { Card, EmptyState, ErrorState, PageSkeleton, SectionTitle } from '@/components/ui';
 import { api } from '@/lib/api';
 import { cn, faNumber, remaining, tehranDate } from '@/lib/utils';
-import type { HomeData, Match } from '@/types/api';
+import type { Competition, HomeData, Match } from '@/types/api';
 
 const quickActions = [
   { to: '/matches', label: 'پیش‌بینی', icon: Target, tone: 'bg-emerald-400/[.12] text-emerald-300' },
@@ -109,6 +109,30 @@ function FeaturedMatch({ match }: { match: Match }) {
   );
 }
 
+function CompetitionCard({ competition }: { competition: Competition }) {
+  return (
+    <Link to={`/competitions/${competition._id}`} className="home-cup-card block w-full overflow-hidden rounded-[1.75rem] border border-emerald-300/[.13] bg-ink-900/95 shadow-card transition duration-300 active:scale-[.99]">
+      <div className="relative min-h-[176px] overflow-hidden p-4">
+        {competition.coverImage ? <img src={competition.coverImage} alt="" className="absolute inset-0 h-full w-full object-cover opacity-45"/> : <><div className="absolute -left-10 inset-y-0 w-[58%] -skew-x-12 bg-gradient-to-br from-emerald-400/[.18] to-sky-400/[.045]"/><Trophy size={132} strokeWidth={1.2} className="absolute -left-2 -top-5 rotate-12 text-emerald-300/[.2]"/></>}
+        <div className="absolute inset-0 bg-gradient-to-t from-ink-950 via-ink-950/45 to-ink-950/10"/>
+        <div className="relative flex items-start justify-between gap-3">
+          <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-300 px-3 py-1.5 text-[9px] font-black text-ink-950"><span className="h-1.5 w-1.5 rounded-full bg-ink-950"/>جام فعال</span>
+          <span className="rounded-full border border-white/10 bg-black/25 px-3 py-1.5 text-[9px] font-bold text-white backdrop-blur">{remaining(competition.endsAt)}</span>
+        </div>
+        <div className="relative mt-12 max-w-[78%]">
+          <p className="text-[9px] font-black text-emerald-300">رقابت ویژه باشگاه</p>
+          <h3 className="mt-1.5 line-clamp-2 text-lg font-black leading-7 text-white">{competition.title}</h3>
+        </div>
+      </div>
+      <div className="flex min-h-[58px] items-center gap-3 border-t border-white/[.06] px-4">
+        <span className="grid h-9 w-9 shrink-0 place-items-center rounded-2xl bg-amber-300/[.11] text-amber-300"><Trophy size={16}/></span>
+        <div className="min-w-0 flex-1"><span className="block text-[8px] text-slate-500">جایزه این رقابت</span><strong className="mt-0.5 block truncate text-[10px] text-slate-300">{competition.prize || 'امتیاز ویژه باشگاه'}</strong></div>
+        <span className="flex shrink-0 items-center gap-1 text-[10px] font-black text-emerald-300">ورود به جام <ArrowLeft size={16}/></span>
+      </div>
+    </Link>
+  );
+}
+
 export function HomePage() {
   const query = useQuery({ queryKey: ['home'], queryFn: async () => (await api.get<HomeData>('/home')).data, refetchInterval: 60_000 });
   if (query.isLoading) return <PageSkeleton/>;
@@ -188,21 +212,7 @@ export function HomePage() {
         {data.competitions.length > 0 && (
           <section>
             <SectionTitle title="جام‌های فعال" action="مشاهده همه" to="/competitions"/>
-            <div className="-mx-4 flex snap-x gap-3 overflow-x-auto px-4 pb-1 scrollbar-none">
-              {data.competitions.map((competition) => (
-                <Link key={competition._id} to={`/competitions/${competition._id}`} className="surface min-w-[82%] snap-center overflow-hidden p-0 sm:min-w-[68%]">
-                  <div className="relative h-36 overflow-hidden bg-gradient-to-br from-emerald-500/20 via-blue-500/10 to-ink-900">
-                    {competition.coverImage ? <img src={competition.coverImage} alt="" className="h-full w-full object-cover opacity-65"/> : <BrandMark className="absolute -left-5 -top-6 h-40 w-40 rotate-12 text-white/[.06]"/>}
-                    <div className="absolute inset-0 bg-gradient-to-t from-ink-950 via-ink-950/25 to-transparent"/>
-                    <div className="absolute inset-x-0 bottom-0 p-4">
-                      <span className="inline-flex rounded-full bg-emerald-300 px-2.5 py-1 text-[9px] font-black text-ink-950">{remaining(competition.endsAt)}</span>
-                      <h3 className="mt-2 text-base font-black">{competition.title}</h3>
-                    </div>
-                  </div>
-                  <div className="flex min-h-12 items-center justify-between px-4 text-[11px] text-slate-400"><span className="flex items-center gap-1.5"><Trophy size={14} className="text-amber-300"/>{competition.prize || 'رقابت برای امتیاز'}</span><ArrowLeft size={17} className="text-emerald-300"/></div>
-                </Link>
-              ))}
-            </div>
+            <div className="space-y-3">{data.competitions.map((competition) => <CompetitionCard key={competition._id} competition={competition}/>)}</div>
           </section>
         )}
 
