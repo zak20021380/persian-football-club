@@ -64,13 +64,13 @@ const demoPlayers: DisplayPlayer[] = [
 ];
 
 const demoSubstitutes: DisplayPlayer[] = [
-  { _id: 'demo-sub-1', name: 'آراد نیک‌فر', position: 'GK', overall: 77, nationality: 'ایران', club: 'تیم آینده', contractStatus: 'آماده', demoIndex: 11 },
-  { _id: 'demo-sub-2', name: 'بردیا فرهمند', position: 'CB', overall: 79, nationality: 'ایران', club: 'تیم آینده', contractStatus: 'آماده', demoIndex: 3 },
-  { _id: 'demo-sub-3', name: 'سام رستگار', position: 'LB', overall: 78, nationality: 'ایران', club: 'تیم آینده', contractStatus: 'آماده', demoIndex: 1 },
-  { _id: 'demo-sub-4', name: 'مانی یزدان‌پناه', position: 'DM', overall: 80, nationality: 'ایران', club: 'تیم آینده', contractStatus: 'آماده', demoIndex: 5 },
-  { _id: 'demo-sub-5', name: 'پارسا کیانی', position: 'AM', overall: 82, nationality: 'ایران', club: 'تیم آینده', contractStatus: 'آماده', demoIndex: 6 },
-  { _id: 'demo-sub-6', name: 'رادین مهرآور', position: 'RW', overall: 81, nationality: 'ایران', club: 'تیم آینده', contractStatus: 'آماده', demoIndex: 10 },
-  { _id: 'demo-sub-7', name: 'آریا شایگان', position: 'ST', overall: 83, nationality: 'ایران', club: 'تیم آینده', contractStatus: 'آماده', demoIndex: 9 },
+  { _id: 'demo-sub-1', name: 'آراد نیک‌فر', position: 'GK', overall: 77, nationality: 'ایران', club: 'تیم آینده', contractStatus: 'آماده', marketValue: 420, demoIndex: 11 },
+  { _id: 'demo-sub-2', name: 'بردیا فرهمند', position: 'CB', overall: 79, nationality: 'ایران', club: 'تیم آینده', contractStatus: 'آماده', marketValue: 510, demoIndex: 3 },
+  { _id: 'demo-sub-3', name: 'سام رستگار', position: 'LB', overall: 78, nationality: 'ایران', club: 'تیم آینده', contractStatus: 'آماده', marketValue: 465, demoIndex: 1 },
+  { _id: 'demo-sub-4', name: 'مانی یزدان‌پناه', position: 'DM', overall: 80, nationality: 'ایران', club: 'تیم آینده', contractStatus: 'آماده', marketValue: 580, demoIndex: 5 },
+  { _id: 'demo-sub-5', name: 'پارسا کیانی', position: 'AM', overall: 82, nationality: 'ایران', club: 'تیم آینده', contractStatus: 'آماده', marketValue: 640, demoIndex: 6 },
+  { _id: 'demo-sub-6', name: 'رادین مهرآور', position: 'RW', overall: 81, nationality: 'ایران', club: 'تیم آینده', contractStatus: 'آماده', marketValue: 610, demoIndex: 10 },
+  { _id: 'demo-sub-7', name: 'آریا شایگان', position: 'ST', overall: 83, nationality: 'ایران', club: 'تیم آینده', contractStatus: 'آماده', marketValue: 720, demoIndex: 9 },
 ];
 
 const DRAFT_KEY = 'persian-football-club:squad-draft:v2';
@@ -93,6 +93,7 @@ export function SquadPage() {
   const [draft, setDraft] = useState<LineupDraft|null>(null);
   const [dirty, setDirty] = useState(false);
   const [selectedSlot, setSelectedSlot] = useState<number|null>(null);
+  const [selectedBenchPlayer, setSelectedBenchPlayer] = useState<DisplayPlayer|null>(null);
   const [drag, setDrag] = useState<DragState|null>(null);
   const squad = useQuery({ queryKey: ['clubSquad'], queryFn: async () => (await api.get<SquadData>('/club/squad')).data });
   const demoMode = Boolean(squad.data && squad.data.starters.every(player => !player) && squad.data.substitutes.length === 0);
@@ -263,7 +264,13 @@ export function SquadPage() {
 
   const openSlot = useCallback((index: number) => {
     if (suppressClickRef.current) return;
+    setSelectedBenchPlayer(null);
     setSelectedSlot(index);
+  }, []);
+
+  const openBenchPlayer = useCallback((player: DisplayPlayer) => {
+    setSelectedSlot(null);
+    setSelectedBenchPlayer(player);
   }, []);
 
   useEffect(() => {
@@ -417,7 +424,7 @@ export function SquadPage() {
 
       <section className="mt-4">
         <div className="mb-2.5 flex items-end justify-between"><div><div className="flex items-center gap-2"><UsersRound size={16} className="text-pitch-300"/><h2 className="text-xs font-black">بازیکنان ذخیره</h2></div><p className="mt-1 text-[7px] text-slate-500">نیمکت آماده برای تغییر جریان مسابقه</p></div><span className="rounded-full border border-emerald-300/10 bg-emerald-400/[.07] px-2 py-1 text-[7px] font-bold text-emerald-200">{faNumber(Math.min(draft.substitutes.length, 7))} بازیکن</span></div>
-        {draft.substitutes.length ? <div className="-mx-3 flex snap-x snap-mandatory gap-2.5 overflow-x-auto px-3 pb-2 scrollbar-none">{draft.substitutes.slice(0, 7).map((player, index) => <BenchPlayer key={player._id} player={player} index={index}/>)}</div> : <Card className="flex min-h-20 items-center gap-3 border-dashed p-3"><span className="grid h-10 w-10 shrink-0 place-items-center rounded-2xl bg-white/[.04] text-slate-500"><UserRound size={18}/></span><div className="min-w-0 flex-1"><h3 className="text-[10px] font-black">نیمکت خالی است</h3><p className="mt-1 text-[8px] text-slate-500">از بازار بازیکن جدید به باشگاه اضافه کن.</p></div><Link to="/club/transfer-market" className="flex min-h-9 shrink-0 items-center rounded-xl bg-white/[.05] px-2.5 text-[8px] font-bold text-slate-300">بازار</Link></Card>}
+        {draft.substitutes.length ? <div className="-mx-3 flex snap-x snap-mandatory gap-2 overflow-x-auto px-3 pb-1.5 scrollbar-none">{draft.substitutes.slice(0, 7).map((player, index) => <BenchPlayer key={player._id} player={player} index={index} onClick={() => openBenchPlayer(player)}/>)}</div> : <Card className="flex min-h-20 items-center gap-3 border-dashed p-3"><span className="grid h-10 w-10 shrink-0 place-items-center rounded-2xl bg-white/[.04] text-slate-500"><UserRound size={18}/></span><div className="min-w-0 flex-1"><h3 className="text-[10px] font-black">نیمکت خالی است</h3><p className="mt-1 text-[8px] text-slate-500">از بازار بازیکن جدید به باشگاه اضافه کن.</p></div><Link to="/club/transfer-market" className="flex min-h-9 shrink-0 items-center rounded-xl bg-white/[.05] px-2.5 text-[8px] font-bold text-slate-300">بازار</Link></Card>}
       </section>
     </main>
 
@@ -430,6 +437,17 @@ export function SquadPage() {
       onRemove={() => { replaceSlot(selectedSlot, null); setSelectedSlot(null); }}
       onDelete={() => { replaceSlot(selectedSlot, null); setSelectedSlot(null); }}
       onReplace={player => { replaceSlot(selectedSlot, player); setSelectedSlot(null); }}
+    />}
+
+    {selectedBenchPlayer && selectedSlot === null && <PlayerSheet
+      slotRole={selectedBenchPlayer.position}
+      player={selectedBenchPlayer}
+      substitutes={draft.substitutes.filter(player => player._id !== selectedBenchPlayer._id)}
+      loading={false}
+      onClose={() => setSelectedBenchPlayer(null)}
+      onRemove={() => setSelectedBenchPlayer(null)}
+      onDelete={() => setSelectedBenchPlayer(null)}
+      onReplace={_player => setSelectedBenchPlayer(null)}
     />}
   </div>;
 }
@@ -461,17 +479,14 @@ function PlayerAvatar({ player, className }: { player: DisplayPlayer; className?
   return <span className={cn('grid shrink-0 place-items-center overflow-hidden rounded-full border border-white/20 bg-ink-850', className)}>{player.photoUrl ? <img src={player.photoUrl} alt="" draggable={false} className="h-full w-full object-cover"/> : <span className="text-[10px] font-black text-pitch-300">{player.name.slice(0, 1)}</span>}</span>;
 }
 
-const BenchPlayer = memo(function BenchPlayer({ player, index }: { player: DisplayPlayer; index: number }) {
-  const accent = ['from-emerald-400/15', 'from-sky-400/15', 'from-violet-400/15'][index % 3];
-  return <article className={cn('relative min-w-[126px] snap-start overflow-hidden rounded-[1.4rem] border border-white/[.07] bg-gradient-to-b to-ink-900/95 p-3 shadow-[0_9px_22px_rgba(0,0,0,.18)]', accent)}>
-    <span className="absolute -left-5 -top-7 h-16 w-16 rounded-full bg-white/[.035] blur-sm"/>
-    <div className="relative flex items-start justify-between">
-      <PlayerAvatar player={player} className="h-11 w-11 shadow-[0_6px_16px_rgba(0,0,0,.25)]"/>
-      <span className="rounded-xl border border-white/[.07] bg-black/20 px-2 py-1 text-center"><strong className="block text-[11px] font-black text-emerald-200">{faNumber(player.overall)}</strong><small className="block text-[5px] font-bold text-slate-500">قدرت</small></span>
-    </div>
-    <strong className="relative mt-2.5 block truncate text-[9px] font-black text-white">{player.name}</strong>
-    <div className="relative mt-2 flex items-center justify-between border-t border-white/[.055] pt-2"><span className="rounded-lg bg-white/[.045] px-2 py-1 text-[7px] font-black text-slate-300">{player.position}</span><span className="flex items-center gap-1 text-[6px] font-bold text-emerald-300"><i className="h-1.5 w-1.5 rounded-full bg-emerald-400 shadow-[0_0_7px_rgba(52,211,153,.7)]"/>آماده</span></div>
-  </article>;
+const BenchPlayer = memo(function BenchPlayer({ player, index, onClick }: { player: DisplayPlayer; index: number; onClick: () => void }) {
+  const accent = ['from-emerald-400/10', 'from-sky-400/10', 'from-violet-400/10'][index % 3];
+  return <button type="button" onClick={onClick} aria-label={`${player.name}، ${player.position}، ${formatMarketValue(player.marketValue)}`} className={cn('relative shrink-0 grow-0 basis-[calc((100%-1.5rem)/3.35)] snap-start overflow-hidden rounded-2xl border border-white/[.06] bg-gradient-to-b to-ink-900/90 p-2 text-center shadow-[0_5px_12px_rgba(0,0,0,.12)] transition active:scale-[.98]', accent)}>
+    <PlayerAvatar player={player} className="mx-auto h-[34px] w-[34px] shadow-[0_3px_8px_rgba(0,0,0,.2)]"/>
+    <strong className="mt-1.5 block truncate text-[8px] font-black leading-tight text-white">{shortName(player.name)}</strong>
+    <span className="mt-0.5 block truncate text-[6px] font-bold text-slate-400">{player.position}</span>
+    <span className="mt-1 block truncate text-[6px] font-bold text-emerald-300/90">{formatMarketValue(player.marketValue)}</span>
+  </button>;
 });
 
 function PlayerSheet({ slotRole, player, substitutes, loading, onClose, onRemove, onDelete, onReplace }: { slotRole: string; player: DisplayPlayer|null; substitutes: DisplayPlayer[]; loading: boolean; onClose: () => void; onRemove: () => void; onDelete: () => void; onReplace: (player: DisplayPlayer) => void }) {
