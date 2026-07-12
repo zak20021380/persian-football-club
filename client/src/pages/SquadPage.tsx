@@ -581,18 +581,35 @@ function FloatingDragPlayer({ drag }: { drag: DragState }) {
 
 function PlayerSheet({ slotRole, player, substitutes, loading, onClose, onRemove, onDelete, onReplace }: { slotRole: string; player: DisplayPlayer|null; substitutes: DisplayPlayer[]; loading: boolean; onClose: () => void; onRemove: () => void; onDelete: () => void; onReplace: (player: DisplayPlayer) => void }) {
   const [showReplacements, setShowReplacements] = useState(!player);
+  const [closing, setClosing] = useState(false);
+  const closingRef = useRef(false);
   const sheetRef = useRef<HTMLDivElement|null>(null);
   const swipeFrameRef = useRef<number|null>(null);
   const swipeRef = useRef<{ pointerId: number; startY: number; clientY: number; startedAt: number }|null>(null);
+  const closeTimerRef = useRef<number|null>(null);
+
+  const requestClose = useCallback(() => {
+    if (closingRef.current) return;
+    closingRef.current = true;
+    setClosing(true);
+    if (sheetRef.current) {
+      sheetRef.current.style.transition = '';
+      sheetRef.current.style.transform = '';
+    }
+    closeTimerRef.current = window.setTimeout(onClose, 220);
+  }, [onClose]);
 
   useEffect(() => {
-    const closeOnEscape = (event: KeyboardEvent) => { if (event.key === 'Escape') onClose(); };
+    const unlockPage = lockModalPageScrolling();
+    const closeOnEscape = (event: KeyboardEvent) => { if (event.key === 'Escape') requestClose(); };
     window.addEventListener('keydown', closeOnEscape);
     return () => {
+      unlockPage();
       window.removeEventListener('keydown', closeOnEscape);
       if (swipeFrameRef.current !== null) window.cancelAnimationFrame(swipeFrameRef.current);
+      if (closeTimerRef.current !== null) window.clearTimeout(closeTimerRef.current);
     };
-  }, [onClose]);
+  }, [requestClose]);
 
   const renderSheetSwipe = () => {
     swipeFrameRef.current = null;
@@ -621,60 +638,58 @@ function PlayerSheet({ slotRole, player, substitutes, loading, onClose, onRemove
     const distance = Math.max(0, event.clientY - gesture.startY);
     const velocity = distance / Math.max(1, Date.now() - gesture.startedAt);
     swipeRef.current = null;
-    if (!cancelled && (distance > 82 || velocity > .55)) onClose();
+    if (!cancelled && (distance > 82 || velocity > .55)) requestClose();
     else if (sheetRef.current) {
       sheetRef.current.style.transition = 'transform 300ms cubic-bezier(.22,1,.36,1)';
       sheetRef.current.style.transform = 'translate3d(0, 0, 0)';
     }
   };
 
-  return <div className="squad-backdrop fixed inset-0 z-[90] flex items-end bg-black/80" role="dialog" aria-modal="true" aria-label={player ? `پنل ${player.name}` : `افزودن بازیکن به ${slotRole}`} onMouseDown={event => { if (event.target === event.currentTarget) onClose(); }}>
-    <div ref={sheetRef} className="safe-bottom squad-sheet h-[62dvh] min-h-[360px] max-h-[680px] w-full overflow-hidden rounded-t-[2rem] border-t border-emerald-200/[.12] bg-[linear-gradient(180deg,#0d1c2f_0%,#091625_100%)] shadow-[0_-14px_36px_rgba(0,0,0,.4)]">
-      <div onPointerDown={startSwipe} onPointerMove={moveSwipe} onPointerUp={event => endSwipe(event)} onPointerCancel={event => endSwipe(event, true)} className="relative flex h-12 touch-none cursor-grab items-center justify-center active:cursor-grabbing">
-        <span className="h-1.5 w-14 rounded-full bg-gradient-to-r from-white/10 via-white/35 to-white/10 shadow-[0_1px_8px_rgba(255,255,255,.08)]"/>
-        <button type="button" disabled={loading} onClick={onClose} aria-label="بستن پنل" className="absolute left-4 top-2 grid h-9 w-9 place-items-center rounded-full border border-white/[.06] bg-white/[.05] text-slate-400 transition active:scale-95"><X size={17}/></button>
+  return createPortal(<div className={cn('player-modal-backdrop fixed inset-0 z-[100] h-[100dvh] overflow-hidden bg-black/85', closing && 'is-closing')} role="dialog" aria-modal="true" aria-label={player ? `پنل ${player.name}` : `افزودن بازیکن به ${slotRole}`}>
+    <div ref={sheetRef} className={cn('player-modal-panel flex h-[100dvh] w-full flex-col overflow-hidden bg-[linear-gradient(180deg,#0d1c2f_0%,#071321_100%)]', closing && 'is-closing')}>
+      <div onPointerDown={startSwipe} onPointerMove={moveSwipe} onPointerUp={event => endSwipe(event)} onPointerCancel={event => endSwipe(event, true)} className="player-modal-top safe-top relative flex h-[50px] shrink-0 touch-none cursor-grab items-end justify-center pb-2 active:cursor-grabbing">
+        <span className="h-1 w-12 rounded-full bg-gradient-to-r from-white/10 via-white/35 to-white/10"/>
+        <button type="button" disabled={loading || closing} onClick={requestClose} aria-label="بستن پنل" className="absolute left-3 bottom-1 grid h-9 w-9 place-items-center rounded-full border border-white/[.07] bg-white/[.06] text-slate-300 transition active:scale-95"><X size={17}/></button>
       </div>
 
-      <div className="momentum-scroll h-[calc(100%-3rem)] overflow-y-auto overscroll-contain px-4 pb-5 scrollbar-none">
-        <div className="mx-auto max-w-xl">
-          {player ? <>
-            <section className="relative overflow-hidden rounded-[1.6rem] border border-white/[.07] bg-white/[.035] p-4">
-              <div className="pointer-events-none absolute -left-10 -top-12 h-36 w-36 rounded-full bg-emerald-400/[.08] blur-3xl"/>
-              <div className="relative flex items-center gap-3.5">
-                <div className="relative shrink-0"><PlayerAvatar player={player} className="h-[76px] w-[76px] border-2 border-emerald-200/35 shadow-[0_12px_28px_rgba(0,0,0,.35)]"/><span className="absolute bottom-0.5 right-0.5 h-3.5 w-3.5 rounded-full border-[3px] border-ink-900 bg-emerald-400 shadow-[0_0_12px_rgba(52,211,153,.55)]"/></div>
-                <div className="min-w-0 flex-1"><span className="inline-flex items-center gap-1 rounded-full border border-emerald-300/15 bg-emerald-400/[.08] px-2 py-1 text-[8px] font-bold text-emerald-200"><Shirt size={10}/>ترکیب اصلی</span><h2 className="mt-2 truncate text-lg font-black tracking-tight">{player.name}</h2><div className="mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-[9px] text-slate-400"><span className="flex items-center gap-1"><Building2 size={12}/>{player.club || 'باشگاه ثبت نشده'}</span><span className="text-white/15">•</span><span className="flex items-center gap-1"><Flag size={12}/>{player.nationality || 'ملیت ثبت نشده'}</span></div></div>
-              </div>
-            </section>
+      <div className="player-modal-content mx-auto flex min-h-0 w-full max-w-xl flex-1 flex-col overflow-hidden px-3 pb-[max(10px,var(--safe-bottom))]">
+        {player ? <>
+          <section className="player-modal-hero relative shrink-0 overflow-hidden rounded-[1.25rem] border border-white/[.07] bg-white/[.035] p-2.5">
+            <div className="pointer-events-none absolute -left-8 -top-10 h-28 w-28 rounded-full bg-emerald-400/[.08] blur-3xl"/>
+            <div className="relative flex items-center gap-2.5">
+              <div className="relative shrink-0"><PlayerAvatar player={player} className="player-modal-avatar h-14 w-14 border-2 border-emerald-200/35 shadow-[0_8px_20px_rgba(0,0,0,.32)]"/><span className="absolute bottom-0 right-0 h-3 w-3 rounded-full border-[2px] border-ink-900 bg-emerald-400"/></div>
+              <div className="min-w-0 flex-1"><span className="inline-flex items-center gap-1 rounded-full border border-emerald-300/15 bg-emerald-400/[.08] px-2 py-0.5 text-[7px] font-bold text-emerald-200"><Shirt size={9}/>ترکیب اصلی</span><h2 className="mt-1 truncate text-[15px] font-black tracking-tight">{player.name}</h2><div className="mt-1 flex min-w-0 items-center gap-1.5 text-[7px] text-slate-400"><span className="flex min-w-0 items-center gap-1 truncate"><Building2 size={10} className="shrink-0"/>{player.club || 'باشگاه ثبت نشده'}</span><span className="text-white/15">•</span><span className="flex shrink-0 items-center gap-1"><Flag size={10}/>{player.nationality || 'ملیت ثبت نشده'}</span></div></div>
+            </div>
+          </section>
 
-            <section className="mt-3 grid grid-cols-2 gap-2" aria-label="اطلاعات بازیکن">
-              <PlayerInfoCard icon={<Shirt size={16}/>} label="پست اصلی" value={positionLabel(player.position)}/>
-              <PlayerInfoCard icon={<BadgeDollarSign size={16}/>} label="ارزش بازیکن" value={formatMarketValue(player.marketValue)}/>
-              <PlayerInfoCard icon={<CalendarClock size={16}/>} label="وضعیت قرارداد" value={player.contractStatus || 'ثبت نشده'}/>
-              <PlayerInfoCard icon={<BriefcaseBusiness size={16}/>} label="حضور در ترکیب" value={`جایگاه ${slotRole}`}/>
-            </section>
+          <section className="player-modal-info mt-2 grid shrink-0 grid-cols-2 gap-1.5" aria-label="اطلاعات بازیکن">
+            <PlayerInfoCard icon={<Shirt size={14}/>} label="پست اصلی" value={positionLabel(player.position)}/>
+            <PlayerInfoCard icon={<BadgeDollarSign size={14}/>} label="ارزش بازیکن" value={formatMarketValue(player.marketValue)}/>
+            <PlayerInfoCard icon={<CalendarClock size={14}/>} label="وضعیت قرارداد" value={player.contractStatus || 'ثبت نشده'}/>
+            <PlayerInfoCard icon={<BriefcaseBusiness size={14}/>} label="حضور در ترکیب" value={`جایگاه ${slotRole}`}/>
+          </section>
+        </> : <section className="player-modal-empty shrink-0 rounded-[1.25rem] border border-white/[.07] bg-white/[.035] p-3 text-center"><span className="mx-auto grid h-12 w-12 place-items-center rounded-full border border-dashed border-emerald-300/25 bg-emerald-400/[.08] text-emerald-300"><Plus size={20}/></span><p className="mt-1.5 text-[7px] font-bold text-emerald-300">جایگاه {slotRole}</p><h2 className="mt-0.5 text-sm font-black">افزودن بازیکن</h2><p className="mt-1 text-[8px] text-slate-500">یکی از بازیکنان نیمکت را انتخاب کن.</p></section>}
 
-            <section className="mt-5" aria-label="عملیات بازیکن">
-              <div className="mb-2.5 flex items-center justify-between"><div><p className="text-[8px] font-bold text-emerald-300">مدیریت بازیکن</p><h3 className="mt-0.5 text-xs font-black">عملیات در دسترس</h3></div><span className="text-[7px] text-slate-500">برای تغییر ترکیب انتخاب کن</span></div>
-              <button type="button" disabled={!substitutes.length || loading} onClick={() => setShowReplacements(value => !value)} className="flex min-h-12 w-full items-center justify-between rounded-2xl bg-gradient-to-l from-emerald-400 to-emerald-500 px-4 text-[10px] font-black text-ink-950 shadow-[0_12px_30px_rgba(16,185,129,.18)] transition active:scale-[.985] disabled:opacity-40"><span className="flex items-center gap-2"><ArrowLeftRight size={17}/>تعویض بازیکن</span><ArrowLeft size={15}/></button>
-              <div className="mt-2 grid grid-cols-2 gap-2">
-                <button type="button" disabled={loading} onClick={onRemove} className="flex min-h-11 items-center justify-center gap-2 rounded-2xl border border-white/[.07] bg-white/[.045] text-[9px] font-bold text-slate-200 transition active:scale-[.98]"><ListRestart size={15} className="text-sky-300"/>انتقال به نیمکت</button>
-                <Link to={`/club/players?player=${player._id}`} className="flex min-h-11 items-center justify-center gap-2 rounded-2xl border border-white/[.07] bg-white/[.045] text-[9px] font-bold text-slate-200 transition active:scale-[.98]"><Eye size={15} className="text-violet-300"/>مشاهده جزئیات</Link>
-              </div>
-              <div className="mt-3 border-t border-white/[.06] pt-3"><button type="button" disabled={loading} onClick={() => { if (confirm(`«${player.name}» از ترکیب خارج شود؟`)) onDelete(); }} className="flex min-h-10 w-full items-center justify-center gap-2 rounded-2xl border border-rose-300/10 bg-rose-400/[.055] text-[9px] font-bold text-rose-300 transition active:scale-[.985]"><Trash2 size={14}/>حذف از ترکیب</button></div>
-            </section>
-          </> : <section className="rounded-[1.6rem] border border-white/[.07] bg-white/[.035] p-4 text-center"><span className="mx-auto grid h-16 w-16 place-items-center rounded-full border border-dashed border-emerald-300/25 bg-emerald-400/[.08] text-emerald-300"><Plus size={25}/></span><p className="mt-3 text-[8px] font-bold text-emerald-300">جایگاه {slotRole}</p><h2 className="mt-1 text-base font-black">افزودن بازیکن</h2><p className="mt-1.5 text-[9px] leading-5 text-slate-500">یکی از بازیکنان نیمکت را برای این جایگاه انتخاب کن.</p></section>}
+        {showReplacements && <section className="player-modal-replacements mt-2 min-h-0 shrink-0"><div className="mb-1.5 flex items-center justify-between"><h3 className="text-[9px] font-black">بازیکنان قابل انتخاب</h3><span className="rounded-full bg-white/[.045] px-2 py-0.5 text-[7px] text-slate-500">{faNumber(substitutes.length)} ذخیره</span></div>
+          {substitutes.length ? <div className="grid h-[96px] grid-flow-col grid-rows-2 auto-cols-[138px] gap-1.5 overflow-x-auto overflow-y-hidden pb-1 scrollbar-none">{substitutes.map(substitute => <button type="button" key={substitute._id} disabled={loading} onClick={() => onReplace(substitute)} className="flex min-h-0 min-w-0 items-center gap-1.5 rounded-xl border border-white/[.06] bg-white/[.035] p-1.5 text-right transition active:scale-[.98] active:bg-emerald-400/[.08]"><PlayerAvatar player={substitute} className="h-8 w-8"/><span className="min-w-0 flex-1"><strong className="block truncate text-[7px]">{substitute.name}</strong><span className="mt-0.5 block truncate text-[6px] text-slate-500">{positionLabel(substitute.position)}</span></span></button>)}</div> : <div className="flex h-[82px] items-center justify-center rounded-xl border border-dashed border-white/[.07] bg-white/[.02] text-center"><div><p className="text-[7px] text-slate-500">بازیکن ذخیره‌ای وجود ندارد.</p><Link to="/club/transfer-market" className="mt-1.5 inline-flex min-h-7 items-center rounded-lg bg-white/[.05] px-3 text-[7px]">رفتن به بازار</Link></div></div>}
+        </section>}
 
-          {showReplacements && <section className="mt-5 pb-2"><div className="mb-2.5 flex items-center justify-between"><h3 className="text-xs font-black">بازیکنان قابل انتخاب</h3><span className="rounded-full bg-white/[.045] px-2 py-1 text-[8px] text-slate-500">{faNumber(substitutes.length)} ذخیره</span></div>
-            {substitutes.length ? <div className="grid grid-cols-2 gap-2">{substitutes.map(substitute => <button type="button" key={substitute._id} disabled={loading} onClick={() => onReplace(substitute)} className="flex min-h-16 min-w-0 items-center gap-2 rounded-2xl border border-white/[.06] bg-white/[.035] p-2.5 text-right transition active:scale-[.98] active:bg-emerald-400/[.08]"><PlayerAvatar player={substitute} className="h-10 w-10"/><span className="min-w-0 flex-1"><strong className="block truncate text-[9px]">{substitute.name}</strong><span className="mt-1 block text-[7px] text-slate-500">{positionLabel(substitute.position)}{substitute.club ? ` · ${substitute.club}` : ''}</span></span></button>)}</div> : <div className="rounded-2xl border border-dashed border-white/[.07] bg-white/[.02] p-4 text-center"><p className="text-[9px] text-slate-500">بازیکن ذخیره‌ای برای این جایگاه وجود ندارد.</p><Link to="/club/transfer-market" className="btn-secondary mt-3 min-h-9 px-4 py-2 text-[8px]">رفتن به بازار بازیکنان</Link></div>}
-          </section>}
-        </div>
+        {player && <section className="player-modal-actions mt-auto shrink-0 pt-2" aria-label="عملیات بازیکن">
+          <div className="mb-1.5 flex items-center justify-between"><h3 className="text-[9px] font-black">مدیریت بازیکن</h3><span className="text-[6px] text-slate-500">عملیات در دسترس</span></div>
+          <button type="button" disabled={!substitutes.length || loading} onClick={() => setShowReplacements(value => !value)} className="flex min-h-10 w-full items-center justify-between rounded-xl bg-gradient-to-l from-emerald-400 to-emerald-500 px-3 text-[9px] font-black text-ink-950 shadow-[0_8px_22px_rgba(16,185,129,.16)] transition active:scale-[.985] disabled:opacity-40"><span className="flex items-center gap-1.5"><ArrowLeftRight size={15}/>{showReplacements ? 'بستن فهرست تعویض' : 'تعویض بازیکن'}</span><ArrowLeft size={13}/></button>
+          <div className="mt-1.5 grid grid-cols-2 gap-1.5">
+            <button type="button" disabled={loading} onClick={onRemove} className="flex min-h-9 items-center justify-center gap-1.5 rounded-xl border border-white/[.07] bg-white/[.045] text-[8px] font-bold text-slate-200 transition active:scale-[.98]"><ListRestart size={13} className="text-sky-300"/>انتقال به نیمکت</button>
+            <Link to={`/club/players?player=${player._id}`} className="flex min-h-9 items-center justify-center gap-1.5 rounded-xl border border-white/[.07] bg-white/[.045] text-[8px] font-bold text-slate-200 transition active:scale-[.98]"><Eye size={13} className="text-violet-300"/>مشاهده جزئیات</Link>
+          </div>
+          <button type="button" disabled={loading} onClick={() => { if (confirm(`«${player.name}» از ترکیب خارج شود؟`)) onDelete(); }} className="mt-1.5 flex min-h-9 w-full items-center justify-center gap-1.5 rounded-xl border border-rose-300/10 bg-rose-400/[.055] text-[8px] font-bold text-rose-300 transition active:scale-[.985]"><Trash2 size={13}/>حذف از ترکیب</button>
+        </section>}
       </div>
     </div>
-  </div>;
+  </div>, document.body);
 }
 
 function PlayerInfoCard({ icon, label, value }: { icon: ReactNode; label: string; value: string }) {
-  return <div className="rounded-2xl border border-white/[.06] bg-white/[.035] p-3"><span className="grid h-8 w-8 place-items-center rounded-xl bg-emerald-400/[.08] text-emerald-300">{icon}</span><span className="mt-2 block text-[7px] font-medium text-slate-500">{label}</span><strong className="mt-1 block truncate text-[9px] font-extrabold text-slate-100">{value}</strong></div>;
+  return <div className="player-modal-info-card flex min-h-[48px] items-center gap-2 rounded-xl border border-white/[.06] bg-white/[.035] p-2"><span className="grid h-7 w-7 shrink-0 place-items-center rounded-lg bg-emerald-400/[.08] text-emerald-300">{icon}</span><span className="min-w-0 flex-1"><span className="block text-[6px] font-medium text-slate-500">{label}</span><strong className="mt-0.5 block truncate text-[7px] font-extrabold text-slate-100">{value}</strong></span></div>;
 }
 
 function draftFromData(data: SquadData): LineupDraft {
@@ -824,6 +839,32 @@ function formatMarketValue(value?: number) { return value === undefined ? 'ثب�
 function clamp(value: number, min: number, max: number) { return Math.min(max, Math.max(min, value)); }
 function roundCoordinate(value: number) { return Math.round(value * 10) / 10; }
 function preventActiveTouchScroll(event: TouchEvent) { if (event.cancelable) event.preventDefault(); }
+
+function lockModalPageScrolling(): () => void {
+  const root = document.documentElement;
+  const body = document.body;
+  const scrollX = window.scrollX;
+  const scrollY = window.scrollY;
+  const rootStyles = captureInlineStyles(root, ['overflow', 'overscrollBehavior']);
+  const bodyStyles = captureInlineStyles(body, ['overflow', 'overscrollBehavior', 'position', 'top', 'left', 'right', 'width']);
+  root.style.overflow = 'hidden';
+  root.style.overscrollBehavior = 'none';
+  body.style.overflow = 'hidden';
+  body.style.overscrollBehavior = 'none';
+  body.style.position = 'fixed';
+  body.style.top = `${-scrollY}px`;
+  body.style.left = `${-scrollX}px`;
+  body.style.right = '0';
+  body.style.width = '100%';
+  let restored = false;
+  return () => {
+    if (restored) return;
+    restored = true;
+    restoreInlineStyles(root, rootStyles);
+    restoreInlineStyles(body, bodyStyles);
+    window.scrollTo(scrollX, scrollY);
+  };
+}
 
 function lockDragScrolling(player: HTMLElement, pitch: HTMLElement): () => void {
   const root = document.documentElement;
