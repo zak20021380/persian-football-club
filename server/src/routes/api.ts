@@ -95,8 +95,18 @@ router.get('/home', asyncHandler(async (req, res) => {
     prediction: homePredictionMap.get(String(match._id)) ?? null,
     predictionOpen: isPredictionOpen({ status: match.status, predictionDeadline: new Date(match.predictionDeadline), kickoffAt: new Date(match.kickoffAt) })
   }));
+  const featuredCompetition = competitions[0];
+  let activeCompetition: Record<string, unknown> | null = null;
+  if (featuredCompetition) {
+    const entry = await CompetitionEntry.findOne({ userId: user._id, competitionId: featuredCompetition._id }).sort({ score: -1, durationMs: 1 }).lean();
+    const rank = entry ? await CompetitionEntry.countDocuments({ competitionId: featuredCompetition._id, $or: [{ score: { $gt: entry.score } }, { score: entry.score, durationMs: { $lt: entry.durationMs } }] }).then((count) => count + 1) : null;
+    activeCompetition = { ...featuredCompetition, rank, attempted: Boolean(entry) };
+  }
   res.json({
-    user: { firstName: user.firstName, points: user.points, weeklyRank, streak: user.streak },
+    user: { firstName: user.firstName, points: user.points, coinBalance: user.coinBalance ?? 0, weeklyRank, streak: user.streak },
+    club: null,
+    transferStatus: { activeListings: 0, receivedOffers: 0, expiringOffers: 0 },
+    activeCompetition,
     matches: matchesWithPredictions, competitions, dailyQuiz, leaders, rewards, sponsor: sponsorView, predictionsCount
   });
 }));

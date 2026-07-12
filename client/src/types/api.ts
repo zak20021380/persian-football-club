@@ -10,7 +10,9 @@ export interface Quiz { _id: Id; title: string; description?: string; questionId
 export interface Competition { _id: Id; title: string; coverImage?: string; description: string; type: string; startsAt: string; endsAt: string; prize?: string; status: string; questionIds?: Question[]; attemptLimit: number; attempts?: Array<{score:number; correctCount:number}>; }
 export interface Reward { _id: Id; title: string; description: string; image?: string; type: string; pointsRequired?: number; rankRequired?: number; endsAt: string; eligible: boolean; }
 export interface Sponsor { _id: Id; name: string; logo?: string; promotionalText: string; ctaText: string; clickUrl: string; }
-export interface HomeData { user: { firstName: string; points: number; weeklyRank: number; streak: number }; matches: Match[]; competitions: Competition[]; dailyQuiz: Quiz|null; leaders: User[]; rewards: Reward[]; sponsor: Sponsor|null; predictionsCount: number; }
+export interface HomeClubSummary { name: string; logo?: string; squadValue: number; formation: string; playerCount: number; newOfferCount: number; }
+export interface HomeCompetitionSummary extends Competition { rank: number|null; attempted: boolean; }
+export interface HomeData { user: { firstName: string; points: number; coinBalance: number; weeklyRank: number; streak: number }; club: HomeClubSummary|null; transferStatus: { activeListings: number; receivedOffers: number; expiringOffers: number }; activeCompetition: HomeCompetitionSummary|null; matches: Match[]; competitions: Competition[]; dailyQuiz: Quiz|null; leaders: User[]; rewards: Reward[]; sponsor: Sponsor|null; predictionsCount: number; }
 export interface FunPost { _id: Id; caption?: string; imageUrl?: string; likeCount: number; liked: boolean; isOwner: boolean; createdAt: string; owner: { _id: Id; firstName: string; lastName?: string; username?: string; photoUrl?: string }; }
 export interface FunFeedPage { items: FunPost[]; nextCursor: string|null; }
 export interface CoinPackage { _id: Id; title: string; coins: number; price: number; originalPrice?: number; badge?: string; active: boolean; sortOrder: number; }
