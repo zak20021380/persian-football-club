@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 96 112">
+  <path fill="#fff" d="M48 2 88 16v35c0 28-16 48-40 59C24 99 8 79 8 51V16L48 2Z"/>
+  <path fill="#1769d2" d="M48 7 83 19v32c0 24-13 42-35 53C26 93 13 75 13 51V19L48 7Z"/>
+  <circle cx="48" cy="52" r="23" fill="#fff"/>
+  <circle cx="48" cy="52" r="17" fill="#1769d2"/>
+  <path fill="#fff" d="m48 38 4.2 8.3 9.3 1.4-6.7 6.5 1.6 9.2-8.4-4.3-8.4 4.3 1.6-9.2-6.7-6.5 9.3-1.4L48 38Z"/>
+  <text x="48" y="84" fill="#fff" font-family="Arial,sans-serif" font-size="10" font-weight="700" text-anchor="middle">EST</text>
+</svg>

@@ -7,7 +7,7 @@
 * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
 html, body, #root { min-height: 100%; }
 html { background: #07111f; direction: rtl; }
-body { margin: 0; min-width: 320px; overflow-x: hidden; background: radial-gradient(circle at 85% -10%, rgba(16,185,129,.14), transparent 34%), radial-gradient(circle at 0 30%, rgba(59,130,246,.1), transparent 26%), #07111f; color: #f8fafc; font-family: Vazirmatn,Tahoma,Arial,sans-serif; }
+body { margin: 0; min-width: 320px; overflow-x: hidden; background: radial-gradient(circle at 85% -10%, rgba(16,185,129,.12), transparent 34%), radial-gradient(circle at 0 30%, rgba(59,130,246,.08), transparent 26%), #07111f; color: #f8fafc; font-family: Vazirmatn,Tahoma,Arial,sans-serif; }
 button, input, textarea, select { font: inherit; }
 button { touch-action: manipulation; }
 .safe-top { padding-top: max(14px, var(--safe-top)); }
@@ -15,6 +15,19 @@ button { touch-action: manipulation; }
 .pitch-grid { background-image: linear-gradient(rgba(255,255,255,.018) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,.018) 1px, transparent 1px); background-size: 30px 30px; }
 .scrollbar-none::-webkit-scrollbar { display: none; }
 .scrollbar-none { scrollbar-width: none; }
+.brand-mark { display: grid; place-items: center; flex: 0 0 auto; border: 1px solid rgba(110,231,183,.2); border-radius: 17px; background: linear-gradient(145deg,rgba(52,211,153,.18),rgba(16,185,129,.04)); color: #6ee7b7; box-shadow: inset 0 1px rgba(255,255,255,.08), 0 10px 28px rgba(0,0,0,.2); }
+.brand-mark svg { width: 76%; height: 76%; }
+.club-crest { position: relative; display: grid; flex: 0 0 auto; place-items: center; overflow: hidden; border-radius: 20px; filter: drop-shadow(0 10px 14px rgba(0,0,0,.28)); }
+.club-crest::after { content: ''; position: absolute; inset: 3px; pointer-events: none; border: 1px solid rgba(255,255,255,.12); border-radius: 17px; }
+.club-crest img { width: 100%; height: 100%; object-fit: contain; }
+.home-page { isolation: isolate; }
+.home-hero { background: linear-gradient(155deg,rgba(9,31,36,.98),rgba(7,17,31,.98) 58%,rgba(8,23,37,.98)); }
+.home-hero-grid { background-image: linear-gradient(rgba(255,255,255,.022) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,.022) 1px,transparent 1px); background-size: 24px 24px; -webkit-mask-image: linear-gradient(to bottom,#000,transparent 92%); mask-image: linear-gradient(to bottom,#000,transparent 92%); }
+.featured-match { background-image: radial-gradient(circle at 50% 58%,rgba(16,185,129,.07),transparent 35%),linear-gradient(145deg,rgba(15,31,49,.98),rgba(9,21,37,.98)); }
+.quiz-banner { box-shadow: inset 0 1px rgba(255,255,255,.04),0 16px 35px rgba(0,0,0,.18); }
+@media (min-width: 640px) {
+  .home-hero { border-radius: 0 0 2rem 2rem; }
+}
 @layer components {
   .surface { @apply rounded-3xl border border-white/10 bg-ink-900/90 shadow-card backdrop-blur; }
   .surface-soft { @apply rounded-2xl border border-white/10 bg-white/[.045]; }

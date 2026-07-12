@@ -84,9 +84,16 @@ router.get('/home', asyncHandler(async (req, res) => {
     await trackSponsorEvent(String(sponsor._id), user._id, 'impression', `home:${todayKey()}`);
     sponsorView = { ...sponsor, clickUrl: `/api/sponsors/${sponsor._id}/redirect?token=${encodeURIComponent(createSponsorRedirectToken(String(sponsor._id), String(user._id)))}` };
   }
+  const homePredictions = await Prediction.find({ userId: user._id, matchId: { $in: matches.map((match) => match._id) } }).lean();
+  const homePredictionMap = new Map(homePredictions.map((prediction) => [String(prediction.matchId), prediction]));
+  const matchesWithPredictions = matches.map((match) => ({
+    ...match,
+    prediction: homePredictionMap.get(String(match._id)) ?? null,
+    predictionOpen: isPredictionOpen({ status: match.status, predictionDeadline: new Date(match.predictionDeadline), kickoffAt: new Date(match.kickoffAt) })
+  }));
   res.json({
     user: { firstName: user.firstName, points: user.points, weeklyRank, streak: user.streak },
-    matches, competitions, dailyQuiz, leaders, rewards, sponsor: sponsorView, predictionsCount
+    matches: matchesWithPredictions, competitions, dailyQuiz, leaders, rewards, sponsor: sponsorView, predictionsCount
   });
 }));
 

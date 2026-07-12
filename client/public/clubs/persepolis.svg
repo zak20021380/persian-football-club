@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 96 112">
+  <path fill="#fff" d="M48 2 88 16v35c0 28-16 48-40 59C24 99 8 79 8 51V16L48 2Z"/>
+  <path fill="#d71920" d="M48 7 83 19v32c0 24-13 42-35 53C26 93 13 75 13 51V19L48 7Z"/>
+  <path fill="#fff" d="M27 30h42v8H27zm5 13h32l-4 27H36l-4-27Z"/>
+  <circle cx="48" cy="56" r="9" fill="#d71920"/>
+  <path fill="#fff" d="m48 50 5 4-2 6h-6l-2-6 5-4Z"/>
+  <path fill="#fff" d="M35 75h26v6H35z"/>
+  <text x="48" y="27" fill="#fff" font-family="Arial,sans-serif" font-size="10" font-weight="700" text-anchor="middle">PERS</text>
+</svg>
