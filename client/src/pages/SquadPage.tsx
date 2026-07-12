@@ -35,8 +35,10 @@ interface DragGesture {
   targetIndex: number|null;
   valid: boolean;
   active: boolean;
+  finishing: boolean;
   moved: boolean;
   element: HTMLButtonElement;
+  pitchRect: DOMRect|null;
   longPressTimer: number|null;
 }
 
@@ -75,6 +77,7 @@ export function SquadPage() {
   const dragRef = useRef<DragGesture|null>(null);
   const dragViewRef = useRef<DragState|null>(null);
   const dragFrameRef = useRef<number|null>(null);
+  const dragScrollCleanupRef = useRef<(() => void)|null>(null);
   const savePendingRef = useRef(false);
   const suppressClickRef = useRef(false);
   const [draft, setDraft] = useState<LineupDraft|null>(null);
@@ -99,7 +102,7 @@ export function SquadPage() {
     const pitch = pitchRef.current;
     if (!gesture?.active || !currentDraft || !pitch) return;
 
-    const rect = pitch.getBoundingClientRect();
+    const rect = gesture.pitchRect ?? pitch.getBoundingClientRect();
     const rawX = ((gesture.clientX - rect.left) / rect.width) * 100;
     const rawY = ((gesture.clientY - rect.top) / rect.height) * 100;
     gesture.x = clamp(rawX, 7, 93);
@@ -131,8 +134,12 @@ export function SquadPage() {
   const activateDrag = useCallback((pointerId: number) => {
     const gesture = dragRef.current;
     if (!gesture || gesture.pointerId !== pointerId || gesture.active) return;
+    const pitch = pitchRef.current;
+    if (!pitch) return;
+    gesture.pitchRect = pitch.getBoundingClientRect();
     gesture.active = true;
-    if (gesture.pointerType === 'touch') window.addEventListener('touchmove', preventActiveTouchScroll, { passive: false });
+    dragScrollCleanupRef.current?.();
+    dragScrollCleanupRef.current = lockDragScrolling(gesture.element, pitch);
     if (gesture.longPressTimer !== null) window.clearTimeout(gesture.longPressTimer);
     gesture.longPressTimer = null;
     const initialView = { index: gesture.index, targetIndex: gesture.index, valid: true };
@@ -149,7 +156,7 @@ export function SquadPage() {
     const gesture: DragGesture = {
       index, pointerId: event.pointerId, pointerType: event.pointerType, startX: event.clientX, startY: event.clientY,
       clientX: event.clientX, clientY: event.clientY, x: position.x, y: position.y, targetIndex: index,
-      valid: true, active: false, moved: false, element: event.currentTarget, longPressTimer: null,
+      valid: true, active: false, finishing: false, moved: false, element: event.currentTarget, pitchRect: null, longPressTimer: null,
     };
     gesture.longPressTimer = window.setTimeout(() => activateDrag(event.pointerId), LONG_PRESS_MS);
     dragRef.current = gesture;
@@ -157,7 +164,7 @@ export function SquadPage() {
 
   const moveDrag = useCallback((event: ReactPointerEvent<HTMLButtonElement>) => {
     const gesture = dragRef.current;
-    if (!gesture || event.pointerId !== gesture.pointerId) return;
+    if (!gesture || gesture.finishing || event.pointerId !== gesture.pointerId) return;
     gesture.clientX = event.clientX;
     gesture.clientY = event.clientY;
     const deltaX = event.clientX - gesture.startX;
@@ -182,7 +189,8 @@ export function SquadPage() {
 
   const finishDrag = useCallback((event: ReactPointerEvent<HTMLButtonElement>, cancelled = false) => {
     const gesture = dragRef.current;
-    if (!gesture || event.pointerId !== gesture.pointerId) return;
+    if (!gesture || gesture.finishing || event.pointerId !== gesture.pointerId) return;
+    gesture.finishing = true;
     if (gesture.longPressTimer !== null) window.clearTimeout(gesture.longPressTimer);
     if (event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId);
     if (dragFrameRef.current !== null) {
@@ -191,8 +199,9 @@ export function SquadPage() {
       renderDragFrame();
     }
     const wasActive = gesture.active;
-    if (gesture.pointerType === 'touch') window.removeEventListener('touchmove', preventActiveTouchScroll);
     gesture.element.style.transform = '';
+    dragScrollCleanupRef.current?.();
+    dragScrollCleanupRef.current = null;
     dragRef.current = null;
     dragViewRef.current = null;
     setDrag(null);
@@ -220,17 +229,53 @@ export function SquadPage() {
 
   const cancelDrag = useCallback((event: ReactPointerEvent<HTMLButtonElement>) => finishDrag(event, true), [finishDrag]);
 
+  const cancelInterruptedDrag = useCallback(() => {
+    const gesture = dragRef.current;
+    if (!gesture) {
+      dragScrollCleanupRef.current?.();
+      dragScrollCleanupRef.current = null;
+      return;
+    }
+    if (gesture.finishing) return;
+    gesture.finishing = true;
+    if (gesture.longPressTimer !== null) window.clearTimeout(gesture.longPressTimer);
+    if (gesture.element.hasPointerCapture(gesture.pointerId)) gesture.element.releasePointerCapture(gesture.pointerId);
+    gesture.element.style.transform = '';
+    if (dragFrameRef.current !== null) {
+      window.cancelAnimationFrame(dragFrameRef.current);
+      dragFrameRef.current = null;
+    }
+    dragScrollCleanupRef.current?.();
+    dragScrollCleanupRef.current = null;
+    dragRef.current = null;
+    dragViewRef.current = null;
+    setDrag(null);
+  }, []);
+
   const openSlot = useCallback((index: number) => {
     if (suppressClickRef.current) return;
     setSelectedSlot(index);
   }, []);
 
-  useEffect(() => () => {
-    const gesture = dragRef.current;
-    if (gesture && gesture.longPressTimer !== null) window.clearTimeout(gesture.longPressTimer);
-    window.removeEventListener('touchmove', preventActiveTouchScroll);
-    if (dragFrameRef.current !== null) window.cancelAnimationFrame(dragFrameRef.current);
-  }, []);
+  useEffect(() => {
+    const cancelWhenHidden = () => { if (document.visibilityState === 'hidden') cancelInterruptedDrag(); };
+    window.addEventListener('blur', cancelInterruptedDrag);
+    window.addEventListener('pagehide', cancelInterruptedDrag);
+    document.addEventListener('visibilitychange', cancelWhenHidden);
+    return () => {
+      window.removeEventListener('blur', cancelInterruptedDrag);
+      window.removeEventListener('pagehide', cancelInterruptedDrag);
+      document.removeEventListener('visibilitychange', cancelWhenHidden);
+      const gesture = dragRef.current;
+      if (gesture?.longPressTimer !== null && gesture?.longPressTimer !== undefined) window.clearTimeout(gesture.longPressTimer);
+      if (gesture) gesture.element.style.transform = '';
+      if (dragFrameRef.current !== null) window.cancelAnimationFrame(dragFrameRef.current);
+      dragScrollCleanupRef.current?.();
+      dragScrollCleanupRef.current = null;
+      dragRef.current = null;
+      dragViewRef.current = null;
+    };
+  }, [cancelInterruptedDrag]);
 
   useEffect(() => {
     if (!squad.data || draft) return;
@@ -376,7 +421,7 @@ export function SquadPage() {
         <div className="grid grid-cols-4 gap-1.5 rounded-[1.25rem] bg-white/[.025] p-1.5">{formationOptions.map(option => { const active = draft.formation === option.value; return <button type="button" key={option.value} aria-pressed={active} onClick={() => chooseFormation(option.value)} className={cn('min-h-9 min-w-0 rounded-xl px-1 text-[8px] font-black transition active:scale-95', active ? 'bg-pitch-400 text-ink-950 shadow-[0_7px_20px_rgba(16,185,129,.16)]' : 'text-slate-500 hover:bg-white/[.035]', option.value === 'custom' && 'leading-3')}>{option.label}</button>; })}</div>
       </section>
 
-      <section ref={pitchRef} className={cn('lineup-pitch relative mx-auto aspect-[0.648] w-full max-w-[430px] select-none overflow-hidden rounded-[1.75rem] border bg-[#09603f] shadow-[0_10px_28px_rgba(0,0,0,.26)]', drag ? drag.valid ? 'border-emerald-200/50' : 'border-rose-300/70' : 'border-emerald-200/[.16]')} dir="ltr" aria-label="زمین چیدمان بازیکنان">
+      <section ref={pitchRef} className={cn('lineup-pitch relative mx-auto aspect-[0.648] w-full max-w-[430px] select-none overflow-hidden rounded-[1.75rem] border bg-[#09603f] shadow-[0_10px_28px_rgba(0,0,0,.26)]', drag && 'is-dragging', drag ? drag.valid ? 'border-emerald-200/50' : 'border-rose-300/70' : 'border-emerald-200/[.16]')} dir="ltr" aria-label="زمین چیدمان بازیکنان">
         <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_45%,rgba(255,255,255,.07),transparent_38%),repeating-linear-gradient(90deg,rgba(255,255,255,.028)_0,rgba(255,255,255,.028)_12.5%,transparent_12.5%,transparent_25%)]"/>
         <div className="absolute inset-3 rounded-[1.25rem] border border-white/25"/>
         <div className="absolute inset-x-3 top-1/2 border-t border-white/25"/>
@@ -397,6 +442,7 @@ export function SquadPage() {
           onPointerMove={moveDrag}
           onPointerUp={finishDrag}
           onPointerCancel={cancelDrag}
+          onLostPointerCapture={cancelDrag}
           onClick={openSlot}
         />)}
         {drag && <div className={cn('pointer-events-none absolute left-1/2 top-3 z-30 -translate-x-1/2 rounded-full border px-2.5 py-1 text-[7px] font-black', drag.valid ? 'border-emerald-200/30 bg-emerald-950/95 text-emerald-100' : 'border-rose-200/30 bg-rose-950/95 text-rose-100')}>{drag.valid ? drag.targetIndex !== null && drag.targetIndex !== drag.index ? draft.starters[drag.targetIndex] ? 'تعویض جای دو بازیکن' : 'انتقال به جایگاه خالی' : draft.formation === 'custom' ? 'موقعیت جدید معتبر است' : 'نزدیک‌ترین جایگاه معتبر' : 'امکان قرارگیری در این نقطه نیست'}</div>}
@@ -429,12 +475,13 @@ export function SquadPage() {
   </div>;
 }
 
-const PitchSlot = memo(function PitchSlot({ position, player, index, selected, dragging, dropTarget, dropValid, onPointerDown, onPointerMove, onPointerUp, onPointerCancel, onClick }: {
+const PitchSlot = memo(function PitchSlot({ position, player, index, selected, dragging, dropTarget, dropValid, onPointerDown, onPointerMove, onPointerUp, onPointerCancel, onLostPointerCapture, onClick }: {
   position: SquadPosition; player: DisplayPlayer|null; index: number; selected: boolean; dragging: boolean; dropTarget: boolean; dropValid: boolean;
   onPointerDown: (event: ReactPointerEvent<HTMLButtonElement>, index: number) => void; onPointerMove: (event: ReactPointerEvent<HTMLButtonElement>) => void;
   onPointerUp: (event: ReactPointerEvent<HTMLButtonElement>) => void; onPointerCancel: (event: ReactPointerEvent<HTMLButtonElement>) => void; onClick: (index: number) => void;
+  onLostPointerCapture: (event: ReactPointerEvent<HTMLButtonElement>) => void;
 }) {
-  return <button type="button" onClick={() => onClick(index)} onPointerDown={event => onPointerDown(event, index)} onPointerMove={onPointerMove} onPointerUp={onPointerUp} onPointerCancel={onPointerCancel} aria-label={player ? `${player.name}، ${player.position}` : `افزودن بازیکن به پست ${position.role}`} style={{ left: `${position.x}%`, top: `${position.y}%`, zIndex: dragging ? 40 : dropTarget ? 30 : 10, animationDelay: `${index * 22}ms` }} className={cn('lineup-player absolute flex w-[56px] -translate-x-1/2 -translate-y-1/2 flex-col items-center text-center min-[390px]:w-[62px]', dragging && 'is-dragging cursor-grabbing', selected && !dragging && 'is-selected')}>
+  return <button type="button" onClick={() => onClick(index)} onPointerDown={event => onPointerDown(event, index)} onPointerMove={onPointerMove} onPointerUp={onPointerUp} onPointerCancel={onPointerCancel} onLostPointerCapture={onLostPointerCapture} aria-label={player ? `${player.name}، ${player.position}` : `افزودن بازیکن به پست ${position.role}`} style={{ left: `${position.x}%`, top: `${position.y}%`, zIndex: dragging ? 40 : dropTarget ? 30 : 10, animationDelay: `${index * 22}ms` }} className={cn('lineup-player absolute flex w-[56px] -translate-x-1/2 -translate-y-1/2 flex-col items-center text-center min-[390px]:w-[62px]', dragging && 'is-dragging cursor-grabbing', selected && !dragging && 'is-selected')}>
     {dropTarget && <span className={cn('pointer-events-none absolute -inset-2 -z-10 rounded-[1.35rem] border-2 border-dashed', dropValid ? 'border-emerald-200 bg-emerald-300/15' : 'border-rose-200 bg-rose-300/15')}/>}
     {player ? <>
       <span className={cn('relative rounded-[1.1rem] border bg-gradient-to-b from-slate-800/95 to-ink-950/95 px-1.5 pb-1.5 pt-1 shadow-[0_5px_12px_rgba(0,0,0,.24)]', dragging ? 'border-emerald-200/70' : 'border-white/20')}>
@@ -655,4 +702,54 @@ function positionLabel(position: ClubPlayer['position']) {
 function formatMarketValue(value?: number) { return value === undefined ? 'ثبت نشده' : `${faNumber(value)} سکه`; }
 function clamp(value: number, min: number, max: number) { return Math.min(max, Math.max(min, value)); }
 function roundCoordinate(value: number) { return Math.round(value * 10) / 10; }
-function preventActiveTouchScroll(event: TouchEvent) { event.preventDefault(); }
+function preventActiveTouchScroll(event: TouchEvent) { if (event.cancelable) event.preventDefault(); }
+
+function lockDragScrolling(player: HTMLElement, pitch: HTMLElement): () => void {
+  const root = document.documentElement;
+  const body = document.body;
+  const scrollX = window.scrollX;
+  const scrollY = window.scrollY;
+  const rootStyles = captureInlineStyles(root, ['overflow', 'overscrollBehavior', 'touchAction']);
+  const bodyStyles = captureInlineStyles(body, ['overflow', 'overscrollBehavior', 'touchAction', 'position', 'top', 'left', 'right', 'width']);
+  const pitchStyles = captureInlineStyles(pitch, ['touchAction', 'overscrollBehavior']);
+  const playerStyles = captureInlineStyles(player, ['touchAction', 'overscrollBehavior']);
+
+  root.style.overflow = 'hidden';
+  root.style.overscrollBehavior = 'none';
+  root.style.touchAction = 'none';
+  body.style.overflow = 'hidden';
+  body.style.overscrollBehavior = 'none';
+  body.style.touchAction = 'none';
+  body.style.position = 'fixed';
+  body.style.top = `${-scrollY}px`;
+  body.style.left = `${-scrollX}px`;
+  body.style.right = '0';
+  body.style.width = '100%';
+  pitch.style.touchAction = 'none';
+  pitch.style.overscrollBehavior = 'none';
+  player.style.touchAction = 'none';
+  player.style.overscrollBehavior = 'none';
+  window.addEventListener('touchmove', preventActiveTouchScroll, { passive: false, capture: true });
+
+  let restored = false;
+  return () => {
+    if (restored) return;
+    restored = true;
+    window.removeEventListener('touchmove', preventActiveTouchScroll, true);
+    restoreInlineStyles(root, rootStyles);
+    restoreInlineStyles(body, bodyStyles);
+    restoreInlineStyles(pitch, pitchStyles);
+    restoreInlineStyles(player, playerStyles);
+    window.scrollTo(scrollX, scrollY);
+  };
+}
+
+type LockStyleProperty = 'overflow'|'overscrollBehavior'|'touchAction'|'position'|'top'|'left'|'right'|'width';
+
+function captureInlineStyles(element: HTMLElement, properties: LockStyleProperty[]) {
+  return properties.map(property => [property, element.style[property] as string] as const);
+}
+
+function restoreInlineStyles(element: HTMLElement, styles: ReadonlyArray<readonly [LockStyleProperty, string]>) {
+  styles.forEach(([property, value]) => { element.style[property] = value; });
+}

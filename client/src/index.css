@@ -52,6 +52,7 @@ button { touch-action: manipulation; }
 .squad-page > header { contain: paint; background-color: rgba(7,17,31,.97); -webkit-backdrop-filter: none; backdrop-filter: none; }
 .lineup-pitch { contain: layout paint style; touch-action: auto; overflow-anchor: none; -webkit-user-select: none; user-select: none; }
 .lineup-player { touch-action: auto; transform: translate3d(-50%,-50%,0); animation: lineup-player-in .28s ease-out both; }
+.lineup-pitch.is-dragging,.lineup-player.is-dragging { touch-action: none; overscroll-behavior: none; }
 .lineup-player.is-selected { transform: translate3d(-50%,-50%,0) scale(1.05); }
 .lineup-player.is-dragging { will-change: transform; }
 .lineup-player.is-dragging > span { box-shadow: 0 8px 16px rgba(0,0,0,.28); }
