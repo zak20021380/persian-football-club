@@ -6,7 +6,7 @@
 :root { color-scheme: dark; --safe-top: env(safe-area-inset-top, 0px); --safe-bottom: env(safe-area-inset-bottom, 0px); }
 * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
 html, body, #root { min-height: 100%; }
-html { max-width: 100%; overflow-x: hidden; background: #07111f; direction: rtl; }
+html { max-width: 100%; overflow-x: hidden; overscroll-behavior-y: none; background: #07111f; direction: rtl; }
 body { margin: 0; min-width: 320px; overflow-x: hidden; background: radial-gradient(circle at 85% -10%, rgba(16,185,129,.12), transparent 34%), radial-gradient(circle at 0 30%, rgba(59,130,246,.08), transparent 26%), #07111f; color: #f8fafc; font-family: Vazirmatn,Tahoma,Arial,sans-serif; }
 button, input, textarea, select { font: inherit; }
 button { touch-action: manipulation; }
@@ -48,13 +48,20 @@ button { touch-action: manipulation; }
 .quiz-start,.quiz-question,.quiz-result { animation: quiz-rise .45s cubic-bezier(.22,1,.36,1) both; }
 .store-wallet { background: radial-gradient(circle at 10% 0%,rgba(251,191,36,.12),transparent 38%),linear-gradient(145deg,rgba(28,31,40,.98),rgba(10,22,37,.99)); animation: store-rise .48s cubic-bezier(.22,1,.36,1) both; }
 .squad-player { animation: squad-player-in .42s cubic-bezier(.22,1,.36,1) both; }
-.lineup-pitch { touch-action: none; overscroll-behavior: contain; -webkit-user-select: none; user-select: none; }
-.lineup-player { touch-action: none; will-change: left,top,transform; animation: lineup-player-in .38s cubic-bezier(.22,1,.36,1) both; }
+.squad-page { -webkit-overflow-scrolling: touch; overscroll-behavior-y: contain; }
+.squad-page > header { contain: paint; background-color: rgba(7,17,31,.97); -webkit-backdrop-filter: none; backdrop-filter: none; }
+.lineup-pitch { contain: layout paint style; touch-action: auto; overflow-anchor: none; -webkit-user-select: none; user-select: none; }
+.lineup-player { touch-action: auto; transform: translate3d(-50%,-50%,0); animation: lineup-player-in .28s ease-out both; }
+.lineup-player.is-selected { transform: translate3d(-50%,-50%,0) scale(1.05); }
+.lineup-player.is-dragging { will-change: transform; }
+.lineup-player.is-dragging > span { box-shadow: 0 8px 16px rgba(0,0,0,.28); }
+.momentum-scroll { -webkit-overflow-scrolling: touch; scroll-behavior: auto; }
+.app-bottom-nav { contain: layout paint; transform: translateZ(0); }
 .squad-backdrop { animation: squad-backdrop-in .28s ease-out both; }
-.squad-sheet { animation: squad-sheet-in .38s cubic-bezier(.22,1,.36,1) both; }
+.squad-sheet { contain: layout paint; overflow-anchor: none; transform: translate3d(0,0,0); animation: squad-sheet-in .32s cubic-bezier(.22,1,.36,1) both; }
 @keyframes store-rise { from { opacity: 0; transform: translateY(8px) scale(.99); } to { opacity: 1; transform: translateY(0) scale(1); } }
 @keyframes squad-player-in { from { opacity: 0; transform: translate(-50%,-42%) scale(.9); } to { opacity: 1; transform: translate(-50%,-50%) scale(1); } }
-@keyframes lineup-player-in { from { opacity: 0; filter: blur(2px); } to { opacity: 1; filter: blur(0); } }
+@keyframes lineup-player-in { from { opacity: 0; } to { opacity: 1; } }
 @keyframes squad-backdrop-in { from { opacity: 0; } to { opacity: 1; } }
 @keyframes squad-sheet-in { from { opacity: .7; translate: 0 36px; } to { opacity: 1; translate: 0 0; } }
 @keyframes competition-rise { from { opacity: 0; transform: translateY(10px) scale(.99); } to { opacity: 1; transform: translateY(0) scale(1); } }

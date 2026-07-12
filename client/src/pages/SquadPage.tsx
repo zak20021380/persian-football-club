@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent, type ReactNode } from 'react';
+import { memo, useCallback, useEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent, type ReactNode } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { ArrowLeft, ArrowLeftRight, BadgeDollarSign, BriefcaseBusiness, Building2, CalendarClock, Check, CircleAlert, Edit3, Eye, Flag, ListRestart, Plus, RotateCcw, Save, Shirt, Sparkles, Trash2, UserRound, UsersRound, X } from 'lucide-react';
 import { Link } from 'react-router-dom';
@@ -19,12 +19,25 @@ interface LineupDraft {
 }
 interface DragState {
   index: number;
+  targetIndex: number|null;
+  valid: boolean;
+}
+interface DragGesture {
+  index: number;
   pointerId: number;
+  pointerType: string;
+  startX: number;
+  startY: number;
+  clientX: number;
+  clientY: number;
   x: number;
   y: number;
   targetIndex: number|null;
   valid: boolean;
+  active: boolean;
   moved: boolean;
+  element: HTMLButtonElement;
+  longPressTimer: number|null;
 }
 
 const formationOptions: Array<{ value: SquadFormation; label: string }> = [
@@ -49,11 +62,18 @@ const demoPlayers: DisplayPlayer[] = [
 ];
 
 const DRAFT_KEY = 'persian-football-club:squad-draft:v2';
+const LONG_PRESS_MS = 180;
+const TOUCH_DRAG_THRESHOLD = 12;
+const MOUSE_DRAG_THRESHOLD = 4;
 
 export function SquadPage() {
   const queryClient = useQueryClient();
   const pitchRef = useRef<HTMLElement|null>(null);
-  const dragRef = useRef<DragState|null>(null);
+  const draftRef = useRef<LineupDraft|null>(null);
+  const dragRef = useRef<DragGesture|null>(null);
+  const dragViewRef = useRef<DragState|null>(null);
+  const dragFrameRef = useRef<number|null>(null);
+  const savePendingRef = useRef(false);
   const suppressClickRef = useRef(false);
   const [draft, setDraft] = useState<LineupDraft|null>(null);
   const [dirty, setDirty] = useState(false);
@@ -62,6 +82,153 @@ export function SquadPage() {
   const [nameDialog, setNameDialog] = useState<{ mode: 'create'|'rename'; id?: string; value: string }|null>(null);
   const squad = useQuery({ queryKey: ['clubSquad'], queryFn: async () => (await api.get<SquadData>('/club/squad')).data });
   const demoMode = Boolean(squad.data && squad.data.starters.every(player => !player) && squad.data.substitutes.length === 0);
+
+  useEffect(() => { draftRef.current = draft; }, [draft]);
+
+  const updateDraft = useCallback((updater: (current: LineupDraft) => LineupDraft) => {
+    setDraft(current => current ? updater(current) : current);
+    setDirty(true);
+  }, []);
+
+  const renderDragFrame = useCallback(() => {
+    dragFrameRef.current = null;
+    const gesture = dragRef.current;
+    const currentDraft = draftRef.current;
+    const pitch = pitchRef.current;
+    if (!gesture?.active || !currentDraft || !pitch) return;
+
+    const rect = pitch.getBoundingClientRect();
+    const rawX = ((gesture.clientX - rect.left) / rect.width) * 100;
+    const rawY = ((gesture.clientY - rect.top) / rect.height) * 100;
+    gesture.x = clamp(rawX, 7, 93);
+    gesture.y = clamp(rawY, 6, 94);
+    gesture.moved ||= Math.hypot(gesture.x - currentDraft.positions[gesture.index].x, gesture.y - currentDraft.positions[gesture.index].y) > 1.2;
+    gesture.valid = rawX >= 4 && rawX <= 96 && rawY >= 3 && rawY <= 97;
+    gesture.targetIndex = null;
+
+    if (currentDraft.formation !== 'custom') {
+      gesture.targetIndex = nearestPosition(currentDraft.positions, gesture.x, gesture.y, rect, -1).index;
+    } else {
+      const nearest = nearestPosition(currentDraft.positions, gesture.x, gesture.y, rect, gesture.index);
+      if (nearest.distance <= Math.min(52, rect.width * .16)) gesture.targetIndex = nearest.index;
+      else if (currentDraft.positions.some((position, index) => index !== gesture.index && pixelDistance(position, gesture, rect) < Math.min(58, rect.width * .18))) gesture.valid = false;
+    }
+
+    const origin = currentDraft.positions[gesture.index];
+    const translateX = ((gesture.x - origin.x) / 100) * rect.width;
+    const translateY = ((gesture.y - origin.y) / 100) * rect.height;
+    gesture.element.style.transform = `translate3d(calc(-50% + ${translateX}px), calc(-50% + ${translateY}px), 0) scale(1.06)`;
+    const previous = dragViewRef.current;
+    if (!previous || previous.index !== gesture.index || previous.targetIndex !== gesture.targetIndex || previous.valid !== gesture.valid) {
+      const next = { index: gesture.index, targetIndex: gesture.targetIndex, valid: gesture.valid };
+      dragViewRef.current = next;
+      setDrag(next);
+    }
+  }, []);
+
+  const activateDrag = useCallback((pointerId: number) => {
+    const gesture = dragRef.current;
+    if (!gesture || gesture.pointerId !== pointerId || gesture.active) return;
+    gesture.active = true;
+    if (gesture.pointerType === 'touch') window.addEventListener('touchmove', preventActiveTouchScroll, { passive: false });
+    if (gesture.longPressTimer !== null) window.clearTimeout(gesture.longPressTimer);
+    gesture.longPressTimer = null;
+    const initialView = { index: gesture.index, targetIndex: gesture.index, valid: true };
+    dragViewRef.current = initialView;
+    setDrag(initialView);
+    if (dragFrameRef.current === null) dragFrameRef.current = window.requestAnimationFrame(renderDragFrame);
+  }, [renderDragFrame]);
+
+  const beginDrag = useCallback((event: ReactPointerEvent<HTMLButtonElement>, index: number) => {
+    const currentDraft = draftRef.current;
+    if (!currentDraft?.starters[index] || savePendingRef.current || event.button !== 0) return;
+    event.currentTarget.setPointerCapture(event.pointerId);
+    const position = currentDraft.positions[index];
+    const gesture: DragGesture = {
+      index, pointerId: event.pointerId, pointerType: event.pointerType, startX: event.clientX, startY: event.clientY,
+      clientX: event.clientX, clientY: event.clientY, x: position.x, y: position.y, targetIndex: index,
+      valid: true, active: false, moved: false, element: event.currentTarget, longPressTimer: null,
+    };
+    gesture.longPressTimer = window.setTimeout(() => activateDrag(event.pointerId), LONG_PRESS_MS);
+    dragRef.current = gesture;
+  }, [activateDrag]);
+
+  const moveDrag = useCallback((event: ReactPointerEvent<HTMLButtonElement>) => {
+    const gesture = dragRef.current;
+    if (!gesture || event.pointerId !== gesture.pointerId) return;
+    gesture.clientX = event.clientX;
+    gesture.clientY = event.clientY;
+    const deltaX = event.clientX - gesture.startX;
+    const deltaY = event.clientY - gesture.startY;
+
+    if (!gesture.active) {
+      const distance = Math.hypot(deltaX, deltaY);
+      const mouseReady = gesture.pointerType === 'mouse' && distance >= MOUSE_DRAG_THRESHOLD;
+      const deliberateTouchDrag = gesture.pointerType !== 'mouse' && Math.abs(deltaX) >= TOUCH_DRAG_THRESHOLD && Math.abs(deltaX) > Math.abs(deltaY) * 1.15;
+      if (mouseReady || deliberateTouchDrag) activateDrag(event.pointerId);
+      else if (Math.abs(deltaY) >= TOUCH_DRAG_THRESHOLD && Math.abs(deltaY) > Math.abs(deltaX)) {
+        if (gesture.longPressTimer !== null) window.clearTimeout(gesture.longPressTimer);
+        gesture.longPressTimer = null;
+      }
+      return;
+    }
+
+    // Native vertical scrolling stays untouched until a drag has deliberately started.
+    event.preventDefault();
+    if (dragFrameRef.current === null) dragFrameRef.current = window.requestAnimationFrame(renderDragFrame);
+  }, [activateDrag, renderDragFrame]);
+
+  const finishDrag = useCallback((event: ReactPointerEvent<HTMLButtonElement>, cancelled = false) => {
+    const gesture = dragRef.current;
+    if (!gesture || event.pointerId !== gesture.pointerId) return;
+    if (gesture.longPressTimer !== null) window.clearTimeout(gesture.longPressTimer);
+    if (event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId);
+    if (dragFrameRef.current !== null) {
+      window.cancelAnimationFrame(dragFrameRef.current);
+      dragFrameRef.current = null;
+      renderDragFrame();
+    }
+    const wasActive = gesture.active;
+    if (gesture.pointerType === 'touch') window.removeEventListener('touchmove', preventActiveTouchScroll);
+    gesture.element.style.transform = '';
+    dragRef.current = null;
+    dragViewRef.current = null;
+    setDrag(null);
+    if (wasActive) {
+      suppressClickRef.current = true;
+      window.setTimeout(() => { suppressClickRef.current = false; }, 0);
+    }
+    if (cancelled || !wasActive || !gesture.moved) return;
+    if (!gesture.valid) return void toast.error('این نقطه برای قرارگیری بازیکن معتبر نیست.');
+    const currentDraft = draftRef.current;
+    if (!currentDraft) return;
+    if (gesture.targetIndex !== null) {
+      if (gesture.targetIndex === gesture.index) return;
+      updateDraft(lineup => {
+        const starters = [...lineup.starters];
+        [starters[gesture.index], starters[gesture.targetIndex!]] = [starters[gesture.targetIndex!], starters[gesture.index]];
+        return { ...lineup, starters };
+      });
+    } else if (currentDraft.formation === 'custom') updateDraft(lineup => {
+      const positions = clonePositions(lineup.positions);
+      positions[gesture.index] = { ...positions[gesture.index], x: roundCoordinate(gesture.x), y: roundCoordinate(gesture.y) };
+      return { ...lineup, positions };
+    });
+  }, [renderDragFrame, updateDraft]);
+
+  const cancelDrag = useCallback((event: ReactPointerEvent<HTMLButtonElement>) => finishDrag(event, true), [finishDrag]);
+
+  const openSlot = useCallback((index: number) => {
+    if (suppressClickRef.current) return;
+    setSelectedSlot(index);
+  }, []);
+
+  useEffect(() => () => {
+    const gesture = dragRef.current;
+    if (gesture && gesture.longPressTimer !== null) window.clearTimeout(gesture.longPressTimer);
+    window.removeEventListener('touchmove', preventActiveTouchScroll);
+    if (dragFrameRef.current !== null) window.cancelAnimationFrame(dragFrameRef.current);
+  }, []);
 
   useEffect(() => {
     if (!squad.data || draft) return;
@@ -106,6 +273,7 @@ export function SquadPage() {
     },
     onError: error => toast.error((error as Error).message),
   });
+  useEffect(() => { savePendingRef.current = saveMutation.isPending; }, [saveMutation.isPending]);
 
   const customMutation = useMutation({
     mutationFn: async (action: { type: 'create'; name: string; current: LineupDraft }|{ type: 'rename'; id: string; name: string }|{ type: 'delete'; id: string }) => {
@@ -130,11 +298,6 @@ export function SquadPage() {
 
   if (squad.isLoading || !draft) return <><PageHeader title="ترکیب من" subtitle="مدیریت ترکیب اصلی" back/><PageSkeleton/></>;
   if (squad.error || !squad.data) return <><PageHeader title="ترکیب من" subtitle="مدیریت ترکیب اصلی" back/><main className="p-4"><ErrorState message={(squad.error as Error)?.message || 'ترکیب دریافت نشد'} onRetry={() => squad.refetch()}/></main></>;
-
-  const updateDraft = (updater: (current: LineupDraft) => LineupDraft) => {
-    setDraft(current => current ? updater(current) : current);
-    setDirty(true);
-  };
 
   const chooseFormation = (formation: SquadFormation) => updateDraft(current => ({
     ...current,
@@ -163,74 +326,6 @@ export function SquadPage() {
     if (previous && previous._id !== next?._id) substitutes.push(previous);
     return { ...current, starters, substitutes };
   });
-
-  const beginDrag = (event: ReactPointerEvent<HTMLButtonElement>, index: number) => {
-    if (!draft.starters[index] || saveMutation.isPending) return;
-    event.preventDefault();
-    event.currentTarget.setPointerCapture(event.pointerId);
-    const position = draft.positions[index];
-    const next: DragState = { index, pointerId: event.pointerId, x: position.x, y: position.y, targetIndex: index, valid: true, moved: false };
-    dragRef.current = next;
-    setDrag(next);
-  };
-
-  const moveDrag = (event: ReactPointerEvent<HTMLButtonElement>) => {
-    const current = dragRef.current;
-    const pitch = pitchRef.current;
-    if (!current || !pitch || event.pointerId !== current.pointerId) return;
-    event.preventDefault();
-    const rect = pitch.getBoundingClientRect();
-    const rawX = ((event.clientX - rect.left) / rect.width) * 100;
-    const rawY = ((event.clientY - rect.top) / rect.height) * 100;
-    const inside = rawX >= 4 && rawX <= 96 && rawY >= 3 && rawY <= 97;
-    const x = clamp(rawX, 7, 93);
-    const y = clamp(rawY, 6, 94);
-    const moved = current.moved || Math.hypot(x - draft.positions[current.index].x, y - draft.positions[current.index].y) > 1.2;
-    let targetIndex: number|null = null;
-    let valid = inside;
-
-    if (draft.formation !== 'custom') {
-      targetIndex = nearestPosition(draft.positions, x, y, rect, -1).index;
-    } else {
-      const nearest = nearestPosition(draft.positions, x, y, rect, current.index);
-      if (nearest.distance <= Math.min(52, rect.width * .16)) targetIndex = nearest.index;
-      else {
-        const collision = draft.positions.some((position, index) => index !== current.index && pixelDistance(position, { x, y }, rect) < Math.min(58, rect.width * .18));
-        if (collision) valid = false;
-      }
-    }
-    const next = { ...current, x, y, targetIndex, valid, moved };
-    dragRef.current = next;
-    setDrag(next);
-  };
-
-  const finishDrag = (event: ReactPointerEvent<HTMLButtonElement>, cancelled = false) => {
-    const current = dragRef.current;
-    if (!current || event.pointerId !== current.pointerId) return;
-    if (event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId);
-    suppressClickRef.current = current.moved;
-    dragRef.current = null;
-    setDrag(null);
-    if (cancelled || !current.moved) return;
-    if (!current.valid) {
-      toast.error('این نقطه برای قرارگیری بازیکن معتبر نیست.');
-      return;
-    }
-    if (current.targetIndex !== null) {
-      if (current.targetIndex === current.index) return;
-      updateDraft(lineup => {
-        const starters = [...lineup.starters];
-        [starters[current.index], starters[current.targetIndex!]] = [starters[current.targetIndex!], starters[current.index]];
-        return { ...lineup, starters };
-      });
-      return;
-    }
-    if (draft.formation === 'custom') updateDraft(lineup => {
-      const positions = clonePositions(lineup.positions);
-      positions[current.index] = { ...positions[current.index], x: roundCoordinate(current.x), y: roundCoordinate(current.y) };
-      return { ...lineup, positions };
-    });
-  };
 
   const save = () => {
     if (demoMode) {
@@ -279,7 +374,7 @@ export function SquadPage() {
         <div className="grid grid-cols-4 gap-1.5 rounded-[1.25rem] bg-white/[.025] p-1.5">{formationOptions.map(option => { const active = draft.formation === option.value; return <button type="button" key={option.value} aria-pressed={active} onClick={() => chooseFormation(option.value)} className={cn('min-h-9 min-w-0 rounded-xl px-1 text-[8px] font-black transition active:scale-95', active ? 'bg-pitch-400 text-ink-950 shadow-[0_7px_20px_rgba(16,185,129,.16)]' : 'text-slate-500 hover:bg-white/[.035]', option.value === 'custom' && 'leading-3')}>{option.label}</button>; })}</div>
       </section>
 
-      <section ref={pitchRef} className={cn('lineup-pitch relative mx-auto aspect-[0.648] w-full max-w-[430px] select-none overflow-hidden rounded-[1.75rem] border bg-[#09603f] shadow-[0_24px_60px_rgba(0,0,0,.34)] transition-colors', drag ? drag.valid ? 'border-emerald-200/50' : 'border-rose-300/70' : 'border-emerald-200/[.16]')} dir="ltr" aria-label="زمین چیدمان بازیکنان">
+      <section ref={pitchRef} className={cn('lineup-pitch relative mx-auto aspect-[0.648] w-full max-w-[430px] select-none overflow-hidden rounded-[1.75rem] border bg-[#09603f] shadow-[0_10px_28px_rgba(0,0,0,.26)]', drag ? drag.valid ? 'border-emerald-200/50' : 'border-rose-300/70' : 'border-emerald-200/[.16]')} dir="ltr" aria-label="زمین چیدمان بازیکنان">
         <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_45%,rgba(255,255,255,.07),transparent_38%),repeating-linear-gradient(90deg,rgba(255,255,255,.028)_0,rgba(255,255,255,.028)_12.5%,transparent_12.5%,transparent_25%)]"/>
         <div className="absolute inset-3 rounded-[1.25rem] border border-white/25"/>
         <div className="absolute inset-x-3 top-1/2 border-t border-white/25"/>
@@ -289,23 +384,20 @@ export function SquadPage() {
         <div className="absolute left-1/2 top-1/2 h-1.5 w-1.5 -translate-x-1/2 -translate-y-1/2 rounded-full bg-white/40"/>
         {draft.positions.map((position, index) => <PitchSlot
           key={`${index}-${draft.starters[index]?._id ?? 'empty'}`}
-          position={drag?.index === index ? { ...position, x: drag.x, y: drag.y } : position}
+          position={position}
           player={draft.starters[index]}
           index={index}
           selected={selectedSlot === index}
           dragging={drag?.index === index}
           dropTarget={drag?.targetIndex === index && drag.index !== index}
           dropValid={drag?.valid ?? true}
-          onPointerDown={event => beginDrag(event, index)}
+          onPointerDown={beginDrag}
           onPointerMove={moveDrag}
-          onPointerUp={event => finishDrag(event)}
-          onPointerCancel={event => finishDrag(event, true)}
-          onClick={() => {
-            if (suppressClickRef.current) { suppressClickRef.current = false; return; }
-            setSelectedSlot(index);
-          }}
+          onPointerUp={finishDrag}
+          onPointerCancel={cancelDrag}
+          onClick={openSlot}
         />)}
-        {drag && <div className={cn('pointer-events-none absolute left-1/2 top-3 z-30 -translate-x-1/2 rounded-full border px-2.5 py-1 text-[7px] font-black shadow-lg backdrop-blur', drag.valid ? 'border-emerald-200/30 bg-emerald-950/80 text-emerald-100' : 'border-rose-200/30 bg-rose-950/85 text-rose-100')}>{drag.valid ? drag.targetIndex !== null && drag.targetIndex !== drag.index ? draft.starters[drag.targetIndex] ? 'تعویض جای دو بازیکن' : 'انتقال به جایگاه خالی' : draft.formation === 'custom' ? 'موقعیت جدید معتبر است' : 'نزدیک‌ترین جایگاه معتبر' : 'امکان قرارگیری در این نقطه نیست'}</div>}
+        {drag && <div className={cn('pointer-events-none absolute left-1/2 top-3 z-30 -translate-x-1/2 rounded-full border px-2.5 py-1 text-[7px] font-black', drag.valid ? 'border-emerald-200/30 bg-emerald-950/95 text-emerald-100' : 'border-rose-200/30 bg-rose-950/95 text-rose-100')}>{drag.valid ? drag.targetIndex !== null && drag.targetIndex !== drag.index ? draft.starters[drag.targetIndex] ? 'تعویض جای دو بازیکن' : 'انتقال به جایگاه خالی' : draft.formation === 'custom' ? 'موقعیت جدید معتبر است' : 'نزدیک‌ترین جایگاه معتبر' : 'امکان قرارگیری در این نقطه نیست'}</div>}
       </section>
 
       {validationMessage && !demoMode && <div className="mt-3 flex items-start gap-2 rounded-2xl border border-amber-300/15 bg-amber-300/[.06] p-2.5 text-[8px] leading-5 text-amber-100/80"><CircleAlert size={15} className="mt-0.5 shrink-0 text-amber-300"/><span>{validationMessage}</span></div>}
@@ -335,22 +427,22 @@ export function SquadPage() {
   </div>;
 }
 
-function PitchSlot({ position, player, index, selected, dragging, dropTarget, dropValid, onPointerDown, onPointerMove, onPointerUp, onPointerCancel, onClick }: {
+const PitchSlot = memo(function PitchSlot({ position, player, index, selected, dragging, dropTarget, dropValid, onPointerDown, onPointerMove, onPointerUp, onPointerCancel, onClick }: {
   position: SquadPosition; player: DisplayPlayer|null; index: number; selected: boolean; dragging: boolean; dropTarget: boolean; dropValid: boolean;
-  onPointerDown: (event: ReactPointerEvent<HTMLButtonElement>) => void; onPointerMove: (event: ReactPointerEvent<HTMLButtonElement>) => void;
-  onPointerUp: (event: ReactPointerEvent<HTMLButtonElement>) => void; onPointerCancel: (event: ReactPointerEvent<HTMLButtonElement>) => void; onClick: () => void;
+  onPointerDown: (event: ReactPointerEvent<HTMLButtonElement>, index: number) => void; onPointerMove: (event: ReactPointerEvent<HTMLButtonElement>) => void;
+  onPointerUp: (event: ReactPointerEvent<HTMLButtonElement>) => void; onPointerCancel: (event: ReactPointerEvent<HTMLButtonElement>) => void; onClick: (index: number) => void;
 }) {
-  return <button type="button" onClick={onClick} onPointerDown={onPointerDown} onPointerMove={onPointerMove} onPointerUp={onPointerUp} onPointerCancel={onPointerCancel} aria-label={player ? `${player.name}، ${player.position}` : `افزودن بازیکن به پست ${position.role}`} style={{ left: `${position.x}%`, top: `${position.y}%`, zIndex: dragging ? 40 : dropTarget ? 30 : 10, animationDelay: `${index * 22}ms` }} className={cn('lineup-player absolute flex w-[56px] -translate-x-1/2 -translate-y-1/2 touch-none flex-col items-center text-center transition-[left,top,transform,filter] duration-300 min-[390px]:w-[62px]', dragging && 'scale-110 cursor-grabbing drop-shadow-[0_16px_14px_rgba(0,0,0,.48)]', selected && !dragging && 'scale-105')}>
-    {dropTarget && <span className={cn('pointer-events-none absolute -inset-2 -z-10 rounded-[1.35rem] border-2 border-dashed animate-pulse', dropValid ? 'border-emerald-200 bg-emerald-300/15' : 'border-rose-200 bg-rose-300/15')}/>}
+  return <button type="button" onClick={() => onClick(index)} onPointerDown={event => onPointerDown(event, index)} onPointerMove={onPointerMove} onPointerUp={onPointerUp} onPointerCancel={onPointerCancel} aria-label={player ? `${player.name}، ${player.position}` : `افزودن بازیکن به پست ${position.role}`} style={{ left: `${position.x}%`, top: `${position.y}%`, zIndex: dragging ? 40 : dropTarget ? 30 : 10, animationDelay: `${index * 22}ms` }} className={cn('lineup-player absolute flex w-[56px] -translate-x-1/2 -translate-y-1/2 flex-col items-center text-center min-[390px]:w-[62px]', dragging && 'is-dragging cursor-grabbing', selected && !dragging && 'is-selected')}>
+    {dropTarget && <span className={cn('pointer-events-none absolute -inset-2 -z-10 rounded-[1.35rem] border-2 border-dashed', dropValid ? 'border-emerald-200 bg-emerald-300/15' : 'border-rose-200 bg-rose-300/15')}/>}
     {player ? <>
-      <span className={cn('relative rounded-[1.1rem] border bg-gradient-to-b from-slate-800/95 to-ink-950/95 px-1.5 pb-1.5 pt-1 shadow-[0_8px_18px_rgba(0,0,0,.32)] backdrop-blur transition', dragging ? 'border-emerald-200/70 shadow-[0_18px_32px_rgba(0,0,0,.42)]' : 'border-white/20')}>
+      <span className={cn('relative rounded-[1.1rem] border bg-gradient-to-b from-slate-800/95 to-ink-950/95 px-1.5 pb-1.5 pt-1 shadow-[0_5px_12px_rgba(0,0,0,.24)]', dragging ? 'border-emerald-200/70' : 'border-white/20')}>
         <PlayerAvatar player={player} className="mx-auto h-9 w-9 min-[390px]:h-10 min-[390px]:w-10"/>
         <span className="mt-1 flex items-center justify-center gap-1"><i className="h-1.5 w-1.5 rounded-full bg-emerald-400 shadow-[0_0_7px_rgba(52,211,153,.8)]"/><strong className="max-w-[40px] truncate text-[7px] leading-none text-white min-[390px]:max-w-[46px]">{shortName(player.name)}</strong></span>
         <span className="mt-1 text-[6px] font-bold text-emerald-200">{position.role}</span>
       </span>
-    </> : <span className={cn('flex min-h-[58px] w-[50px] flex-col items-center justify-center rounded-[1.1rem] border border-dashed bg-ink-950/35 text-white/75 shadow-[0_8px_18px_rgba(0,0,0,.16)] backdrop-blur-sm transition min-[390px]:w-[54px]', selected ? 'border-amber-300 text-amber-300' : 'border-white/35', dropTarget && 'border-emerald-100 bg-emerald-950/50')}><span className="grid h-7 w-7 place-items-center rounded-full bg-white/[.07]"><Plus size={14}/></span><strong className="mt-1 text-[6px]">افزودن بازیکن</strong><span className="mt-0.5 text-[6px] font-black text-emerald-100/75">{position.role}</span></span>}
+    </> : <span className={cn('flex min-h-[58px] w-[50px] flex-col items-center justify-center rounded-[1.1rem] border border-dashed bg-ink-950/55 text-white/75 shadow-[0_5px_12px_rgba(0,0,0,.14)] min-[390px]:w-[54px]', selected ? 'border-amber-300 text-amber-300' : 'border-white/35', dropTarget && 'border-emerald-100 bg-emerald-950/70')}><span className="grid h-7 w-7 place-items-center rounded-full bg-white/[.07]"><Plus size={14}/></span><strong className="mt-1 text-[6px]">افزودن بازیکن</strong><span className="mt-0.5 text-[6px] font-black text-emerald-100/75">{position.role}</span></span>}
   </button>;
-}
+});
 
 function PlayerAvatar({ player, className }: { player: DisplayPlayer; className?: string }) {
   if (player.demoIndex !== undefined) {
@@ -361,33 +453,44 @@ function PlayerAvatar({ player, className }: { player: DisplayPlayer; className?
   return <span className={cn('grid shrink-0 place-items-center overflow-hidden rounded-full border border-white/20 bg-ink-850', className)}>{player.photoUrl ? <img src={player.photoUrl} alt="" draggable={false} className="h-full w-full object-cover"/> : <span className="text-[10px] font-black text-pitch-300">{player.name.slice(0, 1)}</span>}</span>;
 }
 
-function BenchPlayer({ player }: { player: DisplayPlayer }) {
+const BenchPlayer = memo(function BenchPlayer({ player }: { player: DisplayPlayer }) {
   return <div className="min-w-0 rounded-2xl border border-white/[.05] bg-white/[.03] p-2 text-center"><PlayerAvatar player={player} className="mx-auto h-9 w-9"/><strong className="mt-1.5 block truncate text-[8px]">{shortName(player.name)}</strong><span className="mt-0.5 block text-[7px] text-slate-500">{player.position}</span></div>;
-}
+});
 
 function PlayerSheet({ slotRole, player, substitutes, loading, onClose, onRemove, onDelete, onReplace }: { slotRole: string; player: DisplayPlayer|null; substitutes: DisplayPlayer[]; loading: boolean; onClose: () => void; onRemove: () => void; onDelete: () => void; onReplace: (player: DisplayPlayer) => void }) {
   const [showReplacements, setShowReplacements] = useState(!player);
-  const [dragOffset, setDragOffset] = useState(0);
-  const [swiping, setSwiping] = useState(false);
-  const swipeRef = useRef<{ pointerId: number; startY: number; startedAt: number }|null>(null);
+  const sheetRef = useRef<HTMLDivElement|null>(null);
+  const swipeFrameRef = useRef<number|null>(null);
+  const swipeRef = useRef<{ pointerId: number; startY: number; clientY: number; startedAt: number }|null>(null);
 
   useEffect(() => {
     const closeOnEscape = (event: KeyboardEvent) => { if (event.key === 'Escape') onClose(); };
     window.addEventListener('keydown', closeOnEscape);
-    return () => window.removeEventListener('keydown', closeOnEscape);
+    return () => {
+      window.removeEventListener('keydown', closeOnEscape);
+      if (swipeFrameRef.current !== null) window.cancelAnimationFrame(swipeFrameRef.current);
+    };
   }, [onClose]);
+
+  const renderSheetSwipe = () => {
+    swipeFrameRef.current = null;
+    const gesture = swipeRef.current;
+    if (!gesture || !sheetRef.current) return;
+    sheetRef.current.style.transform = `translate3d(0, ${Math.max(0, gesture.clientY - gesture.startY)}px, 0)`;
+  };
 
   const startSwipe = (event: ReactPointerEvent<HTMLDivElement>) => {
     if (loading) return;
     event.currentTarget.setPointerCapture(event.pointerId);
-    swipeRef.current = { pointerId: event.pointerId, startY: event.clientY, startedAt: Date.now() };
-    setSwiping(true);
+    swipeRef.current = { pointerId: event.pointerId, startY: event.clientY, clientY: event.clientY, startedAt: Date.now() };
+    if (sheetRef.current) sheetRef.current.style.transition = 'none';
   };
   const moveSwipe = (event: ReactPointerEvent<HTMLDivElement>) => {
     const gesture = swipeRef.current;
     if (!gesture || gesture.pointerId !== event.pointerId) return;
     event.preventDefault();
-    setDragOffset(Math.max(0, event.clientY - gesture.startY));
+    gesture.clientY = event.clientY;
+    if (swipeFrameRef.current === null) swipeFrameRef.current = window.requestAnimationFrame(renderSheetSwipe);
   };
   const endSwipe = (event: ReactPointerEvent<HTMLDivElement>, cancelled = false) => {
     const gesture = swipeRef.current;
@@ -396,19 +499,21 @@ function PlayerSheet({ slotRole, player, substitutes, loading, onClose, onRemove
     const distance = Math.max(0, event.clientY - gesture.startY);
     const velocity = distance / Math.max(1, Date.now() - gesture.startedAt);
     swipeRef.current = null;
-    setSwiping(false);
     if (!cancelled && (distance > 82 || velocity > .55)) onClose();
-    else setDragOffset(0);
+    else if (sheetRef.current) {
+      sheetRef.current.style.transition = 'transform 300ms cubic-bezier(.22,1,.36,1)';
+      sheetRef.current.style.transform = 'translate3d(0, 0, 0)';
+    }
   };
 
-  return <div className="squad-backdrop fixed inset-0 z-[90] flex items-end bg-black/70 backdrop-blur-[7px]" role="dialog" aria-modal="true" aria-label={player ? `پنل ${player.name}` : `افزودن بازیکن به ${slotRole}`} onMouseDown={event => { if (event.target === event.currentTarget) onClose(); }}>
-    <div style={{ transform: `translateY(${dragOffset}px)` }} className={cn('safe-bottom squad-sheet h-[62dvh] min-h-[360px] max-h-[680px] w-full overflow-hidden rounded-t-[2rem] border-t border-emerald-200/[.12] bg-[linear-gradient(180deg,#0d1c2f_0%,#091625_100%)] shadow-[0_-24px_70px_rgba(0,0,0,.48)]', swiping ? 'transition-none' : 'transition-transform duration-300 ease-out')}>
+  return <div className="squad-backdrop fixed inset-0 z-[90] flex items-end bg-black/80" role="dialog" aria-modal="true" aria-label={player ? `پنل ${player.name}` : `افزودن بازیکن به ${slotRole}`} onMouseDown={event => { if (event.target === event.currentTarget) onClose(); }}>
+    <div ref={sheetRef} className="safe-bottom squad-sheet h-[62dvh] min-h-[360px] max-h-[680px] w-full overflow-hidden rounded-t-[2rem] border-t border-emerald-200/[.12] bg-[linear-gradient(180deg,#0d1c2f_0%,#091625_100%)] shadow-[0_-14px_36px_rgba(0,0,0,.4)]">
       <div onPointerDown={startSwipe} onPointerMove={moveSwipe} onPointerUp={event => endSwipe(event)} onPointerCancel={event => endSwipe(event, true)} className="relative flex h-12 touch-none cursor-grab items-center justify-center active:cursor-grabbing">
         <span className="h-1.5 w-14 rounded-full bg-gradient-to-r from-white/10 via-white/35 to-white/10 shadow-[0_1px_8px_rgba(255,255,255,.08)]"/>
         <button type="button" disabled={loading} onClick={onClose} aria-label="بستن پنل" className="absolute left-4 top-2 grid h-9 w-9 place-items-center rounded-full border border-white/[.06] bg-white/[.05] text-slate-400 transition active:scale-95"><X size={17}/></button>
       </div>
 
-      <div className="h-[calc(100%-3rem)] overflow-y-auto overscroll-contain px-4 pb-5 scrollbar-none">
+      <div className="momentum-scroll h-[calc(100%-3rem)] overflow-y-auto overscroll-contain px-4 pb-5 scrollbar-none">
         <div className="mx-auto max-w-xl">
           {player ? <>
             <section className="relative overflow-hidden rounded-[1.6rem] border border-white/[.07] bg-white/[.035] p-4">
@@ -521,3 +626,4 @@ function positionLabel(position: ClubPlayer['position']) {
 function formatMarketValue(value?: number) { return value === undefined ? 'ثبت نشده' : `${faNumber(value)} سکه`; }
 function clamp(value: number, min: number, max: number) { return Math.min(max, Math.max(min, value)); }
 function roundCoordinate(value: number) { return Math.round(value * 10) / 10; }
+function preventActiveTouchScroll(event: TouchEvent) { event.preventDefault(); }
