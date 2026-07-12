@@ -581,35 +581,20 @@ function FloatingDragPlayer({ drag }: { drag: DragState }) {
 
 function PlayerSheet({ slotRole, player, substitutes, loading, onClose, onRemove, onDelete, onReplace }: { slotRole: string; player: DisplayPlayer|null; substitutes: DisplayPlayer[]; loading: boolean; onClose: () => void; onRemove: () => void; onDelete: () => void; onReplace: (player: DisplayPlayer) => void }) {
   const [showReplacements, setShowReplacements] = useState(!player);
-  const [closing, setClosing] = useState(false);
-  const closingRef = useRef(false);
   const sheetRef = useRef<HTMLDivElement|null>(null);
   const swipeFrameRef = useRef<number|null>(null);
   const swipeRef = useRef<{ pointerId: number; startY: number; clientY: number; startedAt: number }|null>(null);
-  const closeTimerRef = useRef<number|null>(null);
-
-  const requestClose = useCallback(() => {
-    if (closingRef.current) return;
-    closingRef.current = true;
-    setClosing(true);
-    if (sheetRef.current) {
-      sheetRef.current.style.transition = '';
-      sheetRef.current.style.transform = '';
-    }
-    closeTimerRef.current = window.setTimeout(onClose, 220);
-  }, [onClose]);
 
   useEffect(() => {
     const unlockPage = lockModalPageScrolling();
-    const closeOnEscape = (event: KeyboardEvent) => { if (event.key === 'Escape') requestClose(); };
+    const closeOnEscape = (event: KeyboardEvent) => { if (event.key === 'Escape') onClose(); };
     window.addEventListener('keydown', closeOnEscape);
     return () => {
       unlockPage();
       window.removeEventListener('keydown', closeOnEscape);
       if (swipeFrameRef.current !== null) window.cancelAnimationFrame(swipeFrameRef.current);
-      if (closeTimerRef.current !== null) window.clearTimeout(closeTimerRef.current);
     };
-  }, [requestClose]);
+  }, [onClose]);
 
   const renderSheetSwipe = () => {
     swipeFrameRef.current = null;
@@ -638,21 +623,21 @@ function PlayerSheet({ slotRole, player, substitutes, loading, onClose, onRemove
     const distance = Math.max(0, event.clientY - gesture.startY);
     const velocity = distance / Math.max(1, Date.now() - gesture.startedAt);
     swipeRef.current = null;
-    if (!cancelled && (distance > 82 || velocity > .55)) requestClose();
+    if (!cancelled && (distance > 82 || velocity > .55)) onClose();
     else if (sheetRef.current) {
       sheetRef.current.style.transition = 'transform 300ms cubic-bezier(.22,1,.36,1)';
       sheetRef.current.style.transform = 'translate3d(0, 0, 0)';
     }
   };
 
-  return createPortal(<div className={cn('player-modal-backdrop fixed inset-0 z-[100] h-[100dvh] overflow-hidden bg-black/85', closing && 'is-closing')} role="dialog" aria-modal="true" aria-label={player ? `پنل ${player.name}` : `افزودن بازیکن به ${slotRole}`}>
-    <div ref={sheetRef} className={cn('player-modal-panel flex h-[100dvh] w-full flex-col overflow-hidden bg-[linear-gradient(180deg,#0d1c2f_0%,#071321_100%)]', closing && 'is-closing')}>
-      <div onPointerDown={startSwipe} onPointerMove={moveSwipe} onPointerUp={event => endSwipe(event)} onPointerCancel={event => endSwipe(event, true)} className="player-modal-top safe-top relative flex h-[50px] shrink-0 touch-none cursor-grab items-end justify-center pb-2 active:cursor-grabbing">
+  return createPortal(<div onPointerDown={event => { if (event.target === event.currentTarget) onClose(); }} className="player-modal-backdrop fixed inset-0 z-[100] flex items-end overflow-hidden bg-black/80" role="dialog" aria-modal="true" aria-label={player ? `پنل ${player.name}` : `افزودن بازیکن به ${slotRole}`}>
+    <div ref={sheetRef} className="player-modal-panel relative h-auto max-h-[82dvh] w-full overflow-hidden rounded-t-[2rem] border-t border-emerald-200/[.12] bg-[linear-gradient(180deg,#0d1c2f_0%,#071321_100%)] shadow-[0_-14px_36px_rgba(0,0,0,.42)]">
+      <button type="button" onPointerDown={event => event.stopPropagation()} onClick={onClose} aria-label="بستن پنل" className="pointer-events-auto absolute left-3 top-2 z-30 grid h-9 w-9 place-items-center rounded-full border border-white/[.07] bg-white/[.07] text-slate-300 transition active:scale-95"><X size={17}/></button>
+      <div onPointerDown={startSwipe} onPointerMove={moveSwipe} onPointerUp={event => endSwipe(event)} onPointerCancel={event => endSwipe(event, true)} className="player-modal-top relative flex h-11 touch-none cursor-grab items-center justify-center active:cursor-grabbing">
         <span className="h-1 w-12 rounded-full bg-gradient-to-r from-white/10 via-white/35 to-white/10"/>
-        <button type="button" disabled={loading || closing} onClick={requestClose} aria-label="بستن پنل" className="absolute left-3 bottom-1 grid h-9 w-9 place-items-center rounded-full border border-white/[.07] bg-white/[.06] text-slate-300 transition active:scale-95"><X size={17}/></button>
       </div>
 
-      <div className="player-modal-content mx-auto flex min-h-0 w-full max-w-xl flex-1 flex-col overflow-hidden px-3 pb-[max(10px,var(--safe-bottom))]">
+      <div className="player-modal-content mx-auto w-full max-w-xl overflow-hidden px-3 pb-[max(10px,var(--safe-bottom))]">
         {player ? <>
           <section className="player-modal-hero relative shrink-0 overflow-hidden rounded-[1.25rem] border border-white/[.07] bg-white/[.035] p-2.5">
             <div className="pointer-events-none absolute -left-8 -top-10 h-28 w-28 rounded-full bg-emerald-400/[.08] blur-3xl"/>
@@ -670,11 +655,7 @@ function PlayerSheet({ slotRole, player, substitutes, loading, onClose, onRemove
           </section>
         </> : <section className="player-modal-empty shrink-0 rounded-[1.25rem] border border-white/[.07] bg-white/[.035] p-3 text-center"><span className="mx-auto grid h-12 w-12 place-items-center rounded-full border border-dashed border-emerald-300/25 bg-emerald-400/[.08] text-emerald-300"><Plus size={20}/></span><p className="mt-1.5 text-[7px] font-bold text-emerald-300">جایگاه {slotRole}</p><h2 className="mt-0.5 text-sm font-black">افزودن بازیکن</h2><p className="mt-1 text-[8px] text-slate-500">یکی از بازیکنان نیمکت را انتخاب کن.</p></section>}
 
-        {showReplacements && <section className="player-modal-replacements mt-2 min-h-0 shrink-0"><div className="mb-1.5 flex items-center justify-between"><h3 className="text-[9px] font-black">بازیکنان قابل انتخاب</h3><span className="rounded-full bg-white/[.045] px-2 py-0.5 text-[7px] text-slate-500">{faNumber(substitutes.length)} ذخیره</span></div>
-          {substitutes.length ? <div className="grid h-[96px] grid-flow-col grid-rows-2 auto-cols-[138px] gap-1.5 overflow-x-auto overflow-y-hidden pb-1 scrollbar-none">{substitutes.map(substitute => <button type="button" key={substitute._id} disabled={loading} onClick={() => onReplace(substitute)} className="flex min-h-0 min-w-0 items-center gap-1.5 rounded-xl border border-white/[.06] bg-white/[.035] p-1.5 text-right transition active:scale-[.98] active:bg-emerald-400/[.08]"><PlayerAvatar player={substitute} className="h-8 w-8"/><span className="min-w-0 flex-1"><strong className="block truncate text-[7px]">{substitute.name}</strong><span className="mt-0.5 block truncate text-[6px] text-slate-500">{positionLabel(substitute.position)}</span></span></button>)}</div> : <div className="flex h-[82px] items-center justify-center rounded-xl border border-dashed border-white/[.07] bg-white/[.02] text-center"><div><p className="text-[7px] text-slate-500">بازیکن ذخیره‌ای وجود ندارد.</p><Link to="/club/transfer-market" className="mt-1.5 inline-flex min-h-7 items-center rounded-lg bg-white/[.05] px-3 text-[7px]">رفتن به بازار</Link></div></div>}
-        </section>}
-
-        {player && <section className="player-modal-actions mt-auto shrink-0 pt-2" aria-label="عملیات بازیکن">
+        {player && <section className="player-modal-actions pt-2" aria-label="عملیات بازیکن">
           <div className="mb-1.5 flex items-center justify-between"><h3 className="text-[9px] font-black">مدیریت بازیکن</h3><span className="text-[6px] text-slate-500">عملیات در دسترس</span></div>
           <button type="button" disabled={!substitutes.length || loading} onClick={() => setShowReplacements(value => !value)} className="flex min-h-10 w-full items-center justify-between rounded-xl bg-gradient-to-l from-emerald-400 to-emerald-500 px-3 text-[9px] font-black text-ink-950 shadow-[0_8px_22px_rgba(16,185,129,.16)] transition active:scale-[.985] disabled:opacity-40"><span className="flex items-center gap-1.5"><ArrowLeftRight size={15}/>{showReplacements ? 'بستن فهرست تعویض' : 'تعویض بازیکن'}</span><ArrowLeft size={13}/></button>
           <div className="mt-1.5 grid grid-cols-2 gap-1.5">
@@ -682,6 +663,10 @@ function PlayerSheet({ slotRole, player, substitutes, loading, onClose, onRemove
             <Link to={`/club/players?player=${player._id}`} className="flex min-h-9 items-center justify-center gap-1.5 rounded-xl border border-white/[.07] bg-white/[.045] text-[8px] font-bold text-slate-200 transition active:scale-[.98]"><Eye size={13} className="text-violet-300"/>مشاهده جزئیات</Link>
           </div>
           <button type="button" disabled={loading} onClick={() => { if (confirm(`«${player.name}» از ترکیب خارج شود؟`)) onDelete(); }} className="mt-1.5 flex min-h-9 w-full items-center justify-center gap-1.5 rounded-xl border border-rose-300/10 bg-rose-400/[.055] text-[8px] font-bold text-rose-300 transition active:scale-[.985]"><Trash2 size={13}/>حذف از ترکیب</button>
+        </section>}
+
+        {showReplacements && <section className="player-modal-replacements mt-2"><div className="mb-1.5 flex items-center justify-between"><h3 className="text-[9px] font-black">بازیکنان قابل انتخاب</h3><span className="rounded-full bg-white/[.045] px-2 py-0.5 text-[7px] text-slate-500">{faNumber(substitutes.length)} ذخیره</span></div>
+          {substitutes.length ? <div className="grid h-[96px] grid-flow-col grid-rows-2 auto-cols-[138px] gap-1.5 overflow-x-auto overflow-y-hidden pb-1 scrollbar-none">{substitutes.map(substitute => <button type="button" key={substitute._id} disabled={loading} onClick={() => onReplace(substitute)} className="flex min-h-0 min-w-0 items-center gap-1.5 rounded-xl border border-white/[.06] bg-white/[.035] p-1.5 text-right transition active:scale-[.98] active:bg-emerald-400/[.08]"><PlayerAvatar player={substitute} className="h-8 w-8"/><span className="min-w-0 flex-1"><strong className="block truncate text-[7px]">{substitute.name}</strong><span className="mt-0.5 block truncate text-[6px] text-slate-500">{positionLabel(substitute.position)}</span></span></button>)}</div> : <div className="flex h-[82px] items-center justify-center rounded-xl border border-dashed border-white/[.07] bg-white/[.02] text-center"><div><p className="text-[7px] text-slate-500">بازیکن ذخیره‌ای وجود ندارد.</p><Link to="/club/transfer-market" className="mt-1.5 inline-flex min-h-7 items-center rounded-lg bg-white/[.05] px-3 text-[7px]">رفتن به بازار</Link></div></div>}
         </section>}
       </div>
     </div>
