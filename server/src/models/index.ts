@@ -14,3 +14,6 @@ export * from './Referral.js';
 export * from './Broadcast.js';
 export * from './Reminder.js';
 export * from './AppSetting.js';
+export * from './FunPost.js';
+export * from './FunPostLike.js';
+export * from './FunPostReport.js';

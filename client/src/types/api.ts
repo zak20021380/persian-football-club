@@ -11,3 +11,5 @@ export interface Competition { _id: Id; title: string; coverImage?: string; desc
 export interface Reward { _id: Id; title: string; description: string; image?: string; type: string; pointsRequired?: number; rankRequired?: number; endsAt: string; eligible: boolean; }
 export interface Sponsor { _id: Id; name: string; logo?: string; promotionalText: string; ctaText: string; clickUrl: string; }
 export interface HomeData { user: { firstName: string; points: number; weeklyRank: number; streak: number }; matches: Match[]; competitions: Competition[]; dailyQuiz: Quiz|null; leaders: User[]; rewards: Reward[]; sponsor: Sponsor|null; predictionsCount: number; }
+export interface FunPost { _id: Id; caption?: string; imageUrl?: string; likeCount: number; liked: boolean; isOwner: boolean; createdAt: string; owner: { _id: Id; firstName: string; lastName?: string; username?: string; photoUrl?: string }; }
+export interface FunFeedPage { items: FunPost[]; nextCursor: string|null; }

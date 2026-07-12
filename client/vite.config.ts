@@ -5,6 +5,6 @@ import { fileURLToPath, URL } from 'node:url';
 export default defineConfig({
   plugins: [react()],
   resolve: { alias: { '@': fileURLToPath(new URL('./src', import.meta.url)) } },
-  server: { port: 5173, proxy: { '/api': 'http://localhost:3000', '/telegram': 'http://localhost:3000' } },
+  server: { port: 5173, proxy: { '/api': 'http://localhost:3000', '/telegram': 'http://localhost:3000', '/uploads': 'http://localhost:3000' } },
   build: { outDir: 'dist', sourcemap: false }
 });

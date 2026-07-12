@@ -32,10 +32,19 @@ button { touch-action: manipulation; }
 .profile-accuracy-ring { background: conic-gradient(#34d399 var(--accuracy),rgba(255,255,255,.055) 0); box-shadow: 0 0 30px rgba(52,211,153,.09); }
 .referral-card { transition: transform .35s cubic-bezier(.22,1,.36,1),border-color .35s ease; }
 .referral-card:active { transform: scale(.99); border-color: rgba(125,211,252,.28); }
+.fun-hero { background: linear-gradient(155deg,rgba(35,13,42,.98),rgba(7,17,31,.99) 57%,rgba(13,25,39,.98)); }
+.fun-orb { animation: fun-orbit 6s ease-in-out infinite alternate; }
+.fun-card { animation: fun-card-in .5s cubic-bezier(.22,1,.36,1) both; }
+.fun-sheet { animation: fun-sheet-in .38s cubic-bezier(.22,1,.36,1) both; }
+.fun-like[aria-pressed="true"] svg { animation: fun-heart .35s cubic-bezier(.22,1,.36,1); }
 @keyframes profile-rise { from { opacity: 0; transform: translateY(14px); } to { opacity: 1; transform: translateY(0); } }
 @keyframes profile-glow { from { opacity: .65; transform: scale(.9); } to { opacity: 1; transform: scale(1.08); } }
+@keyframes fun-card-in { from { opacity: 0; transform: translateY(12px) scale(.985); } to { opacity: 1; transform: translateY(0) scale(1); } }
+@keyframes fun-sheet-in { from { opacity: .6; transform: translateY(36px); } to { opacity: 1; transform: translateY(0); } }
+@keyframes fun-orbit { from { opacity: .65; transform: translate(-8px,-5px) scale(.92); } to { opacity: 1; transform: translate(12px,8px) scale(1.08); } }
+@keyframes fun-heart { 0% { transform: scale(.7); } 65% { transform: scale(1.22) rotate(-8deg); } 100% { transform: scale(1); } }
 @media (prefers-reduced-motion: reduce) {
-  .profile-animate,.profile-hero-glow { animation: none; }
+  .profile-animate,.profile-hero-glow,.fun-orb,.fun-card,.fun-sheet,.fun-like[aria-pressed="true"] svg { animation: none; }
   .referral-card { transition: none; }
 }
 @media (min-width: 640px) {

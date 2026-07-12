@@ -16,6 +16,7 @@ import { createSponsorRedirectToken, trackSponsorEvent, verifySponsorRedirectTok
 import { rewardPendingReferral } from '../services/referral.js';
 import { AppError } from '../utils/errors.js';
 import { asyncHandler } from '../utils/asyncHandler.js';
+import funRouter from './fun.js';
 
 const router = Router();
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 2 * 1024 * 1024, files: 1 }, fileFilter: (_req, file, cb) => cb(null, /^image\/(png|jpeg|webp|gif)$/.test(file.mimetype)) });
@@ -30,6 +31,7 @@ router.get('/sponsors/:id/redirect', asyncHandler(async (req, res) => {
 }));
 
 router.use(authenticate);
+router.use('/fun', funRouter);
 
 router.get('/bootstrap', asyncHandler(async (req, res) => {
   const user = req.authUser!;

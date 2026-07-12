@@ -14,7 +14,8 @@ const schema = z.object({
   CRON_SECRET: z.string().min(8).default('development-cron-secret'),
   NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
   PORT: z.coerce.number().int().positive().default(3000),
-  TIMEZONE: z.string().default('Asia/Tehran')
+  TIMEZONE: z.string().default('Asia/Tehran'),
+  UPLOAD_DIR: z.string().min(1).default('uploads')
 });
 
 const parsed = schema.safeParse(process.env);

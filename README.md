@@ -13,6 +13,7 @@
 - پنل مدیریت داخل همان Mini App و محدود به `ADMIN_IDS`
 - ۱۶ مدل Mongoose موردنیاز
 - seed شامل بیش از ۵۰ سؤال فارسی، نشان‌ها، تنظیمات، کوییز، جام، جایزه و بازی نمونه
+- فید اجتماعی «فان» برای انتشار امن متن و تصاویر JPG/PNG/WEBP، لایک، گزارش و مدیریت محتوا
 - تست‌های عضویت، احراز هویت تلگرام، کوییز، پیش‌بینی، دعوت و جلوگیری از عملیات تکراری
 - TypeScript، lint، build و npm audit بدون خطا
 
@@ -75,6 +76,7 @@ TIMEZONE=Asia/Tehran
 | `NODE_ENV` | `development`، `test` یا `production` |
 | `PORT` | پورت Express؛ Railway/Render معمولاً خودکار تنظیم می‌کنند |
 | `TIMEZONE` | `Asia/Tehran` |
+| `UPLOAD_DIR` | مسیر دیسک برای نگهداری تصاویر آپلودی؛ پیش‌فرض `uploads` |
 
 ساخت secret مناسب:
 
@@ -178,6 +180,8 @@ MONGODB_URI=mongodb+srv://USER:PASSWORD@cluster.mongodb.net/football-club?retryW
 ```bash
 npm run seed
 ```
+
+برای نگهداری دائمی تصاویر بخش «فان»، مسیر `UPLOAD_DIR` را روی یک Volume پایدار سرویس میزبانی mount کنید. لایه ذخیره‌سازی در `server/src/services/storage.ts` مستقل است و می‌تواند بعداً با فضای ابری جایگزین شود.
 
 8. سرویس را redeploy کنید تا webhook با URL نهایی ثبت شود.
 
