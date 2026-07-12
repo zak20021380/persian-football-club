@@ -52,10 +52,14 @@ button { touch-action: manipulation; }
 .squad-page > header { contain: paint; background-color: rgba(7,17,31,.97); -webkit-backdrop-filter: none; backdrop-filter: none; }
 .lineup-pitch { contain: layout paint style; touch-action: auto; overflow-anchor: none; -webkit-user-select: none; user-select: none; }
 .lineup-player { touch-action: auto; transform: translate3d(-50%,-50%,0); animation: lineup-player-in .28s ease-out both; }
-.lineup-pitch.is-dragging,.lineup-player.is-dragging { touch-action: none; overscroll-behavior: none; }
+.bench-player { touch-action: auto; }
+.lineup-pitch.is-dragging,.lineup-player.is-dragging,.bench-player.is-dragging { touch-action: none; overscroll-behavior: none; }
 .lineup-player.is-selected { transform: translate3d(-50%,-50%,0) scale(1.05); }
 .lineup-player.is-dragging { will-change: transform; }
 .lineup-player.is-dragging > span { box-shadow: 0 8px 16px rgba(0,0,0,.28); }
+.bench-player.is-drop-valid { box-shadow: 0 0 0 1px rgba(110,231,183,.3),0 10px 24px rgba(6,95,70,.24); }
+.bench-player.is-drop-invalid { box-shadow: 0 0 0 1px rgba(253,164,175,.3),0 10px 24px rgba(136,19,55,.22); }
+::view-transition-group(*) { animation-duration: .32s; animation-timing-function: cubic-bezier(.22,1,.36,1); }
 .momentum-scroll { -webkit-overflow-scrolling: touch; scroll-behavior: auto; }
 .app-bottom-nav { contain: layout paint; transform: translateZ(0); }
 .squad-backdrop { animation: squad-backdrop-in .28s ease-out both; }
@@ -81,6 +85,7 @@ button { touch-action: manipulation; }
 @media (prefers-reduced-motion: reduce) {
   .profile-animate,.profile-hero-glow,.fun-orb,.fun-card,.fun-sheet,.fun-like[aria-pressed="true"] svg,.matches-orb,.match-card,.match-panel-animate,.exact-score-reveal,.home-cup-card,.competition-hero,.quiz-start,.quiz-question,.quiz-result,.store-wallet,.squad-player,.lineup-player,.squad-backdrop,.squad-sheet { animation: none; }
   .referral-card { transition: none; }
+  ::view-transition-group(*) { animation-duration: 1ms; }
 }
 @media (min-width: 640px) {
   .home-hero { border-radius: 0 0 2rem 2rem; }

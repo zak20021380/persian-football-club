@@ -1,4 +1,5 @@
 import { memo, useCallback, useEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent, type ReactNode } from 'react';
+import { createPortal, flushSync } from 'react-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { ArrowLeft, ArrowLeftRight, BadgeDollarSign, BriefcaseBusiness, Building2, CalendarClock, CircleAlert, Eye, Flag, ListRestart, Plus, RotateCcw, Save, Shirt, Sparkles, Trash2, UserRound, UsersRound, X } from 'lucide-react';
 import { Link } from 'react-router-dom';
@@ -7,6 +8,7 @@ import { PageHeader } from '@/components/PageHeader';
 import { Card, ErrorState, PageSkeleton } from '@/components/ui';
 import { formations } from '@/lib/formations';
 import { api } from '@/lib/api';
+import { impact, notify } from '@/lib/telegram';
 import { cn, faNumber } from '@/lib/utils';
 import type { BuiltInSquadFormation, ClubPlayer, SquadData, SquadFormation, SquadPosition } from '@/types/api';
 
@@ -17,13 +19,18 @@ interface LineupDraft {
   substitutes: DisplayPlayer[];
   positions: SquadPosition[];
 }
+type DragLocation = { kind: 'pitch'|'bench'; index: number };
 interface DragState {
-  index: number;
-  targetIndex: number|null;
+  source: DragLocation;
+  target: DragLocation|null;
+  player: DisplayPlayer;
   valid: boolean;
+  clientX: number;
+  clientY: number;
 }
 interface DragGesture {
-  index: number;
+  source: DragLocation;
+  player: DisplayPlayer;
   pointerId: number;
   pointerType: string;
   startX: number;
@@ -32,7 +39,7 @@ interface DragGesture {
   clientY: number;
   x: number;
   y: number;
-  targetIndex: number|null;
+  target: DragLocation|null;
   valid: boolean;
   active: boolean;
   finishing: boolean;
@@ -90,6 +97,7 @@ export function SquadPage() {
   const dragScrollCleanupRef = useRef<(() => void)|null>(null);
   const savePendingRef = useRef(false);
   const suppressClickRef = useRef(false);
+  const dirtyRef = useRef(false);
   const [draft, setDraft] = useState<LineupDraft|null>(null);
   const [dirty, setDirty] = useState(false);
   const [selectedSlot, setSelectedSlot] = useState<number|null>(null);
@@ -100,11 +108,46 @@ export function SquadPage() {
   const demoMode = Boolean(squad.data && squad.data.starters.every(player => !player) && squad.data.substitutes.length === 0);
 
   useEffect(() => { draftRef.current = draft; }, [draft]);
+  useEffect(() => { dirtyRef.current = dirty; }, [dirty]);
 
   const updateDraft = useCallback((updater: (current: LineupDraft) => LineupDraft) => {
     setDraft(current => current ? updater(current) : current);
     setDirty(true);
   }, []);
+
+  const swapMutation = useMutation({
+    mutationFn: async ({ next }: { next: LineupDraft; previous: LineupDraft; previousDirty: boolean }) => (await api.put<SquadData>('/club/squad', {
+      formation: next.formation,
+      starterIds: next.starters.map(player => player?._id ?? null),
+      positions: next.positions,
+    })).data,
+    onSuccess: data => {
+      const confirmed = draftFromData(data);
+      draftRef.current = confirmed;
+      setDraft(confirmed);
+      queryClient.setQueryData(['clubSquad'], data);
+      setDirty(false);
+      localStorage.removeItem(DRAFT_KEY);
+      impact('light');
+    },
+    onError: (_error, variables) => {
+      applyDraftTransition(variables.previous, setDraft);
+      draftRef.current = variables.previous;
+      setDirty(variables.previousDirty);
+      notify('error');
+      toast.error('ذخیره جابه‌جایی انجام نشد؛ ترکیب قبلی بازگردانده شد.');
+    },
+  });
+
+  const commitDragDraft = useCallback((next: LineupDraft) => {
+    const previous = draftRef.current;
+    if (!previous) return;
+    applyDraftTransition(next, setDraft);
+    draftRef.current = next;
+    setDirty(true);
+    impact('medium');
+    if (!demoMode) swapMutation.mutate({ next, previous, previousDirty: dirtyRef.current });
+  }, [demoMode, swapMutation]);
 
   const renderDragFrame = useCallback(() => {
     dragFrameRef.current = null;
@@ -118,25 +161,27 @@ export function SquadPage() {
     const rawY = ((gesture.clientY - rect.top) / rect.height) * 100;
     gesture.x = clamp(rawX, 7, 93);
     gesture.y = clamp(rawY, 6, 94);
-    gesture.moved ||= Math.hypot(gesture.x - currentDraft.positions[gesture.index].x, gesture.y - currentDraft.positions[gesture.index].y) > 1.2;
-    gesture.valid = rawX >= 4 && rawX <= 96 && rawY >= 3 && rawY <= 97;
-    gesture.targetIndex = null;
+    gesture.moved ||= Math.hypot(gesture.clientX - gesture.startX, gesture.clientY - gesture.startY) > 3;
 
-    if (currentDraft.formation !== 'custom') {
-      gesture.targetIndex = nearestPosition(currentDraft.positions, gesture.x, gesture.y, rect, -1).index;
-    } else {
-      const nearest = nearestPosition(currentDraft.positions, gesture.x, gesture.y, rect, gesture.index);
-      if (nearest.distance <= Math.min(52, rect.width * .16)) gesture.targetIndex = nearest.index;
-      else if (currentDraft.positions.some((position, index) => index !== gesture.index && slotsOverlapInPitch(position, gesture, rect))) gesture.valid = false;
-    }
+    const insidePitch = rawX >= 2 && rawX <= 98 && rawY >= 2 && rawY <= 98;
+    let target = dropLocationAtPoint(gesture.clientX, gesture.clientY);
+    if (!target && insidePitch) target = { kind: 'pitch', index: nearestPosition(currentDraft.positions, gesture.x, gesture.y, rect, -1).index };
+    gesture.target = target;
 
-    const origin = currentDraft.positions[gesture.index];
-    const translateX = ((gesture.x - origin.x) / 100) * rect.width;
-    const translateY = ((gesture.y - origin.y) / 100) * rect.height;
-    gesture.element.style.transform = `translate3d(calc(-50% + ${translateX}px), calc(-50% + ${translateY}px), 0) scale(1.06)`;
+    if (target) {
+      if (sameDragLocation(gesture.source, target)) gesture.valid = true;
+      else {
+        const candidate = swapPlayers(currentDraft, gesture.source, target);
+        gesture.valid = Boolean(candidate && !validateDraft(candidate));
+      }
+    } else if (gesture.source.kind === 'pitch' && currentDraft.formation === 'custom' && insidePitch) {
+      gesture.valid = !currentDraft.positions.some((position, index) => index !== gesture.source.index && slotsOverlapInPitch(position, gesture, rect));
+    } else gesture.valid = false;
+
     const previous = dragViewRef.current;
-    if (!previous || previous.index !== gesture.index || previous.targetIndex !== gesture.targetIndex || previous.valid !== gesture.valid) {
-      const next = { index: gesture.index, targetIndex: gesture.targetIndex, valid: gesture.valid };
+    if (!previous || !sameOptionalDragLocation(previous.target, gesture.target) || previous.valid !== gesture.valid || previous.clientX !== gesture.clientX || previous.clientY !== gesture.clientY) {
+      if (previous && (!sameOptionalDragLocation(previous.target, gesture.target) || previous.valid !== gesture.valid)) impact(gesture.valid ? 'light' : 'medium');
+      const next = { source: gesture.source, target: gesture.target, player: gesture.player, valid: gesture.valid, clientX: gesture.clientX, clientY: gesture.clientY };
       dragViewRef.current = next;
       setDrag(next);
     }
@@ -151,22 +196,24 @@ export function SquadPage() {
     gesture.active = true;
     dragScrollCleanupRef.current?.();
     dragScrollCleanupRef.current = lockDragScrolling(gesture.element, pitch);
+    impact('light');
     if (gesture.longPressTimer !== null) window.clearTimeout(gesture.longPressTimer);
     gesture.longPressTimer = null;
-    const initialView = { index: gesture.index, targetIndex: gesture.index, valid: true };
+    const initialView = { source: gesture.source, target: gesture.source, player: gesture.player, valid: true, clientX: gesture.clientX, clientY: gesture.clientY };
     dragViewRef.current = initialView;
     setDrag(initialView);
     if (dragFrameRef.current === null) dragFrameRef.current = window.requestAnimationFrame(renderDragFrame);
   }, [renderDragFrame]);
 
-  const beginDrag = useCallback((event: ReactPointerEvent<HTMLButtonElement>, index: number) => {
+  const beginDrag = useCallback((event: ReactPointerEvent<HTMLButtonElement>, source: DragLocation) => {
     const currentDraft = draftRef.current;
-    if (!currentDraft?.starters[index] || savePendingRef.current || event.button !== 0) return;
+    const player = currentDraft ? playerAt(currentDraft, source) : null;
+    if (!currentDraft || !player || savePendingRef.current || event.button !== 0) return;
     event.currentTarget.setPointerCapture(event.pointerId);
-    const position = currentDraft.positions[index];
+    const position = source.kind === 'pitch' ? currentDraft.positions[source.index] : null;
     const gesture: DragGesture = {
-      index, pointerId: event.pointerId, pointerType: event.pointerType, startX: event.clientX, startY: event.clientY,
-      clientX: event.clientX, clientY: event.clientY, x: position.x, y: position.y, targetIndex: index,
+      source, player, pointerId: event.pointerId, pointerType: event.pointerType, startX: event.clientX, startY: event.clientY,
+      clientX: event.clientX, clientY: event.clientY, x: position?.x ?? 50, y: position?.y ?? 50, target: source,
       valid: true, active: false, finishing: false, moved: false, element: event.currentTarget, pitchRect: null, longPressTimer: null,
     };
     gesture.longPressTimer = window.setTimeout(() => activateDrag(event.pointerId), LONG_PRESS_MS);
@@ -221,22 +268,23 @@ export function SquadPage() {
       window.setTimeout(() => { suppressClickRef.current = false; }, 0);
     }
     if (cancelled || !wasActive || !gesture.moved) return;
-    if (!gesture.valid) return void toast.error('این نقطه برای قرارگیری بازیکن معتبر نیست.');
+    if (!gesture.valid) {
+      notify('warning');
+      return void toast.error('این جابه‌جایی قوانین ترکیب را نقض می‌کند.');
+    }
     const currentDraft = draftRef.current;
     if (!currentDraft) return;
-    if (gesture.targetIndex !== null) {
-      if (gesture.targetIndex === gesture.index) return;
-      updateDraft(lineup => {
-        const starters = [...lineup.starters];
-        [starters[gesture.index], starters[gesture.targetIndex!]] = [starters[gesture.targetIndex!], starters[gesture.index]];
-        return { ...lineup, starters };
-      });
-    } else if (currentDraft.formation === 'custom') updateDraft(lineup => {
-      const positions = clonePositions(lineup.positions);
-      positions[gesture.index] = { ...positions[gesture.index], x: roundCoordinate(gesture.x), y: roundCoordinate(gesture.y) };
-      return { ...lineup, positions };
-    });
-  }, [renderDragFrame, updateDraft]);
+    if (gesture.target) {
+      if (sameDragLocation(gesture.source, gesture.target)) return;
+      const next = swapPlayers(currentDraft, gesture.source, gesture.target);
+      if (next && !validateDraft(next)) commitDragDraft(next);
+    } else if (gesture.source.kind === 'pitch' && currentDraft.formation === 'custom') {
+      const positions = clonePositions(currentDraft.positions);
+      positions[gesture.source.index] = { ...positions[gesture.source.index], x: roundCoordinate(gesture.x), y: roundCoordinate(gesture.y) };
+      const next = { ...currentDraft, positions };
+      if (!validateDraft(next)) commitDragDraft(next);
+    }
+  }, [commitDragDraft, renderDragFrame]);
 
   const cancelDrag = useCallback((event: ReactPointerEvent<HTMLButtonElement>) => finishDrag(event, true), [finishDrag]);
 
@@ -337,7 +385,7 @@ export function SquadPage() {
     },
     onError: error => toast.error((error as Error).message),
   });
-  useEffect(() => { savePendingRef.current = saveMutation.isPending; }, [saveMutation.isPending]);
+  useEffect(() => { savePendingRef.current = saveMutation.isPending || swapMutation.isPending; }, [saveMutation.isPending, swapMutation.isPending]);
 
   const selectedPlayer = draft && selectedSlot !== null ? draft.starters[selectedSlot] : null;
   const validationMessage = useMemo(() => draft ? validateDraft(draft) : null, [draft]);
@@ -382,8 +430,8 @@ export function SquadPage() {
           <span className={cn('h-2 w-2 shrink-0 rounded-full', dirty ? 'bg-amber-300 shadow-[0_0_12px_rgba(252,211,77,.5)]' : 'bg-emerald-400')}/>
           <div className="min-w-0"><strong className="block text-[9px]">{demoMode ? 'حالت نمایشی' : dirty ? 'تغییرات ذخیره‌نشده' : 'همه تغییرات ذخیره شده'}</strong><span className="block truncate text-[7px] text-slate-500">{drag ? drag.valid ? 'رها کن تا جابه‌جا شود' : 'محل رهاکردن نامعتبر است' : 'بازیکن را بگیر و روی جایگاه مقصد رها کن'}</span></div>
         </div>
-        <button type="button" onClick={save} disabled={saveMutation.isPending || (!dirty && !demoMode)} className="inline-flex min-h-9 shrink-0 items-center gap-1.5 rounded-xl bg-pitch-400 px-3 text-[9px] font-black text-ink-950 transition active:scale-95 disabled:opacity-45">
-          {saveMutation.isPending ? <RotateCcw size={14} className="animate-spin"/> : <Save size={14}/>}ذخیره ترکیب
+        <button type="button" onClick={save} disabled={saveMutation.isPending || swapMutation.isPending || (!dirty && !demoMode)} className="inline-flex min-h-9 shrink-0 items-center gap-1.5 rounded-xl bg-pitch-400 px-3 text-[9px] font-black text-ink-950 transition active:scale-95 disabled:opacity-45">
+          {saveMutation.isPending || swapMutation.isPending ? <RotateCcw size={14} className="animate-spin"/> : <Save size={14}/>}ذخیره ترکیب
         </button>
       </div>
 
@@ -408,17 +456,17 @@ export function SquadPage() {
           player={draft.starters[index]}
           index={index}
           selected={selectedSlot === index}
-          dragging={drag?.index === index}
-          dropTarget={drag?.targetIndex === index && drag.index !== index}
+          dragging={drag?.source.kind === 'pitch' && drag.source.index === index}
+          dropTarget={drag?.target?.kind === 'pitch' && drag.target.index === index && !sameDragLocation(drag.source, drag.target)}
           dropValid={drag?.valid ?? true}
-          onPointerDown={beginDrag}
+          onPointerDown={(event, slotIndex) => beginDrag(event, { kind: 'pitch', index: slotIndex })}
           onPointerMove={moveDrag}
           onPointerUp={finishDrag}
           onPointerCancel={cancelDrag}
           onLostPointerCapture={cancelDrag}
           onClick={openSlot}
         />)}
-        {drag && <div className={cn('pointer-events-none absolute left-1/2 top-3 z-30 -translate-x-1/2 rounded-full border px-2.5 py-1 text-[7px] font-black', drag.valid ? 'border-emerald-200/30 bg-emerald-950/95 text-emerald-100' : 'border-rose-200/30 bg-rose-950/95 text-rose-100')}>{drag.valid ? drag.targetIndex !== null && drag.targetIndex !== drag.index ? draft.starters[drag.targetIndex] ? 'تعویض جای دو بازیکن' : 'انتقال به جایگاه خالی' : draft.formation === 'custom' ? 'موقعیت جدید معتبر است' : 'نزدیک‌ترین جایگاه معتبر' : 'امکان قرارگیری در این نقطه نیست'}</div>}
+        {drag && <div className={cn('pointer-events-none absolute left-1/2 top-3 z-30 -translate-x-1/2 rounded-full border px-2.5 py-1 text-[7px] font-black', drag.valid ? 'border-emerald-200/30 bg-emerald-950/95 text-emerald-100' : 'border-rose-200/30 bg-rose-950/95 text-rose-100')}>{drag.valid ? drag.target && !sameDragLocation(drag.source, drag.target) ? 'رها کن تا بازیکن‌ها جابه‌جا شوند' : 'بازیکن را روی مقصد رها کن' : 'این مقصد با قوانین ترکیب سازگار نیست'}</div>}
       </section>
 
       {validationMessage && !demoMode && <div className="mt-3 flex items-start gap-2 rounded-2xl border border-amber-300/15 bg-amber-300/[.06] p-2.5 text-[8px] leading-5 text-amber-100/80"><CircleAlert size={15} className="mt-0.5 shrink-0 text-amber-300"/><span>{validationMessage}</span></div>}
@@ -428,7 +476,20 @@ export function SquadPage() {
         {draft.substitutes.length ? <>
           <div className="grid grid-cols-4 gap-1.5 sm:gap-2">
             {(showAllSubstitutes ? draft.substitutes : draft.substitutes.slice(0, 8)).map((player, index) => (
-              <BenchPlayer key={player._id} player={player} index={index} onClick={() => openBenchPlayer(player)}/>
+              <BenchPlayer
+                key={player._id}
+                player={player}
+                index={index}
+                dragging={drag?.source.kind === 'bench' && drag.source.index === index}
+                dropTarget={drag?.target?.kind === 'bench' && drag.target.index === index && !sameDragLocation(drag.source, drag.target)}
+                dropValid={drag?.valid ?? true}
+                onPointerDown={event => beginDrag(event, { kind: 'bench', index })}
+                onPointerMove={moveDrag}
+                onPointerUp={finishDrag}
+                onPointerCancel={cancelDrag}
+                onLostPointerCapture={cancelDrag}
+                onClick={() => openBenchPlayer(player)}
+              />
             ))}
           </div>
           {draft.substitutes.length > 8 && (
@@ -465,6 +526,7 @@ export function SquadPage() {
       onDelete={() => setSelectedBenchPlayer(null)}
       onReplace={_player => setSelectedBenchPlayer(null)}
     />}
+    {drag && createPortal(<FloatingDragPlayer drag={drag}/>, document.body)}
   </div>;
 }
 
@@ -474,7 +536,7 @@ const PitchSlot = memo(function PitchSlot({ position, player, index, selected, d
   onPointerUp: (event: ReactPointerEvent<HTMLButtonElement>) => void; onPointerCancel: (event: ReactPointerEvent<HTMLButtonElement>) => void; onClick: (index: number) => void;
   onLostPointerCapture: (event: ReactPointerEvent<HTMLButtonElement>) => void;
 }) {
-  return <button type="button" onClick={() => onClick(index)} onPointerDown={event => onPointerDown(event, index)} onPointerMove={onPointerMove} onPointerUp={onPointerUp} onPointerCancel={onPointerCancel} onLostPointerCapture={onLostPointerCapture} aria-label={player ? `${player.name}، ${player.position}` : `افزودن بازیکن به پست ${position.role}`} style={{ left: `${position.x}%`, top: `${position.y}%`, zIndex: dragging ? 40 : dropTarget ? 30 : 10, animationDelay: `${index * 22}ms` }} className={cn('lineup-player absolute flex w-[56px] -translate-x-1/2 -translate-y-1/2 flex-col items-center text-center min-[390px]:w-[62px]', dragging && 'is-dragging cursor-grabbing', selected && !dragging && 'is-selected')}>
+  return <button type="button" data-pitch-index={index} onClick={() => onClick(index)} onPointerDown={event => onPointerDown(event, index)} onPointerMove={onPointerMove} onPointerUp={onPointerUp} onPointerCancel={onPointerCancel} onLostPointerCapture={onLostPointerCapture} aria-label={player ? `${player.name}، ${player.position}` : `افزودن بازیکن به پست ${position.role}`} style={{ left: `${position.x}%`, top: `${position.y}%`, zIndex: dragging ? 40 : dropTarget ? 30 : 10, animationDelay: `${index * 22}ms`, viewTransitionName: player ? transitionName(player) : undefined }} className={cn('lineup-player absolute flex w-[56px] -translate-x-1/2 -translate-y-1/2 flex-col items-center text-center transition-[opacity,filter] duration-200 min-[390px]:w-[62px]', dragging && 'is-dragging cursor-grabbing opacity-25 grayscale', selected && !dragging && 'is-selected')}>
     {dropTarget && <span className={cn('pointer-events-none absolute -inset-2 -z-10 rounded-[1.35rem] border-2 border-dashed', dropValid ? 'border-emerald-200 bg-emerald-300/15' : 'border-rose-200 bg-rose-300/15')}/>}
     {player ? <>
       <span className={cn('relative rounded-[1.1rem] border bg-gradient-to-b from-slate-800/95 to-ink-950/95 px-1.5 pb-1.5 pt-1 shadow-[0_5px_12px_rgba(0,0,0,.24)]', dragging ? 'border-emerald-200/70' : 'border-white/20')}>
@@ -495,15 +557,27 @@ function PlayerAvatar({ player, className }: { player: DisplayPlayer; className?
   return <span className={cn('grid shrink-0 place-items-center overflow-hidden rounded-full border border-white/20 bg-ink-850', className)}>{player.photoUrl ? <img src={player.photoUrl} alt="" draggable={false} className="h-full w-full object-cover"/> : <span className="text-[10px] font-black text-pitch-300">{player.name.slice(0, 1)}</span>}</span>;
 }
 
-const BenchPlayer = memo(function BenchPlayer({ player, index, onClick }: { player: DisplayPlayer; index: number; onClick: () => void }) {
+const BenchPlayer = memo(function BenchPlayer({ player, index, dragging, dropTarget, dropValid, onPointerDown, onPointerMove, onPointerUp, onPointerCancel, onLostPointerCapture, onClick }: {
+  player: DisplayPlayer; index: number; dragging: boolean; dropTarget: boolean; dropValid: boolean;
+  onPointerDown: (event: ReactPointerEvent<HTMLButtonElement>) => void; onPointerMove: (event: ReactPointerEvent<HTMLButtonElement>) => void;
+  onPointerUp: (event: ReactPointerEvent<HTMLButtonElement>) => void; onPointerCancel: (event: ReactPointerEvent<HTMLButtonElement>) => void;
+  onLostPointerCapture: (event: ReactPointerEvent<HTMLButtonElement>) => void; onClick: () => void;
+}) {
   const accent = ['from-emerald-400/10', 'from-sky-400/10', 'from-violet-400/10'][index % 3];
-  return <button type="button" onClick={onClick} aria-label={`${player.name}، ${player.position}، ${formatMarketValue(player.marketValue)}`} className={cn('relative flex min-w-0 w-full flex-col items-center overflow-hidden rounded-xl border border-white/[.06] bg-gradient-to-b to-ink-900/90 px-1 py-1.5 text-center shadow-[0_4px_10px_rgba(0,0,0,.1)] transition active:scale-[.98] sm:rounded-2xl sm:px-1.5 sm:py-2', accent)}>
+  return <button type="button" data-bench-index={index} onPointerDown={onPointerDown} onPointerMove={onPointerMove} onPointerUp={onPointerUp} onPointerCancel={onPointerCancel} onLostPointerCapture={onLostPointerCapture} onClick={onClick} aria-label={`${player.name}، ${player.position}، ${formatMarketValue(player.marketValue)}`} style={{ viewTransitionName: transitionName(player) }} className={cn('bench-player relative flex min-w-0 w-full flex-col items-center overflow-hidden rounded-xl border bg-gradient-to-b to-ink-900/90 px-1 py-1.5 text-center shadow-[0_4px_10px_rgba(0,0,0,.1)] transition duration-200 active:scale-[.98] sm:rounded-2xl sm:px-1.5 sm:py-2', accent, dragging ? 'is-dragging border-white/[.04] opacity-25 grayscale' : dropTarget ? dropValid ? 'is-drop-valid border-emerald-300/70 ring-2 ring-emerald-300/25' : 'is-drop-invalid border-rose-300/70 ring-2 ring-rose-300/25' : 'border-white/[.06]')}>
     <PlayerAvatar player={player} className="h-8 w-8 shadow-[0_3px_8px_rgba(0,0,0,.2)] sm:h-[34px] sm:w-[34px]"/>
     <strong className="mt-1 w-full truncate text-[7px] font-black leading-tight text-white sm:mt-1.5 sm:text-[8px]">{shortName(player.name)}</strong>
     <span className="mt-0.5 w-full truncate text-[5.5px] font-bold text-slate-400 sm:text-[6px]">{player.position}</span>
     <span className="mt-0.5 w-full truncate text-[5.5px] font-bold text-emerald-300/90 sm:mt-1 sm:text-[6px]">{formatMarketValue(player.marketValue)}</span>
   </button>;
 });
+
+function FloatingDragPlayer({ drag }: { drag: DragState }) {
+  return <div data-floating-drag-player dir="rtl" aria-hidden="true" style={{ left: drag.clientX, top: drag.clientY }} className={cn('pointer-events-none fixed z-[140] flex w-[92px] -translate-x-1/2 -translate-y-[115%] items-center gap-2 rounded-2xl border bg-ink-900/95 p-2 shadow-[0_14px_34px_rgba(0,0,0,.45)] backdrop-blur-md transition-colors', drag.valid ? 'border-emerald-300/70 shadow-emerald-950/40' : 'border-rose-300/75 shadow-rose-950/40')}>
+    <PlayerAvatar player={drag.player} className="h-9 w-9"/>
+    <span className="min-w-0 flex-1"><strong className="block truncate text-[8px] font-black text-white">{shortName(drag.player.name)}</strong><span className={cn('mt-1 block text-[6px] font-bold', drag.valid ? 'text-emerald-300' : 'text-rose-300')}>{drag.valid ? 'مقصد معتبر' : 'مقصد نامعتبر'}</span></span>
+  </div>;
+}
 
 function PlayerSheet({ slotRole, player, substitutes, loading, onClose, onRemove, onDelete, onReplace }: { slotRole: string; player: DisplayPlayer|null; substitutes: DisplayPlayer[]; loading: boolean; onClose: () => void; onRemove: () => void; onDelete: () => void; onReplace: (player: DisplayPlayer) => void }) {
   const [showReplacements, setShowReplacements] = useState(!player);
@@ -629,6 +703,58 @@ function restoreDraft(data: SquadData): LineupDraft|null {
     localStorage.removeItem(DRAFT_KEY);
     return null;
   }
+}
+
+function playerAt(draft: LineupDraft, location: DragLocation): DisplayPlayer|null {
+  return location.kind === 'pitch' ? draft.starters[location.index] ?? null : draft.substitutes[location.index] ?? null;
+}
+
+function swapPlayers(draft: LineupDraft, source: DragLocation, target: DragLocation): LineupDraft|null {
+  const sourcePlayer = playerAt(draft, source);
+  const targetPlayer = playerAt(draft, target);
+  if (!sourcePlayer || !targetPlayer || sameDragLocation(source, target) || source.kind === 'bench' && target.kind === 'bench') return null;
+  const starters = [...draft.starters];
+  const substitutes = [...draft.substitutes];
+  if (source.kind === 'pitch' && target.kind === 'pitch') {
+    [starters[source.index], starters[target.index]] = [starters[target.index], starters[source.index]];
+  } else if (source.kind === 'pitch' && target.kind === 'bench') {
+    starters[source.index] = targetPlayer;
+    substitutes[target.index] = sourcePlayer;
+  } else if (source.kind === 'bench' && target.kind === 'pitch') {
+    starters[target.index] = sourcePlayer;
+    substitutes[source.index] = targetPlayer;
+  }
+  const players = [...starters.filter(Boolean), ...substitutes] as DisplayPlayer[];
+  if (starters.length !== 11 || starters.some(player => !player) || new Set(players.map(player => player._id)).size !== players.length) return null;
+  return { ...draft, starters, substitutes };
+}
+
+function sameDragLocation(first: DragLocation, second: DragLocation): boolean {
+  return first.kind === second.kind && first.index === second.index;
+}
+
+function sameOptionalDragLocation(first: DragLocation|null, second: DragLocation|null): boolean {
+  return first === null || second === null ? first === second : sameDragLocation(first, second);
+}
+
+function dropLocationAtPoint(clientX: number, clientY: number): DragLocation|null {
+  const element = document.elementFromPoint(clientX, clientY);
+  const pitchTarget = element?.closest<HTMLElement>('[data-pitch-index]');
+  if (pitchTarget?.dataset.pitchIndex !== undefined) return { kind: 'pitch', index: Number(pitchTarget.dataset.pitchIndex) };
+  const benchTarget = element?.closest<HTMLElement>('[data-bench-index]');
+  if (benchTarget?.dataset.benchIndex !== undefined) return { kind: 'bench', index: Number(benchTarget.dataset.benchIndex) };
+  return null;
+}
+
+function transitionName(player: DisplayPlayer): string {
+  return `squad-player-${player._id.replace(/[^a-zA-Z0-9_-]/g, '-')}`;
+}
+
+function applyDraftTransition(next: LineupDraft, setDraft: (draft: LineupDraft) => void): void {
+  const update = () => flushSync(() => setDraft(next));
+  const transitionDocument = document as Document & { startViewTransition?: (callback: () => void) => void };
+  if (transitionDocument.startViewTransition) transitionDocument.startViewTransition(update);
+  else update();
 }
 
 function validateDraft(draft: LineupDraft): string|null {
