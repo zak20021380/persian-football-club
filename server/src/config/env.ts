@@ -15,7 +15,9 @@ const schema = z.object({
   NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
   PORT: z.coerce.number().int().positive().default(3000),
   TIMEZONE: z.string().default('Asia/Tehran'),
-  UPLOAD_DIR: z.string().min(1).default('uploads')
+  UPLOAD_DIR: z.string().min(1).default('uploads'),
+  PAYMENT_PROVIDER: z.enum(['none', 'test']).default('none'),
+  DAILY_COIN_REWARD: z.coerce.number().int().min(1).max(100_000).default(25)
 });
 
 const parsed = schema.safeParse(process.env);

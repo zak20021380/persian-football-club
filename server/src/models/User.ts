@@ -8,6 +8,8 @@ export interface IUser {
   photoUrl?: string;
   favoriteTeam?: string;
   points: number;
+  coinBalance: number;
+  dailyRewardAvailableAt?: Date;
   weeklyPoints: number;
   streak: number;
   quizCorrect: number;
@@ -34,6 +36,8 @@ const schema = new Schema<IUser>({
   photoUrl: String,
   favoriteTeam: { type: String, trim: true, maxlength: 80 },
   points: { type: Number, default: 0, min: 0, index: true },
+  coinBalance: { type: Number, default: 0, min: 0 },
+  dailyRewardAvailableAt: { type: Date },
   weeklyPoints: { type: Number, default: 0, min: 0, index: true },
   streak: { type: Number, default: 0, min: 0 },
   quizCorrect: { type: Number, default: 0, min: 0 },

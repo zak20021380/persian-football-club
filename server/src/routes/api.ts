@@ -6,7 +6,7 @@ import { z } from 'zod';
 import { adminIds, env } from '../config/env.js';
 import { authenticate, requireAdmin, verifyLiveMembership } from '../middleware/auth.js';
 import {
-  AppSetting, Badge, Broadcast, Competition, CompetitionEntry, ImportantMatch, Prediction, Question, Quiz,
+  AppSetting, Badge, Broadcast, CoinPackage, Competition, CompetitionEntry, ImportantMatch, Prediction, Question, Quiz,
   QuizAttempt, Referral, Reminder, Reward, Sponsor, User
 } from '../models/index.js';
 import { scoreQuiz } from '../services/scoring.js';
@@ -17,6 +17,7 @@ import { rewardPendingReferral } from '../services/referral.js';
 import { AppError } from '../utils/errors.js';
 import { asyncHandler } from '../utils/asyncHandler.js';
 import funRouter from './fun.js';
+import storeRouter from './store.js';
 
 const router = Router();
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 2 * 1024 * 1024, files: 1 }, fileFilter: (_req, file, cb) => cb(null, /^image\/(png|jpeg|webp|gif)$/.test(file.mimetype)) });
@@ -32,6 +33,7 @@ router.get('/sponsors/:id/redirect', asyncHandler(async (req, res) => {
 
 router.use(authenticate);
 router.use('/fun', funRouter);
+router.use('/store', storeRouter);
 
 router.get('/bootstrap', asyncHandler(async (req, res) => {
   const user = req.authUser!;
@@ -253,7 +255,8 @@ router.use('/admin', requireAdmin);
 
 const resources: Record<string, Model<any>> = {
   matches: ImportantMatch, questions: Question, quizzes: Quiz, competitions: Competition,
-  rewards: Reward, sponsors: Sponsor, badges: Badge, broadcasts: Broadcast, settings: AppSetting, users: User
+  rewards: Reward, sponsors: Sponsor, badges: Badge, broadcasts: Broadcast, settings: AppSetting, users: User,
+  coinPackages: CoinPackage
 };
 
 router.get('/admin/overview', asyncHandler(async (_req, res) => {
@@ -271,6 +274,18 @@ router.post('/admin/upload', upload.single('image'), (req, res, next) => {
   res.status(201).json({ url: `data:${req.file.mimetype};base64,${req.file.buffer.toString('base64')}` });
 });
 
+router.post('/admin/coinPackages/:id/move', asyncHandler(async (req, res) => {
+  const direction = z.object({ direction: z.enum(['up','down']) }).parse(req.body).direction;
+  const packages = await CoinPackage.find().sort({ sortOrder: 1, createdAt: 1 });
+  const currentIndex = packages.findIndex(item => String(item._id) === param(req.params.id));
+  if (currentIndex < 0) throw new AppError(404, 'بسته سکه پیدا نشد');
+  const targetIndex = direction === 'up' ? currentIndex - 1 : currentIndex + 1;
+  if (targetIndex < 0 || targetIndex >= packages.length) { res.json(packages[currentIndex]); return; }
+  [packages[currentIndex], packages[targetIndex]] = [packages[targetIndex], packages[currentIndex]];
+  await CoinPackage.bulkWrite(packages.map((item, index) => ({ updateOne: { filter: { _id: item._id }, update: { $set: { sortOrder: (index + 1) * 10 } } } })));
+  res.json(await CoinPackage.findById(param(req.params.id)));
+}));
+
 router.get('/admin/:resource', asyncHandler(async (req, res) => {
   const model = resources[param(req.params.resource)];
   if (!model) throw new AppError(404, 'بخش مدیریتی نامعتبر است');
@@ -279,7 +294,8 @@ router.get('/admin/:resource', asyncHandler(async (req, res) => {
   const query: Record<string, unknown> = {};
   if (req.query.status) query.status = req.query.status;
   if (req.query.q) query.$or = searchableFields(param(req.params.resource)).map((field) => ({ [field]: { $regex: String(req.query.q), $options: 'i' } }));
-  const [items, total] = await Promise.all([model.find(query).sort({ createdAt: -1 }).skip((page - 1) * limit).limit(limit).lean(), model.countDocuments(query)]);
+  const sort = param(req.params.resource) === 'coinPackages' ? { sortOrder: 1, createdAt: 1 } : { createdAt: -1 };
+  const [items, total] = await Promise.all([model.find(query).sort(sort as any).skip((page - 1) * limit).limit(limit).lean(), model.countDocuments(query)]);
   res.json({ items, total, page, pages: Math.ceil(total / limit) });
 }));
 
@@ -352,7 +368,7 @@ function publicUser(user: Record<string, any>, extra: Record<string, unknown> = 
 }
 function todayKey(): string { return new Intl.DateTimeFormat('en-CA', { timeZone: env.TIMEZONE, year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date()); }
 function searchableFields(resource: string): string[] {
-  return ({ matches: ['homeTeam','awayTeam','competitionName'], questions: ['text','category'], quizzes: ['title'], competitions: ['title'], rewards: ['title'], sponsors: ['name'], badges: ['name'], broadcasts: ['title','message'], settings: ['key'], users: ['firstName','lastName','username'] } as Record<string,string[]>)[resource] ?? ['title'];
+  return ({ matches: ['homeTeam','awayTeam','competitionName'], questions: ['text','category'], quizzes: ['title'], competitions: ['title'], rewards: ['title'], sponsors: ['name'], badges: ['name'], broadcasts: ['title','message'], settings: ['key'], users: ['firstName','lastName','username'], coinPackages: ['title','badge'] } as Record<string,string[]>)[resource] ?? ['title'];
 }
 function sanitizeAdminPayload(resource: string, payload: unknown): Record<string, any> {
   if (!payload || typeof payload !== 'object' || Array.isArray(payload)) throw new AppError(400, 'بدنه درخواست نامعتبر است');
@@ -360,6 +376,10 @@ function sanitizeAdminPayload(resource: string, payload: unknown): Record<string
   delete value._id; delete value.__v; delete value.createdAt; delete value.updatedAt; delete value.telegramId; delete value.points; delete value.weeklyPoints; delete value.referralCode;
   if (resource === 'users') {
     const allowed = ['favoriteTeam','membershipConfirmed','blockedBot'];
+    return Object.fromEntries(Object.entries(value).filter(([key]) => allowed.includes(key)));
+  }
+  if (resource === 'coinPackages') {
+    const allowed = ['title','coins','price','originalPrice','badge','active','sortOrder'];
     return Object.fromEntries(Object.entries(value).filter(([key]) => allowed.includes(key)));
   }
   return value;

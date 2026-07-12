@@ -1,5 +1,5 @@
 import { connectDatabase, disconnectDatabase } from '../config/db.js';
-import { AppSetting, Badge, Competition, ImportantMatch, Question, Quiz, Reward } from '../models/index.js';
+import { AppSetting, Badge, CoinPackage, Competition, ImportantMatch, Question, Quiz, Reward } from '../models/index.js';
 import { logger } from '../utils/logger.js';
 
 const categories = ['لیگ قهرمانان','جام جهانی','فوتبال ایران','لیگ انگلیس','لالیگا','تاریخ فوتبال','باشگاه‌ها و بازیکنان'];
@@ -65,7 +65,7 @@ const raw: Array<[string,string[],number,string,number?]> = [
 
 async function seed() {
   await connectDatabase();
-  await Promise.all([Question.deleteMany({}), Quiz.deleteMany({}), Competition.deleteMany({}), ImportantMatch.deleteMany({}), Reward.deleteMany({})]);
+  await Promise.all([Question.deleteMany({}), Quiz.deleteMany({}), Competition.deleteMany({}), ImportantMatch.deleteMany({}), Reward.deleteMany({}), CoinPackage.deleteMany({})]);
   const questions = await Question.insertMany(raw.map(([text, options, correctOption, category, score]) => ({ text, options, correctOption, category, explanation: `پاسخ درست: ${options[correctOption]}`, difficulty: 'medium', score: score ?? 10, active: true })));
   const now = Date.now();
   await Quiz.create({ title: 'کوییز روزانه فوتبال', description: 'ده سؤال سریع برای سنجش دانش فوتبالی', questionIds: questions.slice(0,10).map(q=>q._id), startsAt: new Date(now-60_000), endsAt: new Date(now+24*60*60*1000), timerSeconds: 180, scoreMultiplier: 1, status: 'active', dailyKey: new Intl.DateTimeFormat('en-CA',{timeZone:'Asia/Tehran'}).format(new Date()), published: true });
@@ -75,6 +75,12 @@ async function seed() {
     { homeTeam:'رئال مادرید',awayTeam:'بارسلونا',competitionName:'لالیگا',kickoffAt:new Date(now+30*60*60*1000),predictionDeadline:new Date(now+29*60*60*1000),description:'ال‌کلاسیکوی نمایشی برای شروع کار.',status:'scheduled',published:true,reminderMinutes:[30,60],predictionsScored:false }
   ]);
   await Reward.create({ title:'نشان پیش‌بینی طلایی',description:'ویژه کاربران با حداقل ۵۰۰ امتیاز',type:'points',pointsRequired:500,startsAt:new Date(now-60_000),endsAt:new Date(now+30*24*60*60*1000),active:true });
+  await CoinPackage.insertMany([
+    { title:'شروع طلایی',coins:100,price:49000,sortOrder:1,active:true },
+    { title:'انتخاب محبوب',coins:300,price:119000,originalPrice:147000,badge:'محبوب‌ترین',sortOrder:2,active:true },
+    { title:'کیف پرستاره',coins:700,price:239000,originalPrice:343000,badge:'بهترین ارزش',sortOrder:3,active:true },
+    { title:'خزانه قهرمان',coins:1500,price:449000,originalPrice:735000,badge:'۳۹٪ تخفیف',sortOrder:4,active:true }
+  ]);
   await Badge.deleteMany({});
   await Badge.insertMany([
     {name:'شروع قدرتمند',description:'اولین کوییز کامل',icon:'rocket',category:'quiz',threshold:1,active:true},

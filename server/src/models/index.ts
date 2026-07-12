@@ -17,3 +17,5 @@ export * from './AppSetting.js';
 export * from './FunPost.js';
 export * from './FunPostLike.js';
 export * from './FunPostReport.js';
+export * from './CoinPackage.js';
+export * from './CoinTransaction.js';
