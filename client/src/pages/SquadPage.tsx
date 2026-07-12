@@ -94,6 +94,7 @@ export function SquadPage() {
   const [dirty, setDirty] = useState(false);
   const [selectedSlot, setSelectedSlot] = useState<number|null>(null);
   const [selectedBenchPlayer, setSelectedBenchPlayer] = useState<DisplayPlayer|null>(null);
+  const [showAllSubstitutes, setShowAllSubstitutes] = useState(false);
   const [drag, setDrag] = useState<DragState|null>(null);
   const squad = useQuery({ queryKey: ['clubSquad'], queryFn: async () => (await api.get<SquadData>('/club/squad')).data });
   const demoMode = Boolean(squad.data && squad.data.starters.every(player => !player) && squad.data.substitutes.length === 0);
@@ -423,8 +424,23 @@ export function SquadPage() {
       {validationMessage && !demoMode && <div className="mt-3 flex items-start gap-2 rounded-2xl border border-amber-300/15 bg-amber-300/[.06] p-2.5 text-[8px] leading-5 text-amber-100/80"><CircleAlert size={15} className="mt-0.5 shrink-0 text-amber-300"/><span>{validationMessage}</span></div>}
 
       <section className="mt-4">
-        <div className="mb-2.5 flex items-end justify-between"><div><div className="flex items-center gap-2"><UsersRound size={16} className="text-pitch-300"/><h2 className="text-xs font-black">بازیکنان ذخیره</h2></div><p className="mt-1 text-[7px] text-slate-500">نیمکت آماده برای تغییر جریان مسابقه</p></div><span className="rounded-full border border-emerald-300/10 bg-emerald-400/[.07] px-2 py-1 text-[7px] font-bold text-emerald-200">{faNumber(Math.min(draft.substitutes.length, 7))} بازیکن</span></div>
-        {draft.substitutes.length ? <div className="-mx-3 flex snap-x snap-mandatory gap-2 overflow-x-auto px-3 pb-1.5 scrollbar-none">{draft.substitutes.slice(0, 7).map((player, index) => <BenchPlayer key={player._id} player={player} index={index} onClick={() => openBenchPlayer(player)}/>)}</div> : <Card className="flex min-h-20 items-center gap-3 border-dashed p-3"><span className="grid h-10 w-10 shrink-0 place-items-center rounded-2xl bg-white/[.04] text-slate-500"><UserRound size={18}/></span><div className="min-w-0 flex-1"><h3 className="text-[10px] font-black">نیمکت خالی است</h3><p className="mt-1 text-[8px] text-slate-500">از بازار بازیکن جدید به باشگاه اضافه کن.</p></div><Link to="/club/transfer-market" className="flex min-h-9 shrink-0 items-center rounded-xl bg-white/[.05] px-2.5 text-[8px] font-bold text-slate-300">بازار</Link></Card>}
+        <div className="mb-2.5 flex items-end justify-between"><div><div className="flex items-center gap-2"><UsersRound size={16} className="text-pitch-300"/><h2 className="text-xs font-black">بازیکنان ذخیره</h2></div><p className="mt-1 text-[7px] text-slate-500">نیمکت آماده برای تغییر جریان مسابقه</p></div><span className="rounded-full border border-emerald-300/10 bg-emerald-400/[.07] px-2 py-1 text-[7px] font-bold text-emerald-200">{faNumber(draft.substitutes.length)} بازیکن</span></div>
+        {draft.substitutes.length ? <>
+          <div className="grid grid-cols-4 gap-1.5 sm:gap-2">
+            {(showAllSubstitutes ? draft.substitutes : draft.substitutes.slice(0, 8)).map((player, index) => (
+              <BenchPlayer key={player._id} player={player} index={index} onClick={() => openBenchPlayer(player)}/>
+            ))}
+          </div>
+          {draft.substitutes.length > 8 && (
+            <button
+              type="button"
+              onClick={() => setShowAllSubstitutes(value => !value)}
+              className="mt-2.5 flex min-h-9 w-full items-center justify-center gap-1.5 rounded-xl border border-emerald-300/12 bg-emerald-400/[.07] text-[8px] font-black text-emerald-200 transition active:scale-[.985]"
+            >
+              {showAllSubstitutes ? 'نمایش کمتر' : 'مشاهده همه ذخیره‌ها'}
+            </button>
+          )}
+        </> : <Card className="flex min-h-20 items-center gap-3 border-dashed p-3"><span className="grid h-10 w-10 shrink-0 place-items-center rounded-2xl bg-white/[.04] text-slate-500"><UserRound size={18}/></span><div className="min-w-0 flex-1"><h3 className="text-[10px] font-black">نیمکت خالی است</h3><p className="mt-1 text-[8px] text-slate-500">از بازار بازیکن جدید به باشگاه اضافه کن.</p></div><Link to="/club/transfer-market" className="flex min-h-9 shrink-0 items-center rounded-xl bg-white/[.05] px-2.5 text-[8px] font-bold text-slate-300">بازار</Link></Card>}
       </section>
     </main>
 
@@ -481,11 +497,11 @@ function PlayerAvatar({ player, className }: { player: DisplayPlayer; className?
 
 const BenchPlayer = memo(function BenchPlayer({ player, index, onClick }: { player: DisplayPlayer; index: number; onClick: () => void }) {
   const accent = ['from-emerald-400/10', 'from-sky-400/10', 'from-violet-400/10'][index % 3];
-  return <button type="button" onClick={onClick} aria-label={`${player.name}، ${player.position}، ${formatMarketValue(player.marketValue)}`} className={cn('relative shrink-0 grow-0 basis-[calc((100%-1.5rem)/3.35)] snap-start overflow-hidden rounded-2xl border border-white/[.06] bg-gradient-to-b to-ink-900/90 p-2 text-center shadow-[0_5px_12px_rgba(0,0,0,.12)] transition active:scale-[.98]', accent)}>
-    <PlayerAvatar player={player} className="mx-auto h-[34px] w-[34px] shadow-[0_3px_8px_rgba(0,0,0,.2)]"/>
-    <strong className="mt-1.5 block truncate text-[8px] font-black leading-tight text-white">{shortName(player.name)}</strong>
-    <span className="mt-0.5 block truncate text-[6px] font-bold text-slate-400">{player.position}</span>
-    <span className="mt-1 block truncate text-[6px] font-bold text-emerald-300/90">{formatMarketValue(player.marketValue)}</span>
+  return <button type="button" onClick={onClick} aria-label={`${player.name}، ${player.position}، ${formatMarketValue(player.marketValue)}`} className={cn('relative flex min-w-0 w-full flex-col items-center overflow-hidden rounded-xl border border-white/[.06] bg-gradient-to-b to-ink-900/90 px-1 py-1.5 text-center shadow-[0_4px_10px_rgba(0,0,0,.1)] transition active:scale-[.98] sm:rounded-2xl sm:px-1.5 sm:py-2', accent)}>
+    <PlayerAvatar player={player} className="h-8 w-8 shadow-[0_3px_8px_rgba(0,0,0,.2)] sm:h-[34px] sm:w-[34px]"/>
+    <strong className="mt-1 w-full truncate text-[7px] font-black leading-tight text-white sm:mt-1.5 sm:text-[8px]">{shortName(player.name)}</strong>
+    <span className="mt-0.5 w-full truncate text-[5.5px] font-bold text-slate-400 sm:text-[6px]">{player.position}</span>
+    <span className="mt-0.5 w-full truncate text-[5.5px] font-bold text-emerald-300/90 sm:mt-1 sm:text-[6px]">{formatMarketValue(player.marketValue)}</span>
   </button>;
 });
 
