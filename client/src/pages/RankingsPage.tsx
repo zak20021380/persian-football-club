@@ -3,6 +3,7 @@ import { useQuery } from '@tanstack/react-query';
 import { ArrowUpLeft, Crown, Medal, Sparkles, Target, Trophy, UserPlus } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { BrandMark } from '@/components/BrandMark';
+import { WalletShortcut } from '@/components/WalletShortcut';
 import { Card, ErrorState, PageSkeleton } from '@/components/ui';
 import { api } from '@/lib/api';
 import { cn, faNumber } from '@/lib/utils';
@@ -143,7 +144,7 @@ export function RankingsPage() {
             <BrandMark className="h-11 w-11"/>
             <div><p className="text-[9px] font-bold text-emerald-300">تالار افتخارات</p><h1 className="mt-0.5 text-lg font-black">جدول قهرمانان</h1></div>
           </div>
-          <div className="grid h-11 w-11 place-items-center rounded-2xl border border-amber-300/15 bg-amber-300/[.08] text-amber-300"><Trophy size={21}/></div>
+          <WalletShortcut/>
         </div>
         <div className="relative mt-6">
           <p className="text-[10px] font-bold text-slate-400">رقابت، پیش‌بینی، قهرمانی</p>

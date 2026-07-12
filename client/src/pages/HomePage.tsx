@@ -20,6 +20,7 @@ import { Link } from 'react-router-dom';
 import { BrandMark } from '@/components/BrandMark';
 import { ClubCrest } from '@/components/ClubCrest';
 import { MatchCard } from '@/components/MatchCard';
+import { WalletShortcut } from '@/components/WalletShortcut';
 import { SponsorCard } from '@/components/SponsorCard';
 import { Card, EmptyState, ErrorState, PageSkeleton, SectionTitle } from '@/components/ui';
 import { api } from '@/lib/api';
@@ -156,10 +157,10 @@ export function HomePage() {
               <p className="mt-0.5 text-sm font-black text-white">فوتبال کلاب</p>
             </div>
           </div>
-          <Link to="/profile" aria-label="پروفایل من" className="relative grid h-11 w-11 place-items-center rounded-2xl border border-white/10 bg-white/[.06] text-sm font-black text-emerald-200 backdrop-blur">
+          <div className="flex items-center gap-2"><WalletShortcut/><Link to="/profile" aria-label="پروفایل من" className="relative grid h-11 w-11 place-items-center rounded-2xl border border-white/10 bg-white/[.06] text-sm font-black text-emerald-200 backdrop-blur">
             {data.user.firstName.slice(0, 1)}
             <span className="absolute -bottom-0.5 -left-0.5 h-3 w-3 rounded-full border-2 border-ink-950 bg-emerald-400"/>
-          </Link>
+          </Link></div>
         </div>
 
         <div className="relative mt-7">

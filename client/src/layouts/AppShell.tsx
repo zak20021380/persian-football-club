@@ -1,28 +1,44 @@
-import { Coins, Home, Laugh, Medal, ShieldCheck, Swords, UserRound } from 'lucide-react';
-import { NavLink, Outlet } from 'react-router-dom';
+import { Home, Laugh, ShieldCheck, Swords, UserRound } from 'lucide-react';
+import { Link, Outlet, useLocation } from 'react-router-dom';
 import { cn } from '@/lib/utils';
 
 const items = [
-  { to: '/', label: 'خانه', icon: Home, end: true },
-  { to: '/matches', label: 'بازی‌ها', icon: Swords },
-  { to: '/competitions', label: 'جام‌ها', icon: ShieldCheck },
-  { to: '/fun', label: 'فان', icon: Laugh },
-  { to: '/store', label: 'فروشگاه', icon: Coins },
-  { to: '/rankings', label: 'برترین‌ها', icon: Medal },
-  { to: '/profile', label: 'پروفایل', icon: UserRound }
+  { to: '/', label: 'خانه', icon: Home, paths: ['/'] },
+  { to: '/competition', label: 'مسابقات', icon: Swords, paths: ['/competition', '/matches', '/competitions', '/quiz', '/rankings', '/rewards'] },
+  { to: '/club', label: 'باشگاه', icon: ShieldCheck, paths: ['/club', '/store'], center: true },
+  { to: '/fun', label: 'فان', icon: Laugh, paths: ['/fun'] },
+  { to: '/profile', label: 'پروفایل', icon: UserRound, paths: ['/profile'] },
 ];
 
+function pathActive(pathname: string, paths: string[]): boolean {
+  return paths.some(path => path === '/' ? pathname === '/' : pathname === path || pathname.startsWith(`${path}/`));
+}
+
 export function AppShell() {
+  const { pathname } = useLocation();
   return (
     <div className="pitch-grid min-h-screen pb-28">
       <div className="mx-auto w-full max-w-xl"><Outlet/></div>
-      <nav className="safe-bottom pointer-events-none fixed inset-x-0 bottom-0 z-50 px-2 pb-1">
-        <div className="pointer-events-auto mx-auto grid max-w-xl grid-cols-7 gap-0.5 rounded-[1.5rem] border border-white/10 bg-ink-900/95 p-1.5 shadow-[0_-8px_35px_rgba(0,0,0,.32)] backdrop-blur-2xl">
-          {items.map(({ to, label, icon: Icon, end }) => (
-            <NavLink key={to} to={to} end={end} className={({ isActive }) => cn('relative flex min-h-[58px] min-w-0 flex-col items-center justify-center gap-1.5 rounded-[1.15rem] text-[8px] font-bold text-slate-500 transition active:scale-95', isActive && (to === '/fun' ? 'bg-fuchsia-400/[.11] text-fuchsia-300' : 'bg-emerald-400/[.11] text-emerald-300'))}>
-              {({ isActive }) => <><Icon size={18} strokeWidth={isActive ? 2.6 : 1.8}/><span className="truncate">{label}</span>{isActive && <span className={cn('absolute bottom-1 h-0.5 w-4 rounded-full', to === '/fun' ? 'bg-fuchsia-300' : 'bg-emerald-300')}/>}</>}
-            </NavLink>
-          ))}
+      <nav aria-label="پیمایش اصلی" className="safe-bottom pointer-events-none fixed inset-x-0 bottom-0 z-50 px-2 pb-1">
+        <div className="pointer-events-auto mx-auto grid max-w-xl grid-cols-5 gap-1 rounded-[1.5rem] border border-white/10 bg-ink-900/95 p-1.5 shadow-[0_-8px_35px_rgba(0,0,0,.32)] backdrop-blur-2xl">
+          {items.map(({ to, label, icon: Icon, paths, center }) => {
+            const active = pathActive(pathname, paths);
+            return <Link
+              key={to}
+              to={to}
+              aria-current={active ? 'page' : undefined}
+              className={cn(
+                'relative flex min-h-[58px] min-w-0 flex-col items-center justify-center gap-1.5 rounded-[1.15rem] text-[9px] font-bold text-slate-500 transition active:scale-95',
+                active && (to === '/fun' ? 'bg-fuchsia-400/[.11] text-fuchsia-300' : 'bg-emerald-400/[.11] text-emerald-300'),
+                center && '-mt-3 min-h-[66px] border border-emerald-300/[.14] bg-ink-850 text-slate-300 shadow-[0_-8px_24px_rgba(0,0,0,.22)]',
+                center && active && 'border-emerald-300/30 bg-gradient-to-b from-emerald-400/[.18] to-ink-850 text-emerald-200',
+              )}
+            >
+              <span className={cn('grid place-items-center', center && 'h-8 w-8 rounded-xl bg-emerald-400/[.12] text-emerald-300')}><Icon size={center ? 20 : 18} strokeWidth={active ? 2.6 : 1.8}/></span>
+              <span className="max-w-full truncate px-1">{label}</span>
+              {active && <span className={cn('absolute bottom-1 h-0.5 w-4 rounded-full', to === '/fun' ? 'bg-fuchsia-300' : 'bg-emerald-300')}/>}
+            </Link>;
+          })}
         </div>
       </nav>
     </div>

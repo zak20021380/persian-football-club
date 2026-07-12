@@ -20,6 +20,7 @@ import {
 import toast from 'react-hot-toast';
 import { Link } from 'react-router-dom';
 import { BrandMark } from '@/components/BrandMark';
+import { WalletShortcut } from '@/components/WalletShortcut';
 import { Card, ErrorState, LoadingButton, PageSkeleton } from '@/components/ui';
 import { useBootstrap } from '@/hooks/useBootstrap';
 import { api } from '@/lib/api';
@@ -130,7 +131,7 @@ export function ProfilePage() {
         <div className="absolute -right-20 top-28 h-52 w-52 rounded-full border border-emerald-300/[.07]"/>
         <div className="relative flex items-center justify-between">
           <div className="flex items-center gap-3"><BrandMark className="h-11 w-11"/><div><p className="text-[9px] font-bold text-emerald-300">حساب کاربری</p><h1 className="mt-0.5 text-lg font-black">پروفایل من</h1></div></div>
-          <button type="button" onClick={openEditor} aria-label="ویرایش پروفایل" className="grid h-11 w-11 place-items-center rounded-2xl border border-white/[.08] bg-white/[.05] text-slate-300 transition duration-300 active:scale-90 active:bg-white/10"><Pencil size={17}/></button>
+          <div className="flex items-center gap-2"><WalletShortcut/><button type="button" onClick={openEditor} aria-label="ویرایش پروفایل" className="grid h-11 w-11 place-items-center rounded-2xl border border-white/[.08] bg-white/[.05] text-slate-300 transition duration-300 active:scale-90 active:bg-white/10"><Pencil size={17}/></button></div>
         </div>
 
         <div className="profile-animate relative mt-7 flex items-center gap-4">

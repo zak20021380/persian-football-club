@@ -3,6 +3,7 @@ import { useQuery } from '@tanstack/react-query';
 import { CalendarClock, LayoutGrid, Radio, Sparkles, Trophy } from 'lucide-react';
 import { BrandMark } from '@/components/BrandMark';
 import { MatchCard } from '@/components/MatchCard';
+import { WalletShortcut } from '@/components/WalletShortcut';
 import { EmptyState, ErrorState, PageSkeleton } from '@/components/ui';
 import { api } from '@/lib/api';
 import { cn, faNumber } from '@/lib/utils';
@@ -29,7 +30,7 @@ export function MatchesPage() {
         <div className="absolute -right-24 top-20 h-56 w-56 rounded-full border border-emerald-300/[.07]"/>
         <div className="relative flex items-center justify-between">
           <div className="flex items-center gap-3"><BrandMark className="h-11 w-11"/><div><p className="text-[9px] font-bold text-emerald-300">مرکز مسابقات</p><h1 className="mt-0.5 text-lg font-black">بازی‌های مهم</h1></div></div>
-          <span className="grid h-11 w-11 place-items-center rounded-2xl border border-sky-300/15 bg-sky-300/[.07] text-sky-300"><CalendarClock size={21}/></span>
+          <div className="flex items-center gap-2"><WalletShortcut/><span className="hidden h-11 w-11 place-items-center rounded-2xl border border-sky-300/15 bg-sky-300/[.07] text-sky-300 min-[380px]:grid"><CalendarClock size={21}/></span></div>
         </div>
         <div className="relative mt-6">
           <div className="flex items-center gap-1.5 text-[9px] font-black text-amber-300"><Sparkles size={12}/> هر بازی، یک پیش‌بینی تازه</div>

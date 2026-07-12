@@ -3,6 +3,7 @@ import { useInfiniteQuery, useMutation, useQueryClient } from '@tanstack/react-q
 import { AlertTriangle, Camera, Heart, ImagePlus, Laugh, LoaderCircle, MoreHorizontal, Plus, Send, Sparkles, Trash2, X } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { BrandMark } from '@/components/BrandMark';
+import { WalletShortcut } from '@/components/WalletShortcut';
 import { Card, EmptyState, ErrorState, Skeleton } from '@/components/ui';
 import { api } from '@/lib/api';
 import { FUN_IMAGE_ACCEPT, validateFunImageFile } from '@/lib/funImage';
@@ -130,7 +131,7 @@ export function FunPage() {
     <main className="fun-page pb-5">
       <header className="fun-hero safe-top relative overflow-hidden px-4 pb-7 pt-3">
         <div className="home-hero-grid absolute inset-0 opacity-35"/><div className="fun-orb absolute -left-16 -top-16 h-56 w-56 rounded-full bg-fuchsia-400/[.11] blur-3xl"/>
-        <div className="relative flex items-center justify-between"><div className="flex items-center gap-3"><BrandMark className="h-11 w-11 text-fuchsia-300"/><div><p className="text-[9px] font-bold text-fuchsia-300">رختکن هوادارا</p><h1 className="mt-0.5 text-lg font-black">فان فوتبالی</h1></div></div><span className="grid h-11 w-11 place-items-center rounded-2xl border border-fuchsia-300/15 bg-fuchsia-300/[.08] text-fuchsia-300"><Laugh size={22}/></span></div>
+        <div className="relative flex items-center justify-between"><div className="flex items-center gap-3"><BrandMark className="h-11 w-11 text-fuchsia-300"/><div><p className="text-[9px] font-bold text-fuchsia-300">رختکن هوادارا</p><h1 className="mt-0.5 text-lg font-black">فان فوتبالی</h1></div></div><WalletShortcut/></div>
         <div className="relative mt-6 flex items-end justify-between gap-4"><div><div className="flex items-center gap-1.5 text-[9px] font-black text-amber-300"><Sparkles size={12}/> بخند، بساز، منتشر کن</div><h2 className="mt-1 text-xl font-black leading-8">فوتبال بدون کری،<br/><span className="text-fuchsia-300">اصلاً مزه نداره!</span></h2></div><button type="button" onClick={() => { impact(); setCreating(true); }} className="flex min-h-12 shrink-0 items-center gap-2 rounded-2xl bg-gradient-to-l from-fuchsia-400 to-violet-500 px-4 text-[10px] font-black text-white shadow-lg shadow-fuchsia-500/15 transition active:scale-95"><Plus size={17}/>ارسال پست</button></div>
       </header>
 
