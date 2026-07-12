@@ -1,6 +1,6 @@
 import { memo, useCallback, useEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent, type ReactNode } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { ArrowLeft, ArrowLeftRight, BadgeDollarSign, BriefcaseBusiness, Building2, CalendarClock, Check, CircleAlert, Edit3, Eye, Flag, ListRestart, Plus, RotateCcw, Save, Shirt, Sparkles, Trash2, UserRound, UsersRound, X } from 'lucide-react';
+import { ArrowLeft, ArrowLeftRight, BadgeDollarSign, BriefcaseBusiness, Building2, CalendarClock, CircleAlert, Eye, Flag, ListRestart, Plus, RotateCcw, Save, Shirt, Sparkles, Trash2, UserRound, UsersRound, X } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import { PageHeader } from '@/components/PageHeader';
@@ -8,7 +8,7 @@ import { Card, ErrorState, PageSkeleton } from '@/components/ui';
 import { formations } from '@/lib/formations';
 import { api } from '@/lib/api';
 import { cn, faNumber } from '@/lib/utils';
-import type { BuiltInSquadFormation, ClubPlayer, SavedSquadFormation, SquadData, SquadFormation, SquadPosition } from '@/types/api';
+import type { BuiltInSquadFormation, ClubPlayer, SquadData, SquadFormation, SquadPosition } from '@/types/api';
 
 type DisplayPlayer = ClubPlayer & { demoIndex?: number };
 interface LineupDraft {
@@ -63,6 +63,16 @@ const demoPlayers: DisplayPlayer[] = [
   { _id: 'demo-11', name: 'علیرضا جهانبخش', position: 'RW', overall: 84, nationality: 'ایران', demoIndex: 10 },
 ];
 
+const demoSubstitutes: DisplayPlayer[] = [
+  { _id: 'demo-sub-1', name: 'آراد نیک‌فر', position: 'GK', overall: 77, nationality: 'ایران', club: 'تیم آینده', contractStatus: 'آماده', demoIndex: 11 },
+  { _id: 'demo-sub-2', name: 'بردیا فرهمند', position: 'CB', overall: 79, nationality: 'ایران', club: 'تیم آینده', contractStatus: 'آماده', demoIndex: 3 },
+  { _id: 'demo-sub-3', name: 'سام رستگار', position: 'LB', overall: 78, nationality: 'ایران', club: 'تیم آینده', contractStatus: 'آماده', demoIndex: 1 },
+  { _id: 'demo-sub-4', name: 'مانی یزدان‌پناه', position: 'DM', overall: 80, nationality: 'ایران', club: 'تیم آینده', contractStatus: 'آماده', demoIndex: 5 },
+  { _id: 'demo-sub-5', name: 'پارسا کیانی', position: 'AM', overall: 82, nationality: 'ایران', club: 'تیم آینده', contractStatus: 'آماده', demoIndex: 6 },
+  { _id: 'demo-sub-6', name: 'رادین مهرآور', position: 'RW', overall: 81, nationality: 'ایران', club: 'تیم آینده', contractStatus: 'آماده', demoIndex: 10 },
+  { _id: 'demo-sub-7', name: 'آریا شایگان', position: 'ST', overall: 83, nationality: 'ایران', club: 'تیم آینده', contractStatus: 'آماده', demoIndex: 9 },
+];
+
 const DRAFT_KEY = 'persian-football-club:squad-draft:v2';
 const LONG_PRESS_MS = 180;
 const TOUCH_DRAG_THRESHOLD = 12;
@@ -84,7 +94,6 @@ export function SquadPage() {
   const [dirty, setDirty] = useState(false);
   const [selectedSlot, setSelectedSlot] = useState<number|null>(null);
   const [drag, setDrag] = useState<DragState|null>(null);
-  const [nameDialog, setNameDialog] = useState<{ mode: 'create'|'rename'; id?: string; value: string }|null>(null);
   const squad = useQuery({ queryKey: ['clubSquad'], queryFn: async () => (await api.get<SquadData>('/club/squad')).data });
   const demoMode = Boolean(squad.data && squad.data.starters.every(player => !player) && squad.data.substitutes.length === 0);
 
@@ -282,7 +291,7 @@ export function SquadPage() {
     let nextDraft: LineupDraft;
     let restoredDraft = false;
     if (demoMode) {
-      nextDraft = { formation: '4-3-3', starters: demoPlayers, substitutes: [], positions: clonePositions(formations['4-3-3']) };
+      nextDraft = { formation: '4-3-3', starters: demoPlayers, substitutes: demoSubstitutes, positions: clonePositions(formations['4-3-3']) };
     } else {
       const restored = restoreDraft(squad.data);
       nextDraft = restored ?? draftFromData(squad.data);
@@ -322,24 +331,6 @@ export function SquadPage() {
   });
   useEffect(() => { savePendingRef.current = saveMutation.isPending; }, [saveMutation.isPending]);
 
-  const customMutation = useMutation({
-    mutationFn: async (action: { type: 'create'; name: string; current: LineupDraft }|{ type: 'rename'; id: string; name: string }|{ type: 'delete'; id: string }) => {
-      if (action.type === 'create') return (await api.post<SquadData>('/club/squad/custom-formations', {
-        name: action.name,
-        positions: action.current.positions,
-        starterIds: action.current.starters.map(player => player?._id ?? null),
-      })).data;
-      if (action.type === 'rename') return (await api.patch<SquadData>(`/club/squad/custom-formations/${action.id}`, { name: action.name })).data;
-      return (await api.delete<SquadData>(`/club/squad/custom-formations/${action.id}`)).data;
-    },
-    onSuccess: data => {
-      queryClient.setQueryData(['clubSquad'], data);
-      setNameDialog(null);
-      toast.success('آرایش‌های دلخواه به‌روزرسانی شدند');
-    },
-    onError: error => toast.error((error as Error).message),
-  });
-
   const selectedPlayer = draft && selectedSlot !== null ? draft.starters[selectedSlot] : null;
   const validationMessage = useMemo(() => draft ? validateDraft(draft) : null, [draft]);
 
@@ -353,17 +344,6 @@ export function SquadPage() {
       ? clonePositions(current.positions)
       : clonePositions(formations[formation as BuiltInSquadFormation]),
   }));
-
-  const loadSavedFormation = (saved: SavedSquadFormation) => updateDraft(current => {
-    const selectedIds = new Set(saved.starters.filter(Boolean).map(player => player!._id));
-    const pool = uniquePlayers([...current.starters.filter(Boolean), ...current.substitutes] as DisplayPlayer[]);
-    return {
-      formation: 'custom',
-      starters: [...saved.starters],
-      substitutes: pool.filter(player => !selectedIds.has(player._id)),
-      positions: separateOverlappingPositions(saved.positions),
-    };
-  });
 
   const replaceSlot = (index: number, next: DisplayPlayer|null) => updateDraft(current => {
     const starters = [...current.starters];
@@ -384,21 +364,6 @@ export function SquadPage() {
       return;
     }
     saveMutation.mutate(draft);
-  };
-
-  const submitNameDialog = () => {
-    if (!nameDialog) return;
-    const name = nameDialog.value.trim();
-    if (name.length < 2) {
-      toast.error('نام آرایش باید حداقل دو حرف باشد.');
-      return;
-    }
-    if (nameDialog.mode === 'rename' && nameDialog.id) customMutation.mutate({ type: 'rename', id: nameDialog.id, name });
-    else {
-      if (demoMode) return toast.error('آرایش نمایشی قابل ذخیره نیست.');
-      if (validationMessage) return toast.error(validationMessage);
-      customMutation.mutate({ type: 'create', name, current: draft });
-    }
   };
 
   return <div className="squad-page min-h-screen overflow-x-hidden bg-ink-950 pb-8">
@@ -451,13 +416,8 @@ export function SquadPage() {
       {validationMessage && !demoMode && <div className="mt-3 flex items-start gap-2 rounded-2xl border border-amber-300/15 bg-amber-300/[.06] p-2.5 text-[8px] leading-5 text-amber-100/80"><CircleAlert size={15} className="mt-0.5 shrink-0 text-amber-300"/><span>{validationMessage}</span></div>}
 
       <section className="mt-4">
-        <div className="mb-2.5 flex items-center justify-between"><div className="flex items-center gap-2"><UsersRound size={16} className="text-pitch-300"/><h2 className="text-xs font-black">بازیکنان ذخیره</h2></div><span className="text-[8px] text-slate-500">{faNumber(draft.substitutes.length)} بازیکن</span></div>
-        {draft.substitutes.length ? <div className="grid grid-cols-4 gap-2">{draft.substitutes.slice(0, 8).map(player => <BenchPlayer key={player._id} player={player}/>)}</div> : <Card className="flex min-h-20 items-center gap-3 border-dashed p-3"><span className="grid h-10 w-10 shrink-0 place-items-center rounded-2xl bg-white/[.04] text-slate-500"><UserRound size={18}/></span><div className="min-w-0 flex-1"><h3 className="text-[10px] font-black">نیمکت خالی است</h3><p className="mt-1 text-[8px] text-slate-500">از بازار بازیکن جدید به باشگاه اضافه کن.</p></div><Link to="/club/transfer-market" className="flex min-h-9 shrink-0 items-center rounded-xl bg-white/[.05] px-2.5 text-[8px] font-bold text-slate-300">بازار</Link></Card>}
-      </section>
-
-      <section className="mt-4 rounded-3xl border border-white/[.07] bg-white/[.025] p-3">
-        <div className="flex items-center justify-between gap-3"><div><h2 className="text-xs font-black">آرایش‌های ذخیره‌شده</h2><p className="mt-1 text-[7px] text-slate-500">چیدمان و بازیکنان دلخواهت را نگه دار</p></div><button type="button" disabled={draft.formation !== 'custom'} onClick={() => setNameDialog({ mode: 'create', value: '' })} className="inline-flex min-h-9 items-center gap-1 rounded-xl bg-white/[.06] px-2.5 text-[8px] font-bold text-pitch-300 disabled:opacity-35"><Plus size={13}/>ذخیره آرایش</button></div>
-        {squad.data.savedFormations.length ? <div className="mt-3 space-y-2">{squad.data.savedFormations.map(saved => <div key={saved._id} className="flex items-center gap-2 rounded-2xl border border-white/[.06] bg-ink-950/45 p-2"><button type="button" onClick={() => loadSavedFormation(saved)} className="min-w-0 flex-1 text-right"><strong className="block truncate text-[9px]">{saved.name}</strong><span className="mt-0.5 block text-[7px] text-slate-500">آرایش دلخواه · {faNumber(saved.starters.filter(Boolean).length)} بازیکن</span></button><button type="button" aria-label={`تغییر نام ${saved.name}`} onClick={() => setNameDialog({ mode: 'rename', id: saved._id, value: saved.name })} className="grid h-8 w-8 place-items-center rounded-xl bg-white/[.04] text-slate-400"><Edit3 size={13}/></button><button type="button" aria-label={`حذف ${saved.name}`} onClick={() => { if (confirm(`آرایش «${saved.name}» حذف شود؟`)) customMutation.mutate({ type: 'delete', id: saved._id }); }} className="grid h-8 w-8 place-items-center rounded-xl bg-rose-400/[.06] text-rose-300"><Trash2 size={13}/></button></div>)}</div> : <p className="mt-3 rounded-2xl border border-dashed border-white/[.07] p-3 text-center text-[8px] text-slate-500">هنوز آرایش دلخواهی ذخیره نکرده‌ای.</p>}
+        <div className="mb-2.5 flex items-end justify-between"><div><div className="flex items-center gap-2"><UsersRound size={16} className="text-pitch-300"/><h2 className="text-xs font-black">بازیکنان ذخیره</h2></div><p className="mt-1 text-[7px] text-slate-500">نیمکت آماده برای تغییر جریان مسابقه</p></div><span className="rounded-full border border-emerald-300/10 bg-emerald-400/[.07] px-2 py-1 text-[7px] font-bold text-emerald-200">{faNumber(Math.min(draft.substitutes.length, 7))} بازیکن</span></div>
+        {draft.substitutes.length ? <div className="-mx-3 flex snap-x snap-mandatory gap-2.5 overflow-x-auto px-3 pb-2 scrollbar-none">{draft.substitutes.slice(0, 7).map((player, index) => <BenchPlayer key={player._id} player={player} index={index}/>)}</div> : <Card className="flex min-h-20 items-center gap-3 border-dashed p-3"><span className="grid h-10 w-10 shrink-0 place-items-center rounded-2xl bg-white/[.04] text-slate-500"><UserRound size={18}/></span><div className="min-w-0 flex-1"><h3 className="text-[10px] font-black">نیمکت خالی است</h3><p className="mt-1 text-[8px] text-slate-500">از بازار بازیکن جدید به باشگاه اضافه کن.</p></div><Link to="/club/transfer-market" className="flex min-h-9 shrink-0 items-center rounded-xl bg-white/[.05] px-2.5 text-[8px] font-bold text-slate-300">بازار</Link></Card>}
       </section>
     </main>
 
@@ -471,7 +431,6 @@ export function SquadPage() {
       onDelete={() => { replaceSlot(selectedSlot, null); setSelectedSlot(null); }}
       onReplace={player => { replaceSlot(selectedSlot, player); setSelectedSlot(null); }}
     />}
-    {nameDialog && <NameDialog state={nameDialog} loading={customMutation.isPending} onChange={value => setNameDialog(current => current ? { ...current, value } : current)} onClose={() => setNameDialog(null)} onSubmit={submitNameDialog}/>}
   </div>;
 }
 
@@ -502,8 +461,17 @@ function PlayerAvatar({ player, className }: { player: DisplayPlayer; className?
   return <span className={cn('grid shrink-0 place-items-center overflow-hidden rounded-full border border-white/20 bg-ink-850', className)}>{player.photoUrl ? <img src={player.photoUrl} alt="" draggable={false} className="h-full w-full object-cover"/> : <span className="text-[10px] font-black text-pitch-300">{player.name.slice(0, 1)}</span>}</span>;
 }
 
-const BenchPlayer = memo(function BenchPlayer({ player }: { player: DisplayPlayer }) {
-  return <div className="min-w-0 rounded-2xl border border-white/[.05] bg-white/[.03] p-2 text-center"><PlayerAvatar player={player} className="mx-auto h-9 w-9"/><strong className="mt-1.5 block truncate text-[8px]">{shortName(player.name)}</strong><span className="mt-0.5 block text-[7px] text-slate-500">{player.position}</span></div>;
+const BenchPlayer = memo(function BenchPlayer({ player, index }: { player: DisplayPlayer; index: number }) {
+  const accent = ['from-emerald-400/15', 'from-sky-400/15', 'from-violet-400/15'][index % 3];
+  return <article className={cn('relative min-w-[126px] snap-start overflow-hidden rounded-[1.4rem] border border-white/[.07] bg-gradient-to-b to-ink-900/95 p-3 shadow-[0_9px_22px_rgba(0,0,0,.18)]', accent)}>
+    <span className="absolute -left-5 -top-7 h-16 w-16 rounded-full bg-white/[.035] blur-sm"/>
+    <div className="relative flex items-start justify-between">
+      <PlayerAvatar player={player} className="h-11 w-11 shadow-[0_6px_16px_rgba(0,0,0,.25)]"/>
+      <span className="rounded-xl border border-white/[.07] bg-black/20 px-2 py-1 text-center"><strong className="block text-[11px] font-black text-emerald-200">{faNumber(player.overall)}</strong><small className="block text-[5px] font-bold text-slate-500">قدرت</small></span>
+    </div>
+    <strong className="relative mt-2.5 block truncate text-[9px] font-black text-white">{player.name}</strong>
+    <div className="relative mt-2 flex items-center justify-between border-t border-white/[.055] pt-2"><span className="rounded-lg bg-white/[.045] px-2 py-1 text-[7px] font-black text-slate-300">{player.position}</span><span className="flex items-center gap-1 text-[6px] font-bold text-emerald-300"><i className="h-1.5 w-1.5 rounded-full bg-emerald-400 shadow-[0_0_7px_rgba(52,211,153,.7)]"/>آماده</span></div>
+  </article>;
 });
 
 function PlayerSheet({ slotRole, player, substitutes, loading, onClose, onRemove, onDelete, onReplace }: { slotRole: string; player: DisplayPlayer|null; substitutes: DisplayPlayer[]; loading: boolean; onClose: () => void; onRemove: () => void; onDelete: () => void; onReplace: (player: DisplayPlayer) => void }) {
@@ -602,10 +570,6 @@ function PlayerSheet({ slotRole, player, substitutes, loading, onClose, onRemove
 
 function PlayerInfoCard({ icon, label, value }: { icon: ReactNode; label: string; value: string }) {
   return <div className="rounded-2xl border border-white/[.06] bg-white/[.035] p-3"><span className="grid h-8 w-8 place-items-center rounded-xl bg-emerald-400/[.08] text-emerald-300">{icon}</span><span className="mt-2 block text-[7px] font-medium text-slate-500">{label}</span><strong className="mt-1 block truncate text-[9px] font-extrabold text-slate-100">{value}</strong></div>;
-}
-
-function NameDialog({ state, loading, onChange, onClose, onSubmit }: { state: { mode: 'create'|'rename'; value: string }; loading: boolean; onChange: (value: string) => void; onClose: () => void; onSubmit: () => void }) {
-  return <div className="fixed inset-0 z-[100] grid place-items-center bg-black/75 p-4 backdrop-blur-sm" role="dialog" aria-modal="true" aria-label={state.mode === 'create' ? 'ذخیره آرایش دلخواه' : 'تغییر نام آرایش'} onMouseDown={event => { if (event.target === event.currentTarget) onClose(); }}><form onSubmit={event => { event.preventDefault(); onSubmit(); }} className="w-full max-w-sm rounded-3xl border border-white/10 bg-ink-900 p-4 shadow-2xl"><div className="flex items-center justify-between"><div><p className="text-[8px] font-bold text-pitch-300">آرایش دلخواه</p><h2 className="mt-1 text-sm font-black">{state.mode === 'create' ? 'ذخیره آرایش جدید' : 'تغییر نام آرایش'}</h2></div><button type="button" onClick={onClose} className="grid h-9 w-9 place-items-center rounded-xl bg-white/[.05] text-slate-400"><X size={16}/></button></div><label className="label mt-4" htmlFor="formation-name">نام آرایش</label><input id="formation-name" autoFocus maxLength={30} value={state.value} onChange={event => onChange(event.target.value)} placeholder="مثلاً آرایش هجومی من" className="input"/><button type="submit" disabled={loading} className="btn-primary mt-3 w-full">{loading ? <RotateCcw size={16} className="animate-spin"/> : <Check size={16}/>}تأیید و ذخیره</button></form></div>;
 }
 
 function draftFromData(data: SquadData): LineupDraft {
