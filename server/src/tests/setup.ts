@@ -1,0 +1,9 @@
+process.env.NODE_ENV = 'test';
+process.env.BOT_TOKEN = '123456:TEST_TOKEN';
+process.env.BOT_USERNAME = 'test_bot';
+process.env.MONGODB_URI = 'mongodb://127.0.0.1:27017/test';
+process.env.CHANNEL_ID = '-1000000000000';
+process.env.CHANNEL_JOIN_URL = 'https://t.me/test';
+process.env.BASE_URL = 'http://localhost:3000';
+process.env.WEBHOOK_SECRET = 'test-webhook-secret';
+process.env.CRON_SECRET = 'test-cron-secret';

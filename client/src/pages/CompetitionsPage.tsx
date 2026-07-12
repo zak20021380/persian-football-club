@@ -1,0 +1,9 @@
+import { useQuery } from '@tanstack/react-query';
+import { ArrowLeft, CalendarClock, Trophy } from 'lucide-react';
+import { Link } from 'react-router-dom';
+import { api } from '@/lib/api';
+import type { Competition } from '@/types/api';
+import { PageHeader } from '@/components/PageHeader';
+import { Card, EmptyState, ErrorState, PageSkeleton, StatusPill } from '@/components/ui';
+import { remaining, tehranDate } from '@/lib/utils';
+export function CompetitionsPage(){const q=useQuery({queryKey:['competitions'],queryFn:async()=>(await api.get<Competition[]>('/competitions')).data});return <><PageHeader title="مسابقات و جام‌ها" subtitle="رقابت کن، امتیاز بگیر و جایزه ببر"/><main className="space-y-3 p-4">{q.isLoading?<PageSkeleton/>:q.error?<ErrorState message={(q.error as Error).message} onRetry={()=>q.refetch()}/>:q.data?.length?q.data.map(c=><Link key={c._id} to={`/competitions/${c._id}`}><Card className="mb-3 overflow-hidden p-0"><div className="relative h-36 bg-gradient-to-br from-blue-500/15 to-pitch-500/10">{c.coverImage&&<img src={c.coverImage} alt="" className="h-full w-full object-cover opacity-70"/>}<div className="absolute inset-0 bg-gradient-to-t from-ink-950 via-transparent"/><div className="absolute inset-x-0 bottom-0 p-4"><div className="mb-2 flex items-center justify-between"><StatusPill status={c.status}/><span className="text-[10px] font-bold text-pitch-300">{remaining(c.endsAt)}</span></div><h2 className="font-black">{c.title}</h2></div></div><div className="flex items-center justify-between p-4 text-xs text-slate-400"><span className="flex items-center gap-1"><Trophy size={14}/>{c.prize||'امتیاز ویژه'}</span><span className="flex items-center gap-1"><CalendarClock size={14}/>{tehranDate(c.startsAt)}</span><ArrowLeft size={17}/></div></Card></Link>):<EmptyState title="مسابقه‌ای منتشر نشده" description="مسابقات جدید از همین بخش اعلام می‌شوند."/>}</main></>}

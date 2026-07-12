@@ -1,0 +1,8 @@
+import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { CheckCircle2, RadioTower } from 'lucide-react';
+import toast from 'react-hot-toast';
+import { api } from '@/lib/api';
+import { notify } from '@/lib/telegram';
+import { useBootstrap } from '@/hooks/useBootstrap';
+import { Card, LoadingButton } from './ui';
+export function MembershipGate({ children }: { children: React.ReactNode }) { const bootstrap = useBootstrap(); const qc = useQueryClient(); const check = useMutation({ mutationFn: async () => (await api.post<{member:boolean}>('/membership/check')).data, onSuccess: async (data) => { if (data.member) { notify('success'); toast.success('عضویت شما تأیید شد'); await qc.invalidateQueries(); } else { notify('error'); toast.error('هنوز عضو کانال نیستید'); } }, onError: (e) => toast.error((e as Error).message) }); if (bootstrap.isLoading) return <>{children}</>; if (bootstrap.data?.membershipConfirmed) return <>{children}</>; return <main className="safe-top flex min-h-screen items-center px-4"><Card className="mx-auto w-full max-w-md text-center"><div className="mx-auto grid h-16 w-16 place-items-center rounded-3xl bg-pitch-500/10 text-pitch-400"><RadioTower size={30}/></div><h1 className="mt-5 text-xl font-black">یک قدم تا ورود به باشگاه</h1><p className="mt-2 text-sm leading-7 text-slate-400">برای شرکت در کوییزها، پیش‌بینی‌ها و دریافت جایزه باید عضو کانال رسمی باشی.</p><a href={bootstrap.data?.joinUrl} target="_blank" rel="noreferrer" className="btn-primary mt-6 w-full">عضویت در کانال</a><LoadingButton loading={check.isPending} onClick={() => check.mutate()} className="mt-3 w-full bg-white text-ink-950"><CheckCircle2 size={18}/>بررسی عضویت</LoadingButton></Card></main>; }

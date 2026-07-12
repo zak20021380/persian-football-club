@@ -1,0 +1,4 @@
+import { Schema, model } from 'mongoose';
+export interface IReferral { referrerId: Schema.Types.ObjectId; invitedUserId: Schema.Types.ObjectId; invitedTelegramId: number; rewardPoints: number; status: 'pending'|'rewarded'|'rejected'; rewardedAt?: Date; createdAt: Date; updatedAt: Date; }
+const schema = new Schema<IReferral>({ referrerId: { type: Schema.Types.ObjectId, ref: 'User', required: true, index: true }, invitedUserId: { type: Schema.Types.ObjectId, ref: 'User', required: true, unique: true }, invitedTelegramId: { type: Number, required: true, unique: true }, rewardPoints: { type: Number, default: 25, min: 0 }, status: { type: String, enum: ['pending','rewarded','rejected'], default: 'pending', index: true }, rewardedAt: Date }, { timestamps: true });
+export const Referral = model<IReferral>('Referral', schema);
