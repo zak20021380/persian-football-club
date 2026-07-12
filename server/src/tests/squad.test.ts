@@ -56,4 +56,10 @@ describe('squad validation', () => {
     positions[5] = { ...positions[4] };
     expect(validateSquadPositions(positions)).toContain('روی هم');
   });
+
+  it('rejects diagonally overlapping player cards', () => {
+    const positions = Array.from({ length: 11 }, (_, index) => ({ role: index ? 'CM' : 'GK', x: 10 + (index % 4) * 26, y: 10 + Math.floor(index / 4) * 38 }));
+    positions[5] = { ...positions[4], x: positions[4].x + 14, y: positions[4].y + 10 };
+    expect(validateSquadPositions(positions)).toContain('روی هم');
+  });
 });

@@ -65,6 +65,8 @@ const DRAFT_KEY = 'persian-football-club:squad-draft:v2';
 const LONG_PRESS_MS = 180;
 const TOUCH_DRAG_THRESHOLD = 12;
 const MOUSE_DRAG_THRESHOLD = 4;
+const MIN_SLOT_X_GAP = 18;
+const MIN_SLOT_Y_GAP = 15;
 
 export function SquadPage() {
   const queryClient = useQueryClient();
@@ -111,7 +113,7 @@ export function SquadPage() {
     } else {
       const nearest = nearestPosition(currentDraft.positions, gesture.x, gesture.y, rect, gesture.index);
       if (nearest.distance <= Math.min(52, rect.width * .16)) gesture.targetIndex = nearest.index;
-      else if (currentDraft.positions.some((position, index) => index !== gesture.index && pixelDistance(position, gesture, rect) < Math.min(58, rect.width * .18))) gesture.valid = false;
+      else if (currentDraft.positions.some((position, index) => index !== gesture.index && slotsOverlapInPitch(position, gesture, rect))) gesture.valid = false;
     }
 
     const origin = currentDraft.positions[gesture.index];
@@ -314,7 +316,7 @@ export function SquadPage() {
       formation: 'custom',
       starters: [...saved.starters],
       substitutes: pool.filter(player => !selectedIds.has(player._id)),
-      positions: clonePositions(saved.positions),
+      positions: separateOverlappingPositions(saved.positions),
     };
   });
 
@@ -561,7 +563,7 @@ function NameDialog({ state, loading, onChange, onClose, onSubmit }: { state: { 
 
 function draftFromData(data: SquadData): LineupDraft {
   const positions = data.formation === 'custom' && data.customPositions.length === 11
-    ? data.customPositions
+    ? separateOverlappingPositions(data.customPositions)
     : formations[data.formation === 'custom' ? '4-3-3' : data.formation];
   return { formation: data.formation, starters: [...data.starters], substitutes: [...data.substitutes], positions: clonePositions(positions) };
 }
@@ -580,7 +582,7 @@ function restoreDraft(data: SquadData): LineupDraft|null {
     if (stored.starterIds.some(id => id && !byId.has(id))) return null;
     const starters = stored.starterIds.map(id => id ? byId.get(id) ?? null : null);
     const selected = new Set(stored.starterIds.filter(Boolean));
-    return { formation: stored.formation!, starters, substitutes: pool.filter(player => !selected.has(player._id)), positions: clonePositions(stored.positions) };
+    return { formation: stored.formation!, starters, substitutes: pool.filter(player => !selected.has(player._id)), positions: separateOverlappingPositions(stored.positions) };
   } catch {
     localStorage.removeItem(DRAFT_KEY);
     return null;
@@ -595,9 +597,7 @@ function validateDraft(draft: LineupDraft): string|null {
   if (goalkeepers !== 1) return 'ترکیب باید دقیقاً یک دروازه‌بان و ۱۰ بازیکن غیر دروازه‌بان داشته باشد.';
   if (draft.positions.length !== 11) return 'آرایش باید دقیقاً ۱۱ جایگاه داشته باشد.';
   for (let first = 0; first < draft.positions.length; first += 1) for (let second = first + 1; second < draft.positions.length; second += 1) {
-    const dx = draft.positions[first].x - draft.positions[second].x;
-    const dy = (draft.positions[first].y - draft.positions[second].y) * 1.45;
-    if (Math.hypot(dx, dy) < 11) return 'بازیکن‌ها بیش از حد به هم نزدیک‌اند؛ جایگاه‌ها را کمی دورتر کن.';
+    if (slotsOverlap(draft.positions[first], draft.positions[second])) return 'بازیکن‌ها بیش از حد به هم نزدیک‌اند؛ جایگاه‌ها را کمی دورتر کن.';
   }
   return null;
 }
@@ -614,6 +614,35 @@ function nearestPosition(positions: SquadPosition[], x: number, y: number, rect:
 
 function pixelDistance(first: Pick<SquadPosition, 'x'|'y'>, second: Pick<SquadPosition, 'x'|'y'>, rect: DOMRect) {
   return Math.hypot(((first.x - second.x) / 100) * rect.width, ((first.y - second.y) / 100) * rect.height);
+}
+
+function slotsOverlap(first: Pick<SquadPosition, 'x'|'y'>, second: Pick<SquadPosition, 'x'|'y'>) {
+  return Math.abs(first.x - second.x) < MIN_SLOT_X_GAP && Math.abs(first.y - second.y) < MIN_SLOT_Y_GAP;
+}
+
+function slotsOverlapInPitch(first: Pick<SquadPosition, 'x'|'y'>, second: Pick<SquadPosition, 'x'|'y'>, rect: DOMRect) {
+  const xGap = Math.min(54, rect.width * (MIN_SLOT_X_GAP / 100));
+  const yGap = Math.min(72, rect.height * (MIN_SLOT_Y_GAP / 100));
+  return Math.abs(first.x - second.x) / 100 * rect.width < xGap
+    && Math.abs(first.y - second.y) / 100 * rect.height < yGap;
+}
+
+function separateOverlappingPositions(positions: SquadPosition[]): SquadPosition[] {
+  const candidates = [8, 24, 40, 56, 72, 88].flatMap(y => [10, 30, 50, 70, 90].map(x => ({ x, y })));
+  const separated: SquadPosition[] = [];
+  for (const source of positions) {
+    const position = { ...source, x: clamp(source.x, 9, 91), y: clamp(source.y, 8, 92) };
+    if (!separated.some(other => slotsOverlap(position, other))) {
+      separated.push(position);
+      continue;
+    }
+    const replacement = candidates
+      .filter(candidate => !separated.some(other => slotsOverlap(candidate, other)))
+      .sort((first, second) => Math.hypot(first.x - position.x, first.y - position.y) - Math.hypot(second.x - position.x, second.y - position.y))[0];
+    const fallback = formations['4-3-3'][separated.length];
+    separated.push({ ...position, x: replacement?.x ?? fallback.x, y: replacement?.y ?? fallback.y });
+  }
+  return separated;
 }
 
 function clonePositions(positions: SquadPosition[]): SquadPosition[] { return positions.map(position => ({ ...position })); }

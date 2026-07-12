@@ -2,6 +2,9 @@ import type { Types } from 'mongoose';
 
 export interface SquadPosition { role: string; x: number; y: number }
 
+const MIN_SLOT_X_GAP = 18;
+const MIN_SLOT_Y_GAP = 15;
+
 export function validateSquadPositions(positions: SquadPosition[]): string|null {
   if (positions.length !== 11) return 'آرایش باید دقیقاً ۱۱ جایگاه داشته باشد.';
   for (const position of positions) {
@@ -11,9 +14,9 @@ export function validateSquadPositions(positions: SquadPosition[]): string|null 
   }
   for (let first = 0; first < positions.length; first += 1) {
     for (let second = first + 1; second < positions.length; second += 1) {
-      const dx = positions[first].x - positions[second].x;
-      const dy = (positions[first].y - positions[second].y) * 1.45;
-      if (Math.hypot(dx, dy) < 11) return 'فاصله جایگاه‌ها کافی نیست؛ بازیکن‌ها نباید روی هم قرار بگیرند.';
+      const dx = Math.abs(positions[first].x - positions[second].x);
+      const dy = Math.abs(positions[first].y - positions[second].y);
+      if (dx < MIN_SLOT_X_GAP && dy < MIN_SLOT_Y_GAP) return 'فاصله جایگاه‌ها کافی نیست؛ بازیکن‌ها نباید روی هم قرار بگیرند.';
     }
   }
   return null;
