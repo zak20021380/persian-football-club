@@ -114,9 +114,10 @@ export function TransferMarketPage() {
 
 function MarketRow({ player, now, index, onOpen }: { player: MarketPlayer; now: number; index: number; onOpen: () => void }) {
   const price = player.askingPrice ?? player.marketValue;
+  const timeBadge = remainingBadge(player.expiresAt, now, player.status);
   return <button type="button" onClick={onOpen} aria-label={`مشاهده آگهی ${player.name}`} style={{ animationDelay: `${Math.min(index, 10) * 25}ms` }} className="offer-card flex w-full min-w-0 items-center gap-2.5 overflow-hidden rounded-[1.25rem] border border-white/[.075] bg-[linear-gradient(155deg,rgba(15,30,47,.97),rgba(8,20,35,.99))] p-2.5 text-right shadow-[0_8px_20px_rgba(0,0,0,.14)] transition active:scale-[.992]">
     <PlayerPhoto player={player} className="h-[62px] w-[58px] shrink-0 rounded-2xl border border-white/[.1]"/>
-    <span className="min-w-0 flex-1"><span className="flex min-w-0 items-center gap-1.5"><strong className="truncate text-[10.5px] font-black text-white">{player.name}</strong><i className={cn('shrink-0 rounded-full border px-1.5 py-0.5 text-[6px] font-black not-italic', statusMeta[player.status].className)}>{statusMeta[player.status].label}</i></span><span className="mt-1 flex min-w-0 items-center gap-1 truncate text-[7px] text-slate-400"><Shirt size={9} className="shrink-0 text-emerald-300"/>{positionLabel(player.position)}<span className="text-white/15">•</span><Building2 size={9} className="shrink-0"/>{player.club || 'باشگاه ثبت نشده'}</span><span className="mt-2 flex min-w-0 items-end justify-between gap-2"><span className="min-w-0"><span className="block text-[6px] text-slate-600">قیمت بازار</span><b className="mt-0.5 block truncate text-[8px] font-black text-amber-200">{formatCoins(price)}</b></span><span className="shrink-0 text-left"><span className="flex items-center justify-end gap-1 text-[6px] text-slate-600"><Clock3 size={8}/>زمان باقی‌مانده</span><b className={cn('mt-0.5 block text-[7px]', player.status === 'sold' ? 'text-slate-500' : 'text-emerald-300')}>{player.status === 'sold' ? 'پایان یافته' : player.expiresAt ? remaining(player.expiresAt, now) : 'بدون محدودیت'}</b></span></span></span>
+    <span className="min-w-0 flex-1"><span className="flex min-w-0 items-center gap-1.5"><strong className="truncate text-[10.5px] font-black text-white">{player.name}</strong><i className={cn('shrink-0 rounded-full border px-1.5 py-0.5 text-[6px] font-black not-italic', statusMeta[player.status].className)}>{statusMeta[player.status].label}</i></span><span className="mt-1 flex min-w-0 items-center gap-1 truncate text-[7px] text-slate-400"><Shirt size={9} className="shrink-0 text-emerald-300"/>{positionLabel(player.position)}<span className="text-white/15">•</span><Building2 size={9} className="shrink-0"/>{player.club || 'باشگاه ثبت نشده'}</span><span className="mt-2 flex min-w-0 items-end justify-between gap-2"><span className="min-w-0"><span className="block text-[6px] text-slate-500">قیمت بازار</span><b className="mt-0.5 block truncate text-[8px] font-black text-amber-200">{formatCoins(price)}</b></span><span className={cn('flex shrink-0 items-center gap-1 text-[7px] font-bold', timeBadge.className)}><Clock3 size={9} className="shrink-0"/>{timeBadge.text}</span></span></span>
     <span className="grid h-8 w-8 shrink-0 place-items-center rounded-xl bg-white/[.045] text-slate-400"><ChevronLeft size={15}/><span className="sr-only">مشاهده</span></span>
   </button>;
 }
@@ -175,6 +176,15 @@ function InfoCard({ icon, label, value }: { icon: React.ReactNode; label: string
 
 function EmptyMarket({ filtered }: { filtered: boolean }) {
   return <section className="rounded-[1.5rem] border border-dashed border-white/[.09] bg-white/[.025] px-4 py-10 text-center"><span className="mx-auto grid h-12 w-12 place-items-center rounded-full bg-white/[.04] text-slate-500">{filtered ? <Search size={20}/> : <UserRound size={20}/>}</span><h2 className="mt-3 text-xs font-black">{filtered ? 'بازیکنی با این فیلتر پیدا نشد' : 'بازیکنی در بازار نیست'}</h2><p className="mt-1 text-[9px] text-slate-500">{filtered ? 'جست‌وجو یا فیلترها را تغییر بده.' : 'در حال حاضر آگهی فعالی ثبت نشده است.'}</p></section>;
+}
+
+function remainingBadge(expiresAt: string | undefined, now: number, status: MarketPlayer['status']) {
+  if (status === 'sold') return { text: 'پایان یافته', className: 'text-rose-300' };
+  if (!expiresAt) return { text: 'بدون محدودیت', className: 'text-slate-400' };
+  const ms = new Date(expiresAt).getTime() - now;
+  if (ms <= 0) return { text: 'پایان یافته', className: 'text-rose-300' };
+  const expiringSoon = ms <= 24 * 3_600_000;
+  return { text: remaining(expiresAt, now), className: expiringSoon ? 'text-amber-300' : 'text-emerald-300' };
 }
 
 function positionGroup(position: ClubPlayer['position']): Exclude<PositionFilter,'all'> { if (position === 'GK') return 'GK'; if (['RB','CB','LB'].includes(position)) return 'DEF'; if (['DM','CM','AM'].includes(position)) return 'MID'; return 'FWD'; }
