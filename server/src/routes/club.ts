@@ -22,6 +22,13 @@ const completeLineupSchema = z.object({
 
 router.use(verifyLiveMembership);
 
+router.get('/players', asyncHandler(async (req, res) => {
+  const players = await ClubPlayer.find({ ownerId: req.authUser!._id })
+    .sort({ createdAt: 1, _id: 1 })
+    .lean();
+  res.json({ players });
+}));
+
 router.get('/squad', asyncHandler(async (req, res) => {
   const squad = await Squad.findOne({ userId: req.authUser!._id }).lean();
   res.json(await squadView(req.authUser!._id, squad ?? {

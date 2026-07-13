@@ -20,7 +20,10 @@ export interface CoinTransaction { _id: Id; type: 'purchase'|'daily_reward'; sta
 export interface StoreData { balance: number; packages: CoinPackage[]; dailyReward: { amount: number; claimable: boolean; nextClaimAt: string|null }; transactions: CoinTransaction[]; paymentMode: 'test'|'unavailable'; }
 export type BuiltInSquadFormation = '4-3-3'|'4-4-2'|'4-2-3-1'|'3-5-2'|'3-4-3'|'5-3-2'|'4-1-4-1';
 export type SquadFormation = BuiltInSquadFormation|'custom';
-export interface ClubPlayer { _id: Id; name: string; position: 'GK'|'RB'|'CB'|'LB'|'DM'|'CM'|'AM'|'RW'|'LW'|'ST'; overall: number; photoUrl?: string; nationality?: string; club?: string; marketValue?: number; contractStatus?: string; }
+export interface PlayerTransferOffer { _id: Id; amount: number; createdAt: string; expiresAt?: string; status: 'active'|'accepted'|'rejected'|'expired'; }
+export interface PlayerTransferListing { isListed: boolean; askingPrice?: number; status?: 'active'|'paused'|'sold'|'expired'; expiresAt?: string; }
+export interface ClubPlayer { _id: Id; name: string; position: 'GK'|'RB'|'CB'|'LB'|'DM'|'CM'|'AM'|'RW'|'LW'|'ST'; overall: number; photoUrl?: string; nationality?: string; club?: string; marketValue?: number; contractStatus?: string; transferListing?: PlayerTransferListing; transferOffers?: PlayerTransferOffer[]; }
+export interface ClubPlayersData { players: ClubPlayer[]; }
 export interface SquadPosition { role: string; x: number; y: number; }
 export interface SavedSquadFormation { _id: Id; name: string; positions: SquadPosition[]; starters: Array<ClubPlayer|null>; }
 export interface SquadData { formation: SquadFormation; starters: Array<ClubPlayer|null>; substitutes: ClubPlayer[]; customPositions: SquadPosition[]; savedFormations: SavedSquadFormation[]; updatedAt?: string; }
