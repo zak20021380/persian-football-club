@@ -718,7 +718,7 @@ function OfferDetailsSheet({ offer, counterAmount, now, transferFeePercent, pend
         </div>
       </section>
 
-      <section className="mt-2.5 grid grid-cols-2 gap-1.5" aria-label="جزئیات پیشنهاد">
+      <section className="mt-2 grid grid-cols-2 gap-1.5" aria-label="جزئیات پیشنهاد">
         <DetailStat icon={CircleDollarSign} label="مبلغ پیشنهاد" value={`${faNumber(offer.amount)} سکه`} accent="amber"/>
         {offer.listingAskingPrice !== undefined && <DetailStat icon={BadgeDollarSign} label="قیمت درخواستی" value={`${faNumber(offer.listingAskingPrice)} سکه`} accent="violet"/>}
         <DetailStat icon={CalendarClock} label="تاریخ ثبت" value={tehranDate(offer.createdAt)} accent="emerald"/>
@@ -727,7 +727,7 @@ function OfferDetailsSheet({ offer, counterAmount, now, transferFeePercent, pend
         <DetailStat icon={Clock3} label="مهلت پاسخ" value={`${faNumber(Math.max(0, Math.round((new Date(offer.expiresAt).getTime() - now) / 3_600_000)))} ساعت`} accent="sky"/>
       </section>
 
-      <section className="mt-2.5 rounded-[1.35rem] border border-white/[.07] bg-white/[.03] p-3" aria-label="اطلاعات بازیکن">
+      <section className="mt-2 rounded-[1.35rem] border border-white/[.07] bg-white/[.03] p-3" aria-label="اطلاعات بازیکن">
         <h3 className="mb-2 flex items-center gap-1.5 text-[10px] font-black text-slate-200"><Shirt size={12} className="text-emerald-300"/>پروفایل بازیکن</h3>
         <div className="grid grid-cols-2 gap-1.5">
           <DetailStat icon={Shirt} label="پست" value={`${positionLabel(offer.player.position)} · ${offer.player.position}`} accent="emerald"/>
@@ -739,7 +739,7 @@ function OfferDetailsSheet({ offer, counterAmount, now, transferFeePercent, pend
       </section>
 
       {counterAmount !== undefined && (
-        <section className="mt-2.5 rounded-[1.25rem] border border-amber-300/15 bg-amber-400/[.06] p-3">
+        <section className="mt-2 rounded-[1.25rem] border border-amber-300/15 bg-amber-400/[.06] p-3">
           <div className="flex items-start gap-2">
             <span className="grid h-8 w-8 shrink-0 place-items-center rounded-xl bg-amber-400/[.12] text-amber-200"><ArrowLeftRight size={13}/></span>
             <div className="min-w-0 flex-1">
@@ -751,7 +751,7 @@ function OfferDetailsSheet({ offer, counterAmount, now, transferFeePercent, pend
         </section>
       )}
 
-      {offer.note && <section className="mt-2.5 rounded-[1.25rem] border border-amber-300/15 bg-amber-400/[.06] p-3">
+      {offer.note && <section className="mt-2 rounded-[1.25rem] border border-amber-300/15 bg-amber-400/[.06] p-3">
         <div className="flex items-start gap-2">
           <span className="grid h-8 w-8 shrink-0 place-items-center rounded-xl bg-amber-400/[.12] text-amber-200"><Sparkles size={13}/></span>
           <div className="min-w-0 flex-1">
@@ -762,7 +762,7 @@ function OfferDetailsSheet({ offer, counterAmount, now, transferFeePercent, pend
       </section>}
 
       {active && isReceived && (
-        <section className="mt-2.5 rounded-[1.35rem] border border-emerald-300/15 bg-emerald-400/[.05] p-3" aria-label="پیشنهاد متقابل">
+        <section className="mt-2 rounded-[1.35rem] border border-emerald-300/15 bg-emerald-400/[.05] p-3" aria-label="پیشنهاد متقابل">
           <h3 className="flex items-center gap-1.5 text-[10px] font-black text-emerald-100"><ArrowLeftRight size={12}/>ثبت پیشنهاد متقابل</h3>
           <p className="mt-1 text-[8px] leading-5 text-slate-400">مبلغ دلخواه برای پیشنهاد جایگزین را وارد کن. پیشنهاد متقابل شما جایگزین پیشنهاد فعلی می‌شود.</p>
           <div className="mt-2 flex items-center gap-2 rounded-2xl border border-white/[.08] bg-ink-950/70 px-3 py-2">
@@ -790,7 +790,7 @@ function OfferDetailsSheet({ offer, counterAmount, now, transferFeePercent, pend
       )}
 
       {active ? (
-        <section className="mt-2.5 grid grid-cols-1 gap-1.5 sm:grid-cols-3">
+        <section className="mt-2 grid grid-cols-1 gap-1.5 sm:grid-cols-3">
           {transferFeePercent > 0 && <p className="rounded-xl border border-white/[.06] bg-white/[.03] px-3 py-2 text-[7.5px] leading-5 text-slate-400 sm:col-span-3">در انتقال نهایی، {faNumber(transferFeePercent)}٪ کارمزد از سهم فروشنده کسر می‌شود.</p>}
           {isReceived ? (
             <>
@@ -812,7 +812,7 @@ function OfferDetailsSheet({ offer, counterAmount, now, transferFeePercent, pend
           )}
         </section>
       ) : (
-        <section className="mt-2.5">
+        <section className="mt-2">
           <button
             type="button"
             onClick={onClose}

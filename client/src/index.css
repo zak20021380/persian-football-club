@@ -96,7 +96,7 @@ button { touch-action: manipulation; }
   ::view-transition-group(*) { animation-duration: 1ms; }
 }
 @media (max-height: 620px) {
-  .player-modal-top { height: 44px; padding-bottom: 5px; }
+  .player-modal-top { height: 44px; }
   .player-modal-content { padding-left: 10px; padding-right: 10px; padding-bottom: max(6px,var(--safe-bottom)); }
   .player-modal-hero { padding: 7px; }
   .player-modal-avatar { width: 46px; height: 46px; }

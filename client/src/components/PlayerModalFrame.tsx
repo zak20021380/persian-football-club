@@ -57,11 +57,29 @@ export function PlayerModalFrame({ label, onClose, children, className, swipeDis
 
   return createPortal(
     <div onPointerDown={event => { if (event.target === event.currentTarget) onClose(); }} className="player-modal-backdrop fixed inset-0 z-[100] flex items-end overflow-hidden bg-black/80" role="dialog" aria-modal="true" aria-label={label}>
-      <div ref={panelRef} className={cn('player-modal-panel relative flex max-h-[88dvh] w-full flex-col overflow-hidden rounded-t-[2rem] border-t border-emerald-200/[.12] bg-[linear-gradient(180deg,#0d1c2f_0%,#071321_100%)] shadow-[0_-14px_36px_rgba(0,0,0,.42)]', className)}>
-        <button type="button" onPointerDown={event => event.stopPropagation()} onClick={onClose} aria-label="بستن پنل" className="pointer-events-auto absolute left-3 top-2 z-30 grid h-9 w-9 place-items-center rounded-full border border-white/[.07] bg-white/[.07] text-slate-300 transition active:scale-95"><X size={17}/></button>
-        <div onPointerDown={startSwipe} onPointerMove={moveSwipe} onPointerUp={event => endSwipe(event)} onPointerCancel={event => endSwipe(event, true)} className="player-modal-top relative flex h-11 shrink-0 touch-none cursor-grab items-center justify-center active:cursor-grabbing">
-          <span className="h-1 w-12 rounded-full bg-gradient-to-r from-white/10 via-white/35 to-white/10"/>
-        </div>
+      <div ref={panelRef} className={cn('player-modal-panel relative flex max-h-[min(90dvh,calc(100dvh-8px))] w-full flex-col overflow-hidden rounded-t-[2rem] border-t border-emerald-200/[.12] bg-[linear-gradient(180deg,#0d1c2f_0%,#071321_100%)] shadow-[0_-14px_36px_rgba(0,0,0,.42)]', className)}>
+        <header className="player-modal-top relative flex h-12 shrink-0 items-center justify-center pt-[max(env(safe-area-inset-top,0px),0px)]">
+          <div
+            onPointerDown={startSwipe}
+            onPointerMove={moveSwipe}
+            onPointerUp={event => endSwipe(event)}
+            onPointerCancel={event => endSwipe(event, true)}
+            className="player-modal-drag relative z-10 flex h-full w-full cursor-grab touch-none select-none items-center justify-center active:cursor-grabbing"
+          >
+            <span className="h-1 w-12 rounded-full bg-gradient-to-r from-white/10 via-white/35 to-white/10"/>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            onPointerDown={event => event.stopPropagation()}
+            aria-label="بستن پنل"
+            className="pointer-events-auto absolute left-1.5 top-1/2 z-30 grid h-11 w-11 -translate-y-1/2 select-none place-items-center rounded-full transition active:scale-90"
+          >
+            <span className="grid h-8 w-8 place-items-center rounded-full bg-white/[.05] text-slate-300/90 transition active:bg-white/[.1]">
+              <X size={15} strokeWidth={2}/>
+            </span>
+          </button>
+        </header>
         {children}
       </div>
     </div>,
