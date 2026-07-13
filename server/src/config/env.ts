@@ -17,7 +17,8 @@ const schema = z.object({
   TIMEZONE: z.string().default('Asia/Tehran'),
   UPLOAD_DIR: z.string().min(1).default('uploads'),
   PAYMENT_PROVIDER: z.enum(['none', 'test']).default('none'),
-  DAILY_COIN_REWARD: z.coerce.number().int().min(1).max(100_000).default(25)
+  DAILY_COIN_REWARD: z.coerce.number().int().min(1).max(100_000).default(25),
+  TRANSFER_FEE_PERCENT: z.coerce.number().int().min(0).max(50).default(5)
 });
 
 const parsed = schema.safeParse(process.env);

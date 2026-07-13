@@ -1,10 +1,10 @@
 import { useEffect, useMemo, useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import toast from 'react-hot-toast';
 import {
   ArrowDownToLine,
   ArrowLeftRight,
   ArrowUpFromLine,
-  BadgeCheck,
   BadgeDollarSign,
   Building2,
   CalendarClock,
@@ -16,6 +16,7 @@ import {
   HandCoins,
   Handshake,
   Inbox,
+  LoaderCircle,
   Send,
   ShieldCheck,
   Shirt,
@@ -29,13 +30,13 @@ import { PlayerModalFrame } from '@/components/PlayerModalFrame';
 import { ErrorState, PageSkeleton } from '@/components/ui';
 import { api } from '@/lib/api';
 import { cn, faNumber, remaining, tehranDate } from '@/lib/utils';
-import type { ClubPlayer, ClubPlayersData, PlayerTransferOffer } from '@/types/api';
+import type { ClubPlayer, TradeOffersData, TradeOfferView, TransferOfferStatus } from '@/types/api';
 
-type OfferStatus = PlayerTransferOffer['status'];
+type OfferStatus = TransferOfferStatus;
 type OfferDirection = 'received' | 'sent';
 type OfferKind = 'buy' | 'sell';
 
-type DemoClub = { id: string; name: string; shortName: string; color: string; initials: string };
+type Counterparty = { id: string; name: string; shortName: string; color: string; initials: string; photoUrl?: string };
 
 type DisplayOffer = {
   id: string;
@@ -51,7 +52,6 @@ type DisplayOffer = {
     id: string;
     name: string;
     position: ClubPlayer['position'];
-    overall: number;
     nationality: string;
     club: string;
     marketValue: number;
@@ -59,12 +59,12 @@ type DisplayOffer = {
     demoIndex?: number;
     contractStatus?: string;
   };
-  counterparty: DemoClub;
+  counterparty: Counterparty;
   listingAskingPrice?: number;
   isDemo: boolean;
 };
 
-const demoClubs: DemoClub[] = [
+const demoClubs: Counterparty[] = [
   { id: 'persepolis', name: 'پرسپولیس', shortName: 'پرسپولیس', color: '#dc2626', initials: 'پ' },
   { id: 'esteghlal', name: 'استقلال', shortName: 'استقلال', color: '#1d4ed8', initials: 'ا' },
   { id: 'sepahan', name: 'سپاهان', shortName: 'سپاهان', color: '#f59e0b', initials: 'س' },
@@ -76,12 +76,12 @@ const demoClubs: DemoClub[] = [
 ];
 
 const demoPlayerPool: Array<DisplayOffer['player'] & { demoIndex: number }> = [
-  { id: 'demo-target-1', name: 'مهدی طارمی', position: 'ST', overall: 88, nationality: 'ایران', club: 'اینتر', marketValue: 8600, demoIndex: 9, contractStatus: 'آماده بازی' },
-  { id: 'demo-target-2', name: 'سامان قدوس', position: 'AM', overall: 84, nationality: 'ایران', club: 'برنتفورد', marketValue: 5900, demoIndex: 6, contractStatus: 'آماده بازی' },
-  { id: 'demo-target-3', name: 'شجاع خلیل‌زاده', position: 'CB', overall: 82, nationality: 'ایران', club: 'تراکتور', marketValue: 4300, demoIndex: 2, contractStatus: 'آماده بازی' },
-  { id: 'demo-target-4', name: 'محمدمهدی احمدی', position: 'GK', overall: 80, nationality: 'ایران', club: 'پرسپولیس', marketValue: 3200, demoIndex: 0, contractStatus: 'آماده بازی' },
-  { id: 'demo-target-5', name: 'علیرضا جهانبخش', position: 'RW', overall: 83, nationality: 'ایران', club: 'فاینورد', marketValue: 5400, demoIndex: 11, contractStatus: 'آماده بازی' },
-  { id: 'demo-target-6', name: 'کریم انصاری‌فرد', position: 'ST', overall: 81, nationality: 'ایران', club: 'المپیاکوس', marketValue: 3400, demoIndex: 10, contractStatus: 'آماده بازی' },
+  { id: 'demo-target-1', name: 'مهدی طارمی', position: 'ST', nationality: 'ایران', club: 'اینتر', marketValue: 8600, demoIndex: 9, contractStatus: 'آماده بازی' },
+  { id: 'demo-target-2', name: 'سامان قدوس', position: 'AM', nationality: 'ایران', club: 'برنتفورد', marketValue: 5900, demoIndex: 6, contractStatus: 'آماده بازی' },
+  { id: 'demo-target-3', name: 'شجاع خلیل‌زاده', position: 'CB', nationality: 'ایران', club: 'تراکتور', marketValue: 4300, demoIndex: 2, contractStatus: 'آماده بازی' },
+  { id: 'demo-target-4', name: 'محمدمهدی احمدی', position: 'GK', nationality: 'ایران', club: 'پرسپولیس', marketValue: 3200, demoIndex: 0, contractStatus: 'آماده بازی' },
+  { id: 'demo-target-5', name: 'علیرضا جهانبخش', position: 'RW', nationality: 'ایران', club: 'فاینورد', marketValue: 5400, demoIndex: 11, contractStatus: 'آماده بازی' },
+  { id: 'demo-target-6', name: 'کریم انصاری‌فرد', position: 'ST', nationality: 'ایران', club: 'المپیاکوس', marketValue: 3400, demoIndex: 10, contractStatus: 'آماده بازی' },
 ];
 
 const baseDate = new Date('2026-07-13T15:30:00.000Z').getTime();
@@ -275,6 +275,16 @@ const statusMeta: Record<OfferStatus, { label: string; className: string; dot: s
     className: 'border-rose-300/25 bg-rose-400/[.12] text-rose-200',
     dot: 'bg-rose-300 shadow-[0_0_0_3px_rgba(253,164,175,.18)]',
   },
+  cancelled: {
+    label: 'لغوشده',
+    className: 'border-rose-300/20 bg-rose-400/[.08] text-rose-200',
+    dot: 'bg-rose-300 shadow-[0_0_0_3px_rgba(253,164,175,.14)]',
+  },
+  countered: {
+    label: 'پیشنهاد متقابل',
+    className: 'border-amber-300/25 bg-amber-400/[.1] text-amber-200',
+    dot: 'bg-amber-300 shadow-[0_0_0_3px_rgba(252,211,77,.16)]',
+  },
   expired: {
     label: 'منقضی',
     className: 'border-slate-400/20 bg-slate-500/[.14] text-slate-300',
@@ -296,16 +306,17 @@ const kindMeta: Record<OfferKind, { label: string; className: string; icon: type
 };
 
 export function TradeOffersPage() {
+  const queryClient = useQueryClient();
   const [tab, setTab] = useState<OfferDirection>('received');
   const [statusFilter, setStatusFilter] = useState<'all' | OfferStatus>('all');
   const [selectedOfferId, setSelectedOfferId] = useState<string | null>(null);
-  const [optimistic, setOptimistic] = useState<Record<string, OfferStatus>>({});
+  const [demoStatuses, setDemoStatuses] = useState<Record<string, OfferStatus>>({});
   const [counterAmounts, setCounterAmounts] = useState<Record<string, number>>({});
   const [now, setNow] = useState<number>(() => Date.now());
 
-  const playersQuery = useQuery({
-    queryKey: ['clubPlayers'],
-    queryFn: async () => (await api.get<ClubPlayersData>('/club/players')).data,
+  const offersQuery = useQuery({
+    queryKey: ['tradeOffers'],
+    queryFn: async () => (await api.get<TradeOffersData>('/club/offers')).data,
   });
 
   useEffect(() => {
@@ -314,118 +325,108 @@ export function TradeOffersPage() {
   }, []);
 
   const { receivedOffers, sentOffers, hasRealData, demoMode } = useMemo(() => {
-    const players = playersQuery.data?.players ?? [];
-    if (players.length === 0) {
-      return {
-        receivedOffers: buildDemoReceivedOffers(),
-        sentOffers: buildDemoSentOffers(),
-        hasRealData: false,
-        demoMode: true,
-      };
-    }
-
-    const realReceived: DisplayOffer[] = [];
-    players.forEach(player => {
-      (player.transferOffers ?? []).forEach(offer => {
-        realReceived.push({
-          id: `${player._id}-${offer._id}`,
-          direction: 'received',
-          kind: 'buy',
-          status: offer.status,
-          amount: offer.amount,
-          createdAt: offer.createdAt,
-          expiresAt: offer.expiresAt ?? new Date(new Date(offer.createdAt).getTime() + 86_400_000).toISOString(),
-          player: {
-            id: player._id,
-            name: player.name,
-            position: player.position,
-            overall: player.overall,
-            nationality: player.nationality ?? '—',
-            club: player.club ?? '—',
-            marketValue: player.marketValue ?? 0,
-            photoUrl: player.photoUrl,
-            contractStatus: player.contractStatus,
-          },
-          counterparty: demoClubs[0],
-          listingAskingPrice: player.transferListing?.askingPrice,
-          isDemo: false,
-        });
-      });
-    });
-
-    if (realReceived.length === 0) {
-      return {
-        receivedOffers: buildDemoReceivedOffers(),
-        sentOffers: buildDemoSentOffers(),
-        hasRealData: false,
-        demoMode: true,
-      };
-    }
-
+    const realReceived = (offersQuery.data?.received ?? []).map(toDisplayOffer);
+    const realSent = (offersQuery.data?.sent ?? []).map(toDisplayOffer);
+    const hasRealOffers = realReceived.length + realSent.length > 0;
+    const useDemoPreview = import.meta.env.DEV && !hasRealOffers;
     return {
-      receivedOffers: realReceived,
-      sentOffers: buildDemoSentOffers(),
-      hasRealData: true,
-      demoMode: false,
+      receivedOffers: useDemoPreview ? buildDemoReceivedOffers() : realReceived,
+      sentOffers: useDemoPreview ? buildDemoSentOffers() : realSent,
+      hasRealData: hasRealOffers,
+      demoMode: useDemoPreview,
     };
-  }, [playersQuery.data]);
+  }, [offersQuery.data]);
 
   const sourceList = tab === 'received' ? receivedOffers : sentOffers;
   const list = useMemo(() => {
     const filtered = sourceList.filter(offer => {
-      const effectiveStatus = optimistic[offer.id] ?? offer.status;
+      const effectiveStatus = offer.isDemo ? demoStatuses[offer.id] ?? offer.status : offer.status;
       if (statusFilter === 'all') return true;
       return effectiveStatus === statusFilter;
     });
     return filtered
-      .map(offer => ({ offer, effectiveStatus: optimistic[offer.id] ?? offer.status }))
+      .map(offer => ({ offer, effectiveStatus: offer.isDemo ? demoStatuses[offer.id] ?? offer.status : offer.status }))
       .sort((a, b) => {
         const aTime = new Date(a.offer.expiresAt).getTime() - now;
         const bTime = new Date(b.offer.expiresAt).getTime() - now;
         return aTime - bTime;
       })
       .map(item => ({ ...item.offer, status: item.effectiveStatus }));
-  }, [sourceList, statusFilter, optimistic, now]);
+  }, [sourceList, statusFilter, demoStatuses, now]);
 
   const selectedOffer = useMemo(() => {
     if (!selectedOfferId) return null;
     const pool = [...receivedOffers, ...sentOffers];
     const match = pool.find(offer => offer.id === selectedOfferId);
-    return match ? { ...match, status: optimistic[match.id] ?? match.status } : null;
-  }, [selectedOfferId, receivedOffers, sentOffers, optimistic]);
+    return match ? { ...match, status: match.isDemo ? demoStatuses[match.id] ?? match.status : match.status } : null;
+  }, [selectedOfferId, receivedOffers, sentOffers, demoStatuses]);
   const selectedCounterAmount = selectedOfferId ? counterAmounts[selectedOfferId] : undefined;
 
-  const applyStatus = (id: string, status: OfferStatus) => {
-    setOptimistic(prev => ({ ...prev, [id]: status }));
+  const actionMutation = useMutation({
+    mutationFn: async ({ offer, action, amount }: { offer: DisplayOffer; action: 'accept'|'reject'|'cancel'|'counter'; amount?: number }) => {
+      if (offer.isDemo) return { demo: true };
+      if (action === 'counter') {
+        return (await api.post(`/club/offers/${offer.id}/counter`, {
+          amount,
+          expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
+          clientRequestId: crypto.randomUUID(),
+        })).data;
+      }
+      return (await api.post(`/club/offers/${offer.id}/${action}`)).data;
+    },
+    onSuccess: async (_data, variables) => {
+      const { offer, action, amount } = variables;
+      if (offer.isDemo) {
+        if (action === 'counter' && amount !== undefined) setCounterAmounts(prev => ({ ...prev, [offer.id]: amount }));
+        else setDemoStatuses(prev => ({ ...prev, [offer.id]: action === 'accept' ? 'accepted' : 'rejected' }));
+        toast.success('تغییر فقط در پیش‌نمایش اعمال شد');
+        return;
+      }
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ['tradeOffers'] }),
+        queryClient.invalidateQueries({ queryKey: ['clubPlayers'] }),
+        queryClient.invalidateQueries({ queryKey: ['clubSquad'] }),
+        queryClient.invalidateQueries({ queryKey: ['bootstrap'] }),
+      ]);
+      const successMessages = { accept: 'پیشنهاد با موفقیت پذیرفته شد', reject: 'پیشنهاد رد شد', cancel: 'پیشنهاد لغو شد', counter: 'پیشنهاد متقابل ثبت شد' };
+      toast.success(successMessages[action]);
+      if (action !== 'counter') setSelectedOfferId(null);
+    },
+    onError: error => toast.error((error as Error).message || 'عملیات پیشنهاد انجام نشد'),
+  });
+
+  const runAction = (offer: DisplayOffer, action: 'accept'|'reject'|'cancel'|'counter', amount?: number) => {
+    if (actionMutation.isPending) return;
+    actionMutation.mutate({ offer, action, amount });
   };
 
   const counts = useMemo(() => {
     const counter: Record<OfferDirection, Record<OfferStatus | 'all', number>> = {
-      received: { all: 0, active: 0, accepted: 0, rejected: 0, expired: 0 },
-      sent: { all: 0, active: 0, accepted: 0, rejected: 0, expired: 0 },
+      received: { all: 0, active: 0, accepted: 0, rejected: 0, cancelled: 0, countered: 0, expired: 0 },
+      sent: { all: 0, active: 0, accepted: 0, rejected: 0, cancelled: 0, countered: 0, expired: 0 },
     };
     const visit = (offer: DisplayOffer) => {
-      const effective = optimistic[offer.id] ?? offer.status;
+      const effective = offer.isDemo ? demoStatuses[offer.id] ?? offer.status : offer.status;
       counter[offer.direction].all += 1;
       counter[offer.direction][effective] = (counter[offer.direction][effective] ?? 0) + 1;
     };
     receivedOffers.forEach(visit);
     sentOffers.forEach(visit);
     return counter;
-  }, [receivedOffers, sentOffers, optimistic]);
+  }, [receivedOffers, sentOffers, demoStatuses]);
 
-  if (playersQuery.isLoading) {
+  if (offersQuery.isLoading) {
     return <>
       <PageHeader title="پیشنهادهای خریدوفروش" subtitle="باشگاه من" back backTo="/club"/>
       <PageSkeleton/>
     </>;
   }
 
-  if (playersQuery.error || !playersQuery.data) {
+  if (offersQuery.error || !offersQuery.data) {
     return <>
       <PageHeader title="پیشنهادهای خریدوفروش" subtitle="باشگاه من" back backTo="/club"/>
       <main className="p-4">
-        <ErrorState message={(playersQuery.error as Error)?.message || 'پیشنهادها دریافت نشدند'} onRetry={() => playersQuery.refetch()}/>
+        <ErrorState message={(offersQuery.error as Error)?.message || 'پیشنهادها دریافت نشدند'} onRetry={() => offersQuery.refetch()}/>
       </main>
     </>;
   }
@@ -443,7 +444,7 @@ export function TradeOffersPage() {
       </section>
 
       <section aria-label="فیلتر وضعیت" className="flex min-w-0 items-center gap-1.5 overflow-x-auto scrollbar-none pb-0.5">
-        {(['all', 'active', 'accepted', 'rejected', 'expired'] as const).map(value => {
+        {(['all', 'active', 'accepted', 'rejected', 'cancelled', 'countered', 'expired'] as const).map(value => {
           const isActive = statusFilter === value;
           const label = value === 'all' ? 'همه' : statusMeta[value].label;
           const count = counts[tab][value] ?? 0;
@@ -474,10 +475,11 @@ export function TradeOffersPage() {
               offer={offer}
               index={index}
               now={now}
+              pending={actionMutation.isPending && actionMutation.variables?.offer.id === offer.id}
               onOpen={() => setSelectedOfferId(offer.id)}
-              onAccept={() => applyStatus(offer.id, 'accepted')}
-              onReject={() => applyStatus(offer.id, 'rejected')}
-              onCancel={() => applyStatus(offer.id, 'rejected')}
+              onAccept={() => runAction(offer, 'accept')}
+              onReject={() => runAction(offer, 'reject')}
+              onCancel={() => runAction(offer, 'cancel')}
             />
           ))}
         </section>
@@ -488,14 +490,13 @@ export function TradeOffersPage() {
         offer={selectedOffer}
         counterAmount={selectedCounterAmount}
         now={now}
+        transferFeePercent={offersQuery.data?.transferFeePercent ?? 0}
+        pending={actionMutation.isPending && actionMutation.variables?.offer.id === selectedOffer.id}
         onClose={() => setSelectedOfferId(null)}
-        onAccept={() => applyStatus(selectedOffer.id, 'accepted')}
-        onReject={() => applyStatus(selectedOffer.id, 'rejected')}
-        onCancel={() => applyStatus(selectedOffer.id, 'rejected')}
-        onCounter={(amount) => {
-          setOptimistic(prev => ({ ...prev, [selectedOffer.id]: 'active' }));
-          setCounterAmounts(prev => ({ ...prev, [selectedOffer.id]: amount }));
-        }}
+        onAccept={() => runAction(selectedOffer, 'accept')}
+        onReject={() => runAction(selectedOffer, 'reject')}
+        onCancel={() => runAction(selectedOffer, 'cancel')}
+        onCounter={(amount) => runAction(selectedOffer, 'counter', amount)}
       />
     )}
   </>;
@@ -552,7 +553,7 @@ function TabButton({ active, onClick, icon: Icon, label, count }: { active: bool
   </button>;
 }
 
-function OfferCard({ offer, index, now, onOpen, onAccept, onReject, onCancel }: { offer: DisplayOffer; index: number; now: number; onOpen: () => void; onAccept: () => void; onReject: () => void; onCancel: () => void }) {
+function OfferCard({ offer, index, now, pending, onOpen, onAccept, onReject, onCancel }: { offer: DisplayOffer; index: number; now: number; pending: boolean; onOpen: () => void; onAccept: () => void; onReject: () => void; onCancel: () => void }) {
   const KindIcon = kindMeta[offer.kind].icon;
   const remainingText = remaining(offer.expiresAt, now);
   const isReceived = offer.direction === 'received';
@@ -588,7 +589,8 @@ function OfferCard({ offer, index, now, onOpen, onAccept, onReject, onCancel }: 
             </p>
             <div className="mt-1.5 flex flex-wrap items-center gap-1">
               <span className="rounded-md border border-white/[.08] bg-white/[.04] px-1.5 py-0.5 text-[6.5px] font-bold text-slate-300">{positionLabel(offer.player.position)}</span>
-              <span className="rounded-md border border-white/[.08] bg-white/[.04] px-1.5 py-0.5 text-[6.5px] font-bold text-slate-300">OVR {faNumber(offer.player.overall)}</span>
+              <span className="inline-flex items-center gap-1 rounded-md border border-white/[.08] bg-white/[.04] px-1.5 py-0.5 text-[6.5px] font-bold text-slate-300"><Flag size={8}/>{offer.player.nationality}</span>
+              <span className="rounded-md border border-amber-300/[.1] bg-amber-300/[.05] px-1.5 py-0.5 text-[6.5px] font-bold text-amber-200">ارزش بازار {faNumber(offer.player.marketValue)} سکه</span>
             </div>
           </div>
         </div>
@@ -608,14 +610,14 @@ function OfferCard({ offer, index, now, onOpen, onAccept, onReject, onCancel }: 
       <div className="relative z-20 mt-3 grid grid-cols-3 gap-1.5">
         {isReceived ? (
           <>
-            <ActionButton onClick={(event) => { event.stopPropagation(); onAccept(); }} icon={Check} label="قبول" tone="accept"/>
-            <ActionButton onClick={(event) => { event.stopPropagation(); onReject(); }} icon={X} label="رد" tone="reject"/>
-            <ActionButton onClick={(event) => { event.stopPropagation(); onOpen(); }} icon={ArrowLeftRight} label="پیشنهاد متقابل" tone="counter"/>
+            <ActionButton onClick={(event) => { event.stopPropagation(); onAccept(); }} icon={Check} label="قبول" tone="accept" loading={pending}/>
+            <ActionButton onClick={(event) => { event.stopPropagation(); onReject(); }} icon={X} label="رد" tone="reject" disabled={pending}/>
+            <ActionButton onClick={(event) => { event.stopPropagation(); onOpen(); }} icon={ArrowLeftRight} label="پیشنهاد متقابل" tone="counter" disabled={pending}/>
           </>
         ) : (
           <>
-            <ActionButton onClick={(event) => { event.stopPropagation(); onOpen(); }} icon={Sparkles} label="مشاهده جزئیات" tone="view" className="col-span-2"/>
-            <ActionButton onClick={(event) => { event.stopPropagation(); onCancel(); }} icon={X} label="لغو پیشنهاد" tone="reject"/>
+            <ActionButton onClick={(event) => { event.stopPropagation(); onOpen(); }} icon={Sparkles} label="مشاهده جزئیات" tone="view" className="col-span-2" disabled={pending}/>
+            <ActionButton onClick={(event) => { event.stopPropagation(); onCancel(); }} icon={X} label="لغو پیشنهاد" tone="reject" loading={pending}/>
           </>
         )}
       </div>
@@ -623,7 +625,7 @@ function OfferCard({ offer, index, now, onOpen, onAccept, onReject, onCancel }: 
   </article>;
 }
 
-function ActionButton({ onClick, icon: Icon, label, tone, className }: { onClick: (event: React.MouseEvent<HTMLButtonElement>) => void; icon: typeof Check; label: string; tone: 'accept' | 'reject' | 'counter' | 'view'; className?: string }) {
+function ActionButton({ onClick, icon: Icon, label, tone, className, disabled = false, loading = false }: { onClick: (event: React.MouseEvent<HTMLButtonElement>) => void; icon: typeof Check; label: string; tone: 'accept' | 'reject' | 'counter' | 'view'; className?: string; disabled?: boolean; loading?: boolean }) {
   const palette = {
     accept: 'border-emerald-300/25 bg-emerald-400/[.12] text-emerald-100',
     reject: 'border-rose-300/25 bg-rose-400/[.12] text-rose-100',
@@ -633,14 +635,15 @@ function ActionButton({ onClick, icon: Icon, label, tone, className }: { onClick
   return <button
     type="button"
     onClick={onClick}
-    className={cn('inline-flex min-h-9 items-center justify-center gap-1.5 rounded-xl border px-2 py-1.5 text-[8px] font-black transition active:scale-95', palette, className)}
+    disabled={disabled || loading}
+    className={cn('inline-flex min-h-9 items-center justify-center gap-1.5 rounded-xl border px-2 py-1.5 text-[8px] font-black transition active:scale-95 disabled:cursor-not-allowed disabled:opacity-50', palette, className)}
   >
-    <Icon size={11}/>
+    {loading ? <LoaderCircle size={11} className="animate-spin"/> : <Icon size={11}/>}
     <span className="truncate">{label}</span>
   </button>;
 }
 
-function CounterpartyBadge({ club }: { club: DemoClub }) {
+function CounterpartyBadge({ club }: { club: Counterparty }) {
   return <div className="relative h-12 w-12 shrink-0">
     <div
       className="grid h-full w-full place-items-center rounded-2xl border border-white/[.12] text-[14px] font-black text-white"
@@ -678,13 +681,13 @@ function PlayerAvatar({ offer, size = 'card' }: { offer: DisplayOffer; size?: 'c
   </span>;
 }
 
-function OfferDetailsSheet({ offer, counterAmount, now, onClose, onAccept, onReject, onCancel, onCounter }: { offer: DisplayOffer; counterAmount: number|undefined; now: number; onClose: () => void; onAccept: () => void; onReject: () => void; onCancel: () => void; onCounter: (amount: number) => void }) {
+function OfferDetailsSheet({ offer, counterAmount, now, transferFeePercent, pending, onClose, onAccept, onReject, onCancel, onCounter }: { offer: DisplayOffer; counterAmount: number|undefined; now: number; transferFeePercent: number; pending: boolean; onClose: () => void; onAccept: () => void; onReject: () => void; onCancel: () => void; onCounter: (amount: number) => void }) {
   const KindIcon = kindMeta[offer.kind].icon;
   const isReceived = offer.direction === 'received';
   const active = offer.status === 'active';
   const [counterDraft, setCounterDraft] = useState<number>(Math.round(offer.amount * 1.05));
   const sheetTitle = isReceived ? `پیشنهاد ${offer.counterparty.name}` : `پیشنهاد ارسالی به ${offer.counterparty.name}`;
-  return <PlayerModalFrame label={sheetTitle} onClose={onClose}>
+  return <PlayerModalFrame label={sheetTitle} onClose={onClose} swipeDisabled={pending}>
     <div className="momentum-scroll mx-auto w-full max-w-xl overflow-y-auto overscroll-contain px-3 pb-[max(16px,var(--safe-bottom))]">
       <section className="relative overflow-hidden rounded-[1.45rem] border border-white/[.08] bg-gradient-to-l from-white/[.04] to-transparent p-3">
         <div className="pointer-events-none absolute -left-8 -top-10 h-28 w-28 rounded-full bg-emerald-400/[.08] blur-3xl"/>
@@ -728,7 +731,6 @@ function OfferDetailsSheet({ offer, counterAmount, now, onClose, onAccept, onRej
         <h3 className="mb-2 flex items-center gap-1.5 text-[10px] font-black text-slate-200"><Shirt size={12} className="text-emerald-300"/>پروفایل بازیکن</h3>
         <div className="grid grid-cols-2 gap-1.5">
           <DetailStat icon={Shirt} label="پست" value={`${positionLabel(offer.player.position)} · ${offer.player.position}`} accent="emerald"/>
-          <DetailStat icon={BadgeCheck} label="امتیاز کلی" value={faNumber(offer.player.overall)} accent="emerald"/>
           <DetailStat icon={BadgeDollarSign} label="ارزش بازار" value={`${faNumber(offer.player.marketValue)} سکه`} accent="amber"/>
           <DetailStat icon={Flag} label="ملیت" value={offer.player.nationality} accent="sky"/>
           <DetailStat icon={Building2} label="باشگاه فعلی" value={offer.player.club} accent="sky"/>
@@ -768,7 +770,7 @@ function OfferDetailsSheet({ offer, counterAmount, now, onClose, onAccept, onRej
             <input
               type="number"
               inputMode="numeric"
-              min={0}
+              min={1}
               value={counterDraft}
               onChange={event => setCounterDraft(Math.max(0, Number(event.target.value) || 0))}
               className="min-w-0 flex-1 bg-transparent text-[11px] font-black text-white outline-none"
@@ -779,24 +781,26 @@ function OfferDetailsSheet({ offer, counterAmount, now, onClose, onAccept, onRej
           <button
             type="button"
             onClick={() => onCounter(counterDraft)}
-            className="mt-2 inline-flex min-h-10 w-full items-center justify-center gap-1.5 rounded-2xl border border-amber-300/25 bg-amber-400/[.13] text-[9.5px] font-black text-amber-100 active:scale-[.985]"
+            disabled={pending || counterDraft < 1}
+            className="mt-2 inline-flex min-h-10 w-full items-center justify-center gap-1.5 rounded-2xl border border-amber-300/25 bg-amber-400/[.13] text-[9.5px] font-black text-amber-100 active:scale-[.985] disabled:cursor-not-allowed disabled:opacity-50"
           >
-            <ArrowLeftRight size={12}/>ارسال پیشنهاد متقابل
+            {pending ? <LoaderCircle size={12} className="animate-spin"/> : <ArrowLeftRight size={12}/>}ارسال پیشنهاد متقابل
           </button>
         </section>
       )}
 
       {active ? (
         <section className="mt-2.5 grid grid-cols-1 gap-1.5 sm:grid-cols-3">
+          {transferFeePercent > 0 && <p className="rounded-xl border border-white/[.06] bg-white/[.03] px-3 py-2 text-[7.5px] leading-5 text-slate-400 sm:col-span-3">در انتقال نهایی، {faNumber(transferFeePercent)}٪ کارمزد از سهم فروشنده کسر می‌شود.</p>}
           {isReceived ? (
             <>
-              <ActionButton onClick={onAccept} icon={Check} label="قبول پیشنهاد" tone="accept"/>
-              <ActionButton onClick={onReject} icon={X} label="رد پیشنهاد" tone="reject"/>
-              <ActionButton onClick={() => onCounter(counterDraft)} icon={ArrowLeftRight} label="پیشنهاد متقابل" tone="counter"/>
+              <ActionButton onClick={onAccept} icon={Check} label="قبول پیشنهاد" tone="accept" loading={pending}/>
+              <ActionButton onClick={onReject} icon={X} label="رد پیشنهاد" tone="reject" disabled={pending}/>
+              <ActionButton onClick={() => onCounter(counterDraft)} icon={ArrowLeftRight} label="پیشنهاد متقابل" tone="counter" disabled={pending || counterDraft < 1}/>
             </>
           ) : (
             <>
-              <ActionButton onClick={onCancel} icon={X} label="لغو پیشنهاد" tone="reject"/>
+              <ActionButton onClick={onCancel} icon={X} label="لغو پیشنهاد" tone="reject" loading={pending}/>
               <button
                 type="button"
                 onClick={onClose}
@@ -847,6 +851,41 @@ function DetailStat({ icon: Icon, label, value, accent }: { icon: typeof CircleD
       <strong className="mt-0.5 block truncate text-[8.5px] text-slate-100">{value}</strong>
     </span>
   </div>;
+}
+
+function toDisplayOffer(offer: TradeOfferView): DisplayOffer {
+  const colorPalette = ['#10b981', '#3b82f6', '#8b5cf6', '#f59e0b', '#ef4444', '#06b6d4'];
+  const colorIndex = [...offer.counterparty._id].reduce((sum, character) => sum + character.charCodeAt(0), 0) % colorPalette.length;
+  return {
+    id: offer._id,
+    direction: offer.direction,
+    kind: offer.kind,
+    status: offer.status,
+    amount: offer.amount,
+    createdAt: offer.createdAt,
+    expiresAt: offer.expiresAt,
+    note: offer.note,
+    player: {
+      id: offer.player._id,
+      name: offer.player.name,
+      position: offer.player.position,
+      nationality: offer.player.nationality ?? 'ثبت نشده',
+      club: offer.player.club ?? 'ثبت نشده',
+      marketValue: offer.player.marketValue ?? 0,
+      photoUrl: offer.player.photoUrl,
+      contractStatus: offer.player.contractStatus,
+    },
+    counterparty: {
+      id: offer.counterparty._id,
+      name: offer.counterparty.name,
+      shortName: offer.counterparty.name,
+      initials: offer.counterparty.name.slice(0, 1),
+      color: colorPalette[colorIndex],
+      photoUrl: offer.counterparty.photoUrl,
+    },
+    listingAskingPrice: offer.listingAskingPrice,
+    isDemo: false,
+  };
 }
 
 function positionLabel(position: ClubPlayer['position']) {

@@ -2,10 +2,11 @@ import { Router } from 'express';
 import mongoose, { type Types } from 'mongoose';
 import { z } from 'zod';
 import { verifyLiveMembership } from '../middleware/auth.js';
-import { ClubPlayer, Squad } from '../models/index.js';
+import { ClubPlayer, Squad, TransferOffer } from '../models/index.js';
 import { asyncHandler } from '../utils/asyncHandler.js';
 import { AppError } from '../utils/errors.js';
 import { reassignSquadSlot, validateSquadPositions, type SquadPosition } from '../services/squad.js';
+import { acceptTransferOffer, cancelTransferOffer, counterTransferOffer, createTransferOffer, listTransferOffers, rejectTransferOffer } from '../services/transferOffers.js';
 
 const router = Router();
 const formationSchema = z.enum(['4-3-3','4-4-2','4-2-3-1','3-5-2','3-4-3','5-3-2','4-1-4-1','custom']);
@@ -19,14 +20,61 @@ const completeLineupSchema = z.object({
   starterIds: z.array(playerIdSchema.nullable()).length(11),
   positions: z.array(positionSchema).length(11),
 });
+const offerInputSchema = z.object({
+  amount: z.number().int().min(1).max(1_000_000_000),
+  expiresAt: z.coerce.date(),
+  clientRequestId: z.string().uuid(),
+});
 
 router.use(verifyLiveMembership);
 
 router.get('/players', asyncHandler(async (req, res) => {
-  const players = await ClubPlayer.find({ ownerId: req.authUser!._id })
-    .sort({ createdAt: 1, _id: 1 })
-    .lean();
-  res.json({ players });
+  const now = new Date();
+  const [players, activeOffers] = await Promise.all([
+    ClubPlayer.find({ ownerId: req.authUser!._id }).sort({ createdAt: 1, _id: 1 }).lean(),
+    TransferOffer.find({ sellerId: req.authUser!._id, status: 'active', expiresAt: { $gt: now } }).select('_id playerId amount createdAt expiresAt status').lean(),
+  ]);
+  const offersByPlayer = new Map<string, typeof activeOffers>();
+  activeOffers.forEach(offer => {
+    const key = String(offer.playerId);
+    offersByPlayer.set(key, [...(offersByPlayer.get(key) ?? []), offer]);
+  });
+  res.json({ players: players.map(player => ({ ...player, transferOffers: offersByPlayer.get(String(player._id)) ?? [] })) });
+}));
+
+router.get('/offers', asyncHandler(async (req, res) => {
+  res.json(await listTransferOffers(req.authUser!._id));
+}));
+
+router.post('/offers', asyncHandler(async (req, res) => {
+  const input = offerInputSchema.extend({
+    playerId: playerIdSchema,
+    note: z.string().trim().max(240).optional(),
+  }).parse(req.body);
+  const offer = await createTransferOffer(req.authUser!._id, input);
+  res.status(201).json({ offerId: String(offer._id), status: offer.status });
+}));
+
+router.post('/offers/:id/accept', asyncHandler(async (req, res) => {
+  const offerId = playerIdSchema.parse(req.params.id);
+  res.json(await acceptTransferOffer(req.authUser!._id, offerId));
+}));
+
+router.post('/offers/:id/reject', asyncHandler(async (req, res) => {
+  const offerId = playerIdSchema.parse(req.params.id);
+  res.json(await rejectTransferOffer(req.authUser!._id, offerId));
+}));
+
+router.post('/offers/:id/cancel', asyncHandler(async (req, res) => {
+  const offerId = playerIdSchema.parse(req.params.id);
+  res.json(await cancelTransferOffer(req.authUser!._id, offerId));
+}));
+
+router.post('/offers/:id/counter', asyncHandler(async (req, res) => {
+  const offerId = playerIdSchema.parse(req.params.id);
+  const input = offerInputSchema.parse(req.body);
+  const offer = await counterTransferOffer(req.authUser!._id, offerId, input);
+  res.status(201).json({ offerId: String(offer._id), status: offer.status });
 }));
 
 router.get('/squad', asyncHandler(async (req, res) => {

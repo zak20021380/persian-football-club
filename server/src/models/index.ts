@@ -21,3 +21,4 @@ export * from './CoinPackage.js';
 export * from './CoinTransaction.js';
 export * from './ClubPlayer.js';
 export * from './Squad.js';
+export * from './TransferOffer.js';
