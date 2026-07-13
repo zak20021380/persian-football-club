@@ -4,11 +4,14 @@ import { Broadcast, Competition, ImportantMatch, Quiz, Reminder, Reward, Sponsor
 import { scoreMatch } from './matchScoring.js';
 import { withTelegramRetry } from '../utils/telegram.js';
 import { logger } from '../utils/logger.js';
+import { AppError } from '../utils/errors.js';
+import { deliverClaimedMatchReminder, isTelegramForbidden, synchronizePendingMatchReminders } from './reminders.js';
 
 export async function runCronCycle() {
   const now = new Date();
   const report = { competitionsActivated: 0, competitionsFinished: 0, quizzesActivated: 0, quizzesFinished: 0, matchesStarted: 0, matchesScored: 0, reminders: 0, broadcasts: 0, sponsorsExpired: 0, rewardsExpired: 0 };
 
+  await synchronizePendingMatchReminders(now);
   report.competitionsActivated = (await Competition.updateMany({ status: 'scheduled', startsAt: { $lte: now }, endsAt: { $gt: now } }, { $set: { status: 'active' } })).modifiedCount;
   report.competitionsFinished = (await Competition.updateMany({ status: { $in: ['scheduled','active'] }, endsAt: { $lte: now } }, { $set: { status: 'finished' } })).modifiedCount;
   report.quizzesActivated = (await Quiz.updateMany({ status: 'scheduled', startsAt: { $lte: now }, endsAt: { $gt: now } }, { $set: { status: 'active' } })).modifiedCount;
@@ -27,11 +30,17 @@ export async function runCronCycle() {
     const reminder = await Reminder.findOneAndUpdate({ status: 'pending', sendAt: { $lte: now } }, { $set: { status: 'processing' } }, { sort: { sendAt: 1 }, new: true });
     if (!reminder) break;
     try {
+      if (reminder.type === 'match') {
+        const result = await deliverClaimedMatchReminder(reminder, bot.telegram, now);
+        if (result === 'sent') report.reminders += 1;
+        continue;
+      }
       await withTelegramRetry(() => bot.telegram.sendMessage(reminder.telegramId, reminder.message));
-      reminder.status = 'sent'; reminder.sentAt = new Date(); report.reminders += 1;
+      reminder.status = 'sent'; reminder.sentAt = new Date(); reminder.lastErrorCode = undefined; report.reminders += 1;
     } catch (error) {
       reminder.status = 'failed';
-      await User.updateOne({ telegramId: reminder.telegramId }, { $set: { blockedBot: true } });
+      reminder.lastErrorCode = error instanceof AppError ? error.code : 'TELEGRAM_DELIVERY_FAILED';
+      if (isTelegramForbidden(error)) await User.updateOne({ telegramId: reminder.telegramId }, { $set: { blockedBot: true } });
       logger.warn({ err: error, reminderId: reminder._id }, 'Reminder delivery failed');
     }
     await reminder.save();

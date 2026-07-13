@@ -12,6 +12,7 @@ import {
 import { scoreQuiz } from '../services/scoring.js';
 import { scoreMatch } from '../services/matchScoring.js';
 import { isPredictionOpen } from '../services/prediction.js';
+import { availableMatchReminderMinutes, ensureTelegramReminderAccess, matchReminderSendAt } from '../services/reminders.js';
 import { createSponsorRedirectToken, trackSponsorEvent, verifySponsorRedirectToken, assertSafeHttpUrl } from '../services/sponsor.js';
 import { rewardPendingReferral } from '../services/referral.js';
 import { AppError } from '../utils/errors.js';
@@ -126,8 +127,28 @@ router.get('/matches', asyncHandler(async (req, res) => {
 router.get('/matches/:id', asyncHandler(async (req, res) => {
   const match = await ImportantMatch.findOne({ _id: req.params.id, published: true }).lean();
   if (!match) throw new AppError(404, 'بازی پیدا نشد');
-  const prediction = await Prediction.findOne({ userId: req.authUser!._id, matchId: match._id }).lean();
-  res.json({ ...match, prediction, predictionOpen: isPredictionOpen({ status: match.status, predictionDeadline: new Date(match.predictionDeadline), kickoffAt: new Date(match.kickoffAt) }) });
+  const [prediction, reminder] = await Promise.all([
+    Prediction.findOne({ userId: req.authUser!._id, matchId: match._id }).lean(),
+    Reminder.findOne({ userId: req.authUser!._id, type: 'match', entityId: match._id, status: { $ne: 'cancelled' } }).lean()
+  ]);
+  const reminderOptions = availableMatchReminderMinutes(new Date(match.kickoffAt));
+  const reminderError = env.BOT_TOKEN === 'development-token'
+    ? { code: 'BOT_UNAVAILABLE', message: 'ربات تلگرام هنوز روی سرور تنظیم نشده است' }
+    : req.authUser!.blockedBot
+      ? { code: 'TELEGRAM_ACCESS_UNAVAILABLE', message: 'ربات به گفت‌وگوی شما دسترسی ندارد؛ ابتدا ربات را Start کنید' }
+      : reminder?.status === 'failed'
+        ? { code: reminder.lastErrorCode ?? 'TELEGRAM_DELIVERY_FAILED', message: 'ارسال قبلی ناموفق بود؛ دوباره یادآوری را فعال کنید' }
+      : reminderOptions.length === 0 && match.status === 'scheduled' && !reminder
+        ? { code: 'REMINDER_TIME_PASSED', message: 'زمان فعال‌کردن یادآوری این مسابقه گذشته است' }
+        : null;
+  res.json({
+    ...match,
+    prediction,
+    predictionOpen: isPredictionOpen({ status: match.status, predictionDeadline: new Date(match.predictionDeadline), kickoffAt: new Date(match.kickoffAt) }),
+    reminder: reminder ? { _id: reminder._id, minutes: reminder.reminderMinutes ?? 30, sendAt: reminder.sendAt, status: reminder.status } : null,
+    reminderOptions,
+    reminderError
+  });
 }));
 
 router.post('/matches/:id/prediction', verifyLiveMembership, asyncHandler(async (req, res) => {
@@ -140,12 +161,37 @@ router.post('/matches/:id/prediction', verifyLiveMembership, asyncHandler(async 
 }));
 
 router.post('/matches/:id/reminder', verifyLiveMembership, asyncHandler(async (req, res) => {
-  const match = await ImportantMatch.findOne({ _id: req.params.id, published: true, kickoffAt: { $gt: new Date() } });
-  if (!match) throw new AppError(404, 'بازی آینده پیدا نشد');
-  const sendAt = new Date(Math.max(Date.now() + 60_000, match.kickoffAt.getTime() - 30 * 60_000));
-  const key = `match:${match._id}:user:${req.authUser!._id}:30`;
-  const reminder = await Reminder.findOneAndUpdate({ idempotencyKey: key }, { $setOnInsert: { userId: req.authUser!._id, telegramId: req.authUser!.telegramId, type: 'match', entityId: match._id, sendAt, message: `یادآوری بازی ${match.homeTeam} و ${match.awayTeam}`, status: 'pending', idempotencyKey: key } }, { upsert: true, new: true });
-  res.json(reminder);
+  const input = z.object({ minutes: z.union([z.literal(15), z.literal(30), z.literal(60)]) }).parse(req.body);
+  const match = await ImportantMatch.findOne({ _id: req.params.id, published: true });
+  if (!match) throw new AppError(404, 'بازی پیدا نشد');
+  if (match.status === 'cancelled') throw new AppError(409, 'این مسابقه لغو شده است', 'MATCH_CANCELLED');
+  if (match.status !== 'scheduled' || match.kickoffAt.getTime() <= Date.now()) throw new AppError(409, 'این مسابقه شروع شده است', 'MATCH_STARTED');
+  if (!availableMatchReminderMinutes(match.kickoffAt).includes(input.minutes)) throw new AppError(409, 'زمان انتخاب‌شده برای این مسابقه گذشته است', 'REMINDER_TIME_PASSED');
+  const existing = await Reminder.findOne({ userId: req.authUser!._id, type: 'match', entityId: match._id });
+  if (existing?.status === 'sent') throw new AppError(409, 'یادآوری این مسابقه قبلاً ارسال شده است', 'REMINDER_ALREADY_SENT');
+  if (existing?.status === 'processing') throw new AppError(409, 'یادآوری در حال ارسال است', 'REMINDER_PROCESSING');
+  const { bot } = await import('../bot/index.js');
+  await ensureTelegramReminderAccess(bot.telegram, req.authUser!.telegramId);
+  const sendAt = matchReminderSendAt(match.kickoffAt, input.minutes);
+  const key = `match:${match._id}:user:${req.authUser!._id}`;
+  const reminder = await Reminder.findOneAndUpdate(
+    { userId: req.authUser!._id, type: 'match', entityId: match._id },
+    {
+      $set: { telegramId: req.authUser!.telegramId, sendAt, reminderMinutes: input.minutes, matchKickoffAt: match.kickoffAt, message: '', status: 'pending' },
+      $unset: { sentAt: 1, lastErrorCode: 1 },
+      $setOnInsert: { userId: req.authUser!._id, type: 'match', entityId: match._id, idempotencyKey: key }
+    },
+    { upsert: true, new: true, runValidators: true }
+  );
+  res.status(existing ? 200 : 201).json({ _id: reminder!._id, minutes: reminder!.reminderMinutes, sendAt: reminder!.sendAt, status: reminder!.status });
+}));
+
+router.delete('/matches/:id/reminder', asyncHandler(async (req, res) => {
+  await Reminder.updateOne(
+    { userId: req.authUser!._id, type: 'match', entityId: req.params.id, status: { $in: ['pending','processing','failed'] } },
+    { $set: { status: 'cancelled', lastErrorCode: 'USER_CANCELLED' } }
+  );
+  res.sendStatus(204);
 }));
 
 router.get('/quizzes/active', verifyLiveMembership, asyncHandler(async (req, res) => {

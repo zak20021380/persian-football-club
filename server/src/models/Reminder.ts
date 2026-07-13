@@ -1,5 +1,37 @@
 import { Schema, model } from 'mongoose';
-export interface IReminder { userId: Schema.Types.ObjectId; telegramId: number; type: 'match'|'competition'|'quiz'|'result'; entityId: Schema.Types.ObjectId; sendAt: Date; message: string; status: 'pending'|'processing'|'sent'|'cancelled'|'failed'; sentAt?: Date; idempotencyKey: string; createdAt: Date; updatedAt: Date; }
-const schema = new Schema<IReminder>({ userId: { type: Schema.Types.ObjectId, ref: 'User', required: true, index: true }, telegramId: { type: Number, required: true }, type: { type: String, enum: ['match','competition','quiz','result'], required: true }, entityId: { type: Schema.Types.ObjectId, required: true }, sendAt: { type: Date, required: true, index: true }, message: { type: String, required: true }, status: { type: String, enum: ['pending','processing','sent','cancelled','failed'], default: 'pending', index: true }, sentAt: Date, idempotencyKey: { type: String, required: true, unique: true } }, { timestamps: true });
+
+export type MatchReminderMinutes = 15 | 30 | 60;
+export interface IReminder {
+  userId: Schema.Types.ObjectId;
+  telegramId: number;
+  type: 'match'|'competition'|'quiz'|'result';
+  entityId: Schema.Types.ObjectId;
+  sendAt: Date;
+  message: string;
+  reminderMinutes?: MatchReminderMinutes;
+  matchKickoffAt?: Date;
+  status: 'pending'|'processing'|'sent'|'cancelled'|'failed';
+  sentAt?: Date;
+  lastErrorCode?: string;
+  idempotencyKey: string;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+const schema = new Schema<IReminder>({
+  userId: { type: Schema.Types.ObjectId, ref: 'User', required: true, index: true },
+  telegramId: { type: Number, required: true },
+  type: { type: String, enum: ['match','competition','quiz','result'], required: true },
+  entityId: { type: Schema.Types.ObjectId, required: true },
+  sendAt: { type: Date, required: true, index: true },
+  message: { type: String, required: true },
+  reminderMinutes: { type: Number, enum: [15, 30, 60] },
+  matchKickoffAt: Date,
+  status: { type: String, enum: ['pending','processing','sent','cancelled','failed'], default: 'pending', index: true },
+  sentAt: Date,
+  lastErrorCode: String,
+  idempotencyKey: { type: String, required: true, unique: true }
+}, { timestamps: true });
 schema.index({ status: 1, sendAt: 1 });
+schema.index({ userId: 1, type: 1, entityId: 1 }, { unique: true, partialFilterExpression: { type: 'match' } });
 export const Reminder = model<IReminder>('Reminder', schema);

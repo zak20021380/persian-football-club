@@ -3,7 +3,9 @@ export interface User { _id: Id; firstName: string; lastName?: string; username?
 export interface Activity { type: string; title: string; points: number; at: string; }
 export interface Badge { _id: Id; name: string; description: string; icon: string; category: string; threshold: number; }
 export interface Bootstrap { user: User; membershipConfirmed: boolean; joinUrl: string; botUsername: string; isAdmin: boolean; timezone: string; }
-export interface Match { _id: Id; homeTeam: string; awayTeam: string; competitionName: string; kickoffAt: string; predictionDeadline: string; homeLogo?: string; awayLogo?: string; description?: string; status: 'scheduled'|'live'|'finished'|'cancelled'; homeScore?: number; awayScore?: number; predictionOpen: boolean; prediction?: Prediction|null; }
+export interface Match { _id: Id; homeTeam: string; awayTeam: string; competitionName: string; kickoffAt: string; predictionDeadline: string; homeLogo?: string; awayLogo?: string; description?: string; status: 'scheduled'|'live'|'finished'|'cancelled'; homeScore?: number; awayScore?: number; predictionOpen: boolean; prediction?: Prediction|null; reminder?: MatchReminder|null; reminderOptions?: MatchReminderMinutes[]; reminderError?: { code: string; message: string }|null; }
+export type MatchReminderMinutes = 15|30|60;
+export interface MatchReminder { _id: Id; minutes: MatchReminderMinutes; sendAt: string; status: 'pending'|'processing'|'sent'|'failed'; }
 export interface Prediction { _id: Id; outcome: 'home'|'draw'|'away'; homeScore?: number; awayScore?: number; pointsAwarded: number; scored: boolean; }
 export interface Question { _id: Id; text: string; options: string[]; category: string; difficulty: string; score: number; explanation?: string; }
 export interface Quiz { _id: Id; title: string; description?: string; questionIds: Question[]; startsAt: string; endsAt: string; timerSeconds?: number; attempted: boolean; attempt?: { score: number; correctCount: number }|null; }

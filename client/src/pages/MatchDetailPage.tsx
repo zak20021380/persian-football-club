@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { ArrowRight, BellRing, Check, CheckCircle2, Clock3, Info, LockKeyhole, Minus, Plus, Radio, ShieldCheck, Sparkles, Target, Trophy } from 'lucide-react';
+import { AlertTriangle, ArrowRight, BellRing, Check, CheckCircle2, Clock3, Info, LoaderCircle, LockKeyhole, Minus, Pencil, Plus, Radio, ShieldCheck, Sparkles, Target, Trophy, X } from 'lucide-react';
 import { useNavigate, useParams } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import { ClubCrest } from '@/components/ClubCrest';
@@ -8,7 +8,7 @@ import { Card, ErrorState, LoadingButton, PageSkeleton } from '@/components/ui';
 import { api } from '@/lib/api';
 import { impact, notify } from '@/lib/telegram';
 import { cn, faNumber, tehranDate } from '@/lib/utils';
-import type { Match } from '@/types/api';
+import type { Match, MatchReminderMinutes } from '@/types/api';
 
 type Outcome = 'home' | 'draw' | 'away';
 
@@ -33,6 +33,87 @@ function ScoreStepper({ team, score, onChange }: { team: string; score: number; 
   );
 }
 
+const reminderLabels: Record<MatchReminderMinutes, string> = { 15: '۱۵ دقیقه', 30: '۳۰ دقیقه', 60: '۱ ساعت' };
+
+function MatchReminderCard({ match }: { match: Match }) {
+  const queryClient = useQueryClient();
+  const active = match.reminder?.status === 'pending' || match.reminder?.status === 'processing';
+  const sent = match.reminder?.status === 'sent';
+  const activeError = active && Boolean(match.reminderError);
+  const options = match.reminderOptions ?? [];
+  const defaultMinutes = options.includes(30) ? 30 : options[0] ?? 15;
+  const [editing, setEditing] = useState(false);
+  const [minutes, setMinutes] = useState<MatchReminderMinutes>(active ? match.reminder!.minutes : defaultMinutes);
+
+  const save = useMutation({
+    mutationFn: async () => api.post(`/matches/${match._id}/reminder`, { minutes }),
+    onSuccess: async () => {
+      notify('success');
+      toast.success(`یادآوری ${reminderLabels[minutes]} قبل فعال شد`);
+      setEditing(false);
+      await queryClient.invalidateQueries({ queryKey: ['match', match._id] });
+    },
+    onError: (error) => { notify('error'); toast.error((error as Error).message); }
+  });
+  const cancel = useMutation({
+    mutationFn: async () => api.delete(`/matches/${match._id}/reminder`),
+    onSuccess: async () => {
+      notify('success');
+      toast.success('یادآوری لغو شد');
+      setEditing(false);
+      await queryClient.invalidateQueries({ queryKey: ['match', match._id] });
+    },
+    onError: (error) => { notify('error'); toast.error((error as Error).message); }
+  });
+  const busy = save.isPending || cancel.isPending;
+  const errorMessage = (save.error as Error | null)?.message ?? (cancel.error as Error | null)?.message ?? match.reminderError?.message;
+
+  return (
+    <Card className="match-panel-animate relative overflow-hidden border-sky-300/[.13] bg-gradient-to-l from-sky-400/[.09] via-white/[.025] to-transparent p-0">
+      <div className="pointer-events-none absolute -left-8 -top-10 h-28 w-28 rounded-full bg-sky-400/[.07] blur-2xl"/>
+      <div className="relative flex items-center gap-3 p-3.5">
+        <span className={cn('grid h-10 w-10 shrink-0 place-items-center rounded-2xl border', activeError ? 'border-amber-300/20 bg-amber-300/[.1] text-amber-300' : active ? 'border-emerald-300/20 bg-emerald-300/[.12] text-emerald-300' : 'border-sky-300/15 bg-sky-300/[.09] text-sky-300')}>
+          {activeError ? <AlertTriangle size={18}/> : active ? <CheckCircle2 size={19}/> : <BellRing size={18}/>}
+        </span>
+        <div className="min-w-0 flex-1">
+          <h2 className="text-[11px] font-black text-white">{activeError ? 'ارسال یادآوری ممکن نیست' : active ? 'یادآوری فعال شد' : sent ? 'یادآوری ارسال شد' : 'یادآوری مسابقه'}</h2>
+          <p className="mt-1 text-[9px] leading-4 text-slate-400">{activeError ? match.reminderError!.message : active ? `${reminderLabels[match.reminder!.minutes]} قبل از شروع بازی` : sent ? 'پیام یادآوری این مسابقه در تلگرام ارسال شده است' : 'قبل از شروع بازی در تلگرام خبرت می‌کنیم'}</p>
+        </div>
+        {!editing && !active && !sent && !match.reminderError && (
+          <button type="button" onClick={() => { impact(); setMinutes(defaultMinutes); setEditing(true); }} className="min-h-9 shrink-0 rounded-xl bg-sky-400 px-3 text-[9px] font-black text-ink-950 transition active:scale-95">فعال‌کردن یادآوری</button>
+        )}
+      </div>
+
+      {errorMessage && !active && !sent && <div role="alert" className="relative mx-3.5 mb-3 flex items-start gap-2 rounded-xl border border-amber-300/10 bg-amber-300/[.06] px-3 py-2 text-[8px] leading-4 text-amber-200"><AlertTriangle size={13} className="mt-0.5 shrink-0"/><span>{errorMessage}</span></div>}
+
+      {active && !editing && (
+        <div className="relative flex items-center gap-2 border-t border-white/[.055] px-3.5 py-2.5">
+          <span className="ml-auto flex items-center gap-1.5 text-[8px] font-bold text-emerald-300"><Clock3 size={12}/>{reminderLabels[match.reminder!.minutes]} قبل</span>
+          <button type="button" disabled={busy} onClick={() => { impact(); setMinutes(match.reminder!.minutes); setEditing(true); }} className="flex min-h-8 items-center gap-1 rounded-xl bg-white/[.055] px-2.5 text-[8px] font-bold text-slate-300 disabled:opacity-50"><Pencil size={11}/>تغییر زمان</button>
+          <button type="button" disabled={busy} onClick={() => cancel.mutate()} className="flex min-h-8 items-center gap-1 rounded-xl px-2 text-[8px] font-bold text-rose-300 transition hover:bg-rose-300/[.06] disabled:opacity-50">{cancel.isPending ? <LoaderCircle size={12} className="animate-spin"/> : <X size={12}/>}لغو</button>
+        </div>
+      )}
+
+      {editing && (
+        <div className="relative border-t border-white/[.055] px-3.5 pb-3 pt-2.5">
+          <div className="grid grid-cols-3 gap-1.5" role="radiogroup" aria-label="زمان یادآوری">
+            {([15, 30, 60] as MatchReminderMinutes[]).map((value) => {
+              const selected = minutes === value;
+              const available = options.includes(value);
+              return <button type="button" role="radio" aria-checked={selected} disabled={!available || busy} key={value} onClick={() => { impact(); setMinutes(value); }} className={cn('min-h-9 rounded-xl border text-[9px] font-black transition active:scale-95 disabled:cursor-not-allowed disabled:opacity-30', selected ? 'border-sky-300/35 bg-sky-300/[.12] text-sky-200' : 'border-white/[.07] bg-white/[.025] text-slate-400')}>{reminderLabels[value]}</button>;
+            })}
+          </div>
+          <div className="mt-2 flex gap-2">
+            <button type="button" disabled={busy || !options.includes(minutes)} onClick={() => save.mutate()} className="flex min-h-9 flex-1 items-center justify-center gap-1.5 rounded-xl bg-sky-400 text-[9px] font-black text-ink-950 transition active:scale-[.98] disabled:opacity-50">{save.isPending ? <LoaderCircle size={13} className="animate-spin"/> : <BellRing size={13}/>}فعال‌کردن یادآوری</button>
+            <button type="button" disabled={busy} onClick={() => { setEditing(false); save.reset(); }} className="min-h-9 rounded-xl bg-white/[.045] px-3 text-[9px] font-bold text-slate-400 disabled:opacity-50">انصراف</button>
+          </div>
+          {errorMessage && <div role="alert" className="mt-2 flex items-start gap-1.5 text-[8px] leading-4 text-rose-300"><AlertTriangle size={12} className="mt-0.5 shrink-0"/><span>{errorMessage}</span></div>}
+        </div>
+      )}
+    </Card>
+  );
+}
+
 function statusLabel(status: Match['status']) {
   return status === 'live' ? 'زنده' : status === 'finished' ? 'پایان‌یافته' : status === 'cancelled' ? 'لغوشده' : 'بازی آینده';
 }
@@ -47,7 +128,6 @@ export function MatchDetailPage() {
   const [awayScore, setAwayScore] = useState(0);
   const query = useQuery({ queryKey: ['match', id], queryFn: async () => (await api.get<Match>(`/matches/${id}`)).data, enabled: Boolean(id), refetchInterval: 30_000 });
   const predict = useMutation({ mutationFn: async () => api.post(`/matches/${id}/prediction`, { outcome, ...(exact ? { homeScore, awayScore } : {}) }), onSuccess: async () => { notify('success'); toast.success('پیش‌بینی با موفقیت ثبت شد'); await queryClient.invalidateQueries({ queryKey: ['match', id] }); await queryClient.invalidateQueries({ queryKey: ['matches'] }); }, onError: (error) => { notify('error'); toast.error((error as Error).message); } });
-  const reminder = useMutation({ mutationFn: async () => api.post(`/matches/${id}/reminder`), onSuccess: () => { notify('success'); toast.success('یادآوری ۳۰ دقیقه قبل فعال شد'); }, onError: (error) => toast.error((error as Error).message) });
 
   if (query.isLoading) return <PageSkeleton/>;
   if (query.error || !query.data) return <div className="p-4"><ErrorState message={(query.error as Error)?.message || 'بازی پیدا نشد'}/></div>;
@@ -140,7 +220,7 @@ export function MatchDetailPage() {
           <Card className="match-panel-animate flex items-center gap-3 border-white/[.07] bg-white/[.025]"><span className="grid h-11 w-11 shrink-0 place-items-center rounded-2xl bg-slate-400/[.08] text-slate-500"><LockKeyhole size={18}/></span><div><h2 className="text-xs font-black">پیش‌بینی بسته شده</h2><p className="mt-1 text-[9px] text-slate-500">مهلت پیش‌بینی این بازی به پایان رسیده است.</p></div></Card>
         )}
 
-        {match.status === 'scheduled' && <LoadingButton loading={reminder.isPending} onClick={() => reminder.mutate()} className="match-panel-animate w-full border border-sky-300/15 bg-sky-400 text-ink-950 shadow-lg shadow-sky-500/10"><BellRing size={18}/>یادآوری ۳۰ دقیقه قبل از بازی</LoadingButton>}
+        {match.status === 'scheduled' && <MatchReminderCard match={match}/>}
       </div>
     </main>
   );
