@@ -1,5 +1,5 @@
 import { connectDatabase, disconnectDatabase } from '../config/db.js';
-import { AppSetting, Badge, CoinPackage, Competition, ImportantMatch, Question, Quiz, Reward } from '../models/index.js';
+import { AppSetting, Badge, CoinPackage, Competition, ImportantMatch, Question, Quiz, Reward, Team } from '../models/index.js';
 import { logger } from '../utils/logger.js';
 
 const categories = ['لیگ قهرمانان','جام جهانی','فوتبال ایران','لیگ انگلیس','لالیگا','تاریخ فوتبال','باشگاه‌ها و بازیکنان'];
@@ -65,14 +65,20 @@ const raw: Array<[string,string[],number,string,number?]> = [
 
 async function seed() {
   await connectDatabase();
-  await Promise.all([Question.deleteMany({}), Quiz.deleteMany({}), Competition.deleteMany({}), ImportantMatch.deleteMany({}), Reward.deleteMany({}), CoinPackage.deleteMany({})]);
+  await Promise.all([Question.deleteMany({}), Quiz.deleteMany({}), Competition.deleteMany({}), ImportantMatch.deleteMany({}), Reward.deleteMany({}), CoinPackage.deleteMany({}), Team.deleteMany({})]);
   const questions = await Question.insertMany(raw.map(([text, options, correctOption, category, score]) => ({ text, options, correctOption, category, explanation: `پاسخ درست: ${options[correctOption]}`, difficulty: 'medium', score: score ?? 10, active: true })));
   const now = Date.now();
   await Quiz.create({ title: 'کوییز روزانه فوتبال', description: 'ده سؤال سریع برای سنجش دانش فوتبالی', questionIds: questions.slice(0,10).map(q=>q._id), startsAt: new Date(now-60_000), endsAt: new Date(now+24*60*60*1000), timerSeconds: 180, scoreMultiplier: 1, status: 'active', dailyKey: new Intl.DateTimeFormat('en-CA',{timeZone:'Asia/Tehran'}).format(new Date()), published: true });
   await Competition.create({ title: 'جام فوتبالی هفته', description: 'در این جام به ده سؤال پاسخ بده؛ رتبه با امتیاز و سپس سرعت تعیین می‌شود.', type: 'cup', startsAt: new Date(now-60_000), endsAt: new Date(now+7*24*60*60*1000), questionIds: questions.slice(10,20).map(q=>q._id), prize: 'نشان قهرمان هفته', attemptLimit: 1, status: 'active', published: true, winnersPublished: false });
+  const teams = await Team.insertMany([
+    { name: 'پرسپولیس', shortName: 'پرسپولیس', country: 'ایران', league: 'لیگ برتر ایران', active: true },
+    { name: 'استقلال', shortName: 'استقلال', country: 'ایران', league: 'لیگ برتر ایران', active: true },
+    { name: 'رئال مادرید', shortName: 'رئال', country: 'اسپانیا', league: 'لالیگا', active: true },
+    { name: 'بارسلونا', shortName: 'بارسا', country: 'اسپانیا', league: 'لالیگا', active: true }
+  ]);
   await ImportantMatch.insertMany([
-    { homeTeam:'پرسپولیس',awayTeam:'استقلال',competitionName:'لیگ برتر ایران',kickoffAt:new Date(now+8*60*60*1000),predictionDeadline:new Date(now+7.5*60*60*1000),description:'شهرآورد تهران؛ نتیجه و زمان کاملاً توسط ادمین قابل ویرایش است.',status:'scheduled',published:true,reminderMinutes:[30],predictionsScored:false },
-    { homeTeam:'رئال مادرید',awayTeam:'بارسلونا',competitionName:'لالیگا',kickoffAt:new Date(now+30*60*60*1000),predictionDeadline:new Date(now+29*60*60*1000),description:'ال‌کلاسیکوی نمایشی برای شروع کار.',status:'scheduled',published:true,reminderMinutes:[30,60],predictionsScored:false }
+    { homeTeamId:teams[0]._id,awayTeamId:teams[1]._id,competitionName:'لیگ برتر ایران',kickoffAt:new Date(now+8*60*60*1000),predictionDeadline:new Date(now+7.5*60*60*1000),description:'شهرآورد تهران؛ نتیجه و زمان کاملاً توسط ادمین قابل ویرایش است.',status:'scheduled',published:true,reminderMinutes:[30],predictionsScored:false },
+    { homeTeamId:teams[2]._id,awayTeamId:teams[3]._id,competitionName:'لالیگا',kickoffAt:new Date(now+30*60*60*1000),predictionDeadline:new Date(now+29*60*60*1000),description:'ال‌کلاسیکوی نمایشی برای شروع کار.',status:'scheduled',published:true,reminderMinutes:[30,60],predictionsScored:false }
   ]);
   await Reward.create({ title:'نشان پیش‌بینی طلایی',description:'ویژه کاربران با حداقل ۵۰۰ امتیاز',type:'points',pointsRequired:500,startsAt:new Date(now-60_000),endsAt:new Date(now+30*24*60*60*1000),active:true });
   await CoinPackage.insertMany([

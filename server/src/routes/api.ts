@@ -7,7 +7,7 @@ import { adminIds, env } from '../config/env.js';
 import { authenticate, requireAdmin, verifyLiveMembership } from '../middleware/auth.js';
 import {
   AppSetting, Badge, Broadcast, CoinPackage, Competition, CompetitionEntry, ImportantMatch, Prediction, Question, Quiz,
-  QuizAttempt, Referral, Reminder, Reward, Sponsor, User
+  QuizAttempt, Referral, Reminder, Reward, Sponsor, Team, User
 } from '../models/index.js';
 import { scoreQuiz } from '../services/scoring.js';
 import { scoreMatch } from '../services/matchScoring.js';
@@ -18,11 +18,13 @@ import { createPendingReferral, rewardPendingReferral } from '../services/referr
 import { createSessionToken } from '../services/session.js';
 import { validateTelegramInitData, type TelegramInitUser } from '../services/telegramAuth.js';
 import { recoverTelegramUser } from '../services/userRecovery.js';
+import { presentMatch } from '../services/matchPresentation.js';
 import { AppError } from '../utils/errors.js';
 import { asyncHandler } from '../utils/asyncHandler.js';
 import funRouter from './fun.js';
 import storeRouter from './store.js';
 import clubRouter from './club.js';
+import adminFantasyRouter from './adminFantasy.js';
 
 const router = Router();
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 2 * 1024 * 1024, files: 1 }, fileFilter: (_req, file, cb) => cb(null, /^image\/(png|jpeg|webp|gif)$/.test(file.mimetype)) });
@@ -106,7 +108,7 @@ router.get('/home', asyncHandler(async (req, res) => {
   const now = new Date();
   const user = req.authUser!;
   const [matches, competitions, dailyQuiz, leaders, rewards, sponsor, predictionsCount, weeklyRank] = await Promise.all([
-    ImportantMatch.find({ published: true, status: { $in: ['live','scheduled'] }, kickoffAt: { $gte: new Date(now.getTime() - 3 * 60 * 60 * 1000) } }).sort({ status: 1, kickoffAt: 1 }).limit(5).lean(),
+    ImportantMatch.find({ published: true, status: { $in: ['live','scheduled'] }, kickoffAt: { $gte: new Date(now.getTime() - 3 * 60 * 60 * 1000) } }).sort({ status: 1, kickoffAt: 1 }).limit(5).populate('homeTeamId awayTeamId', 'name shortName logoUrl').lean(),
     Competition.find({ published: true, status: 'active', startsAt: { $lte: now }, endsAt: { $gt: now } }).sort({ endsAt: 1 }).limit(4).lean(),
     Quiz.findOne({ published: true, status: 'active', startsAt: { $lte: now }, endsAt: { $gt: now } }).sort({ startsAt: -1 }).lean(),
     User.find({ membershipConfirmed: true }).sort({ weeklyPoints: -1, createdAt: 1 }).limit(5).select('displayName clubName weeklyPoints points').lean(),
@@ -123,7 +125,7 @@ router.get('/home', asyncHandler(async (req, res) => {
   const homePredictions = await Prediction.find({ userId: user._id, matchId: { $in: matches.map((match) => match._id) } }).lean();
   const homePredictionMap = new Map(homePredictions.map((prediction) => [String(prediction.matchId), prediction]));
   const matchesWithPredictions = matches.map((match) => ({
-    ...match,
+    ...presentMatch(match),
     prediction: homePredictionMap.get(String(match._id)) ?? null,
     predictionOpen: isPredictionOpen({ status: match.status, predictionDeadline: new Date(match.predictionDeadline), kickoffAt: new Date(match.kickoffAt) })
   }));
@@ -147,14 +149,14 @@ router.get('/matches', asyncHandler(async (req, res) => {
   const status = req.query.status ? String(req.query.status) : undefined;
   const query: Record<string, unknown> = { published: true };
   if (status && ['scheduled','live','finished','cancelled'].includes(status)) query.status = status;
-  const matches = await ImportantMatch.find(query).sort({ kickoffAt: status === 'finished' ? -1 : 1 }).limit(100).lean();
+  const matches = await ImportantMatch.find(query).sort({ kickoffAt: status === 'finished' ? -1 : 1 }).limit(100).populate('homeTeamId awayTeamId', 'name shortName logoUrl').lean();
   const predictions = await Prediction.find({ userId: req.authUser!._id, matchId: { $in: matches.map((m) => m._id) } }).lean();
   const predictionMap = new Map(predictions.map((p) => [String(p.matchId), p]));
-  res.json(matches.map((match) => ({ ...match, prediction: predictionMap.get(String(match._id)) ?? null, predictionOpen: isPredictionOpen({ status: match.status, predictionDeadline: new Date(match.predictionDeadline), kickoffAt: new Date(match.kickoffAt) }) })));
+  res.json(matches.map((match) => ({ ...presentMatch(match), prediction: predictionMap.get(String(match._id)) ?? null, predictionOpen: isPredictionOpen({ status: match.status, predictionDeadline: new Date(match.predictionDeadline), kickoffAt: new Date(match.kickoffAt) }) })));
 }));
 
 router.get('/matches/:id', asyncHandler(async (req, res) => {
-  const match = await ImportantMatch.findOne({ _id: req.params.id, published: true }).lean();
+  const match = await ImportantMatch.findOne({ _id: req.params.id, published: true }).populate('homeTeamId awayTeamId', 'name shortName logoUrl').lean();
   if (!match) throw new AppError(404, 'بازی پیدا نشد');
   const [prediction, reminder] = await Promise.all([
     Prediction.findOne({ userId: req.authUser!._id, matchId: match._id }).lean(),
@@ -171,7 +173,7 @@ router.get('/matches/:id', asyncHandler(async (req, res) => {
         ? { code: 'REMINDER_TIME_PASSED', message: 'زمان فعال‌کردن یادآوری این مسابقه گذشته است' }
         : null;
   res.json({
-    ...match,
+    ...presentMatch(match),
     prediction,
     predictionOpen: isPredictionOpen({ status: match.status, predictionDeadline: new Date(match.predictionDeadline), kickoffAt: new Date(match.kickoffAt) }),
     reminder: reminder ? { _id: reminder._id, minutes: reminder.reminderMinutes ?? 30, sendAt: reminder.sendAt, status: reminder.status } : null,
@@ -354,6 +356,7 @@ router.post('/sponsors/:id/impression', asyncHandler(async (req, res) => {
 
 // Admin APIs
 router.use('/admin', requireAdmin);
+router.use('/admin/fantasy', adminFantasyRouter);
 
 const resources: Record<string, Model<any>> = {
   matches: ImportantMatch, questions: Question, quizzes: Quiz, competitions: Competition,
@@ -389,22 +392,30 @@ router.post('/admin/coinPackages/:id/move', asyncHandler(async (req, res) => {
 }));
 
 router.get('/admin/:resource', asyncHandler(async (req, res) => {
-  const model = resources[param(req.params.resource)];
+  const resource = param(req.params.resource);
+  const model = resources[resource];
   if (!model) throw new AppError(404, 'بخش مدیریتی نامعتبر است');
   const page = Math.max(1, Number(req.query.page ?? 1));
   const limit = Math.min(100, Math.max(1, Number(req.query.limit ?? 30)));
   const query: Record<string, unknown> = {};
   if (req.query.status) query.status = req.query.status;
-  if (req.query.q) query.$or = searchableFields(param(req.params.resource)).map((field) => ({ [field]: { $regex: String(req.query.q), $options: 'i' } }));
-  const sort = param(req.params.resource) === 'coinPackages' ? { sortOrder: 1, createdAt: 1 } : { createdAt: -1 };
-  const [items, total] = await Promise.all([model.find(query).sort(sort as any).skip((page - 1) * limit).limit(limit).lean(), model.countDocuments(query)]);
-  res.json({ items, total, page, pages: Math.ceil(total / limit) });
+  if (req.query.q && resource === 'matches') {
+    const term = escapeRegex(String(req.query.q));
+    const teams = await Team.find({ $or: [{ name: { $regex: term, $options: 'i' } }, { shortName: { $regex: term, $options: 'i' } }] }).select('_id').lean();
+    query.$or = [{ competitionName: { $regex: term, $options: 'i' } }, { homeTeamId: { $in: teams.map(team => team._id) } }, { awayTeamId: { $in: teams.map(team => team._id) } }];
+  } else if (req.query.q) query.$or = searchableFields(resource).map((field) => ({ [field]: { $regex: escapeRegex(String(req.query.q)), $options: 'i' } }));
+  const sort = resource === 'coinPackages' ? { sortOrder: 1, createdAt: 1 } : { createdAt: -1 };
+  const find = model.find(query).sort(sort as any).skip((page - 1) * limit).limit(limit);
+  if (resource === 'matches') find.populate('homeTeamId awayTeamId', 'name shortName logoUrl');
+  const [items, total] = await Promise.all([find.lean(), model.countDocuments(query)]);
+  res.json({ items: resource === 'matches' ? items.map(item => presentMatch(item as Record<string, any>)) : items, total, page, pages: Math.ceil(total / limit) });
 }));
 
 router.post('/admin/:resource', asyncHandler(async (req, res) => {
   const model = resources[param(req.params.resource)];
   if (!model) throw new AppError(404, 'بخش مدیریتی نامعتبر است');
   const payload = sanitizeAdminPayload(param(req.params.resource), req.body);
+  if (param(req.params.resource) === 'matches') await validateMatchTeams(payload);
   if (param(req.params.resource) === 'sponsors' && payload.destinationUrl) assertSafeHttpUrl(String(payload.destinationUrl));
   if (param(req.params.resource) === 'broadcasts' && !payload.idempotencyKey) payload.idempotencyKey = crypto.randomUUID();
   const item = await model.create(payload);
@@ -422,16 +433,23 @@ router.post('/admin/:resource/:id/duplicate', asyncHandler(async (req, res) => {
   if ('name' in copy) copy.name = `${String(copy.name)} - کپی`;
   if ('status' in copy) copy.status = 'draft';
   if ('published' in copy) copy.published = false;
+  if (param(req.params.resource) === 'matches') delete copy.externalApiId;
   if (param(req.params.resource) === 'broadcasts') copy.idempotencyKey = crypto.randomUUID();
   const item = await model.create(copy);
   res.status(201).json(item);
 }));
 
 router.patch('/admin/:resource/:id', asyncHandler(async (req, res) => {
-  const model = resources[param(req.params.resource)];
+  const resource = param(req.params.resource);
+  const model = resources[resource];
   if (!model) throw new AppError(404, 'بخش مدیریتی نامعتبر است');
-  const payload = sanitizeAdminPayload(param(req.params.resource), req.body);
-  if (param(req.params.resource) === 'sponsors' && payload.destinationUrl) assertSafeHttpUrl(String(payload.destinationUrl));
+  const payload = sanitizeAdminPayload(resource, req.body);
+  if (resource === 'matches') {
+    const existing = await ImportantMatch.findById(param(req.params.id)).lean();
+    if (!existing) throw new AppError(404, 'رکورد پیدا نشد');
+    await validateMatchTeams({ ...existing, ...payload });
+  }
+  if (resource === 'sponsors' && payload.destinationUrl) assertSafeHttpUrl(String(payload.destinationUrl));
   const item = await model.findByIdAndUpdate(param(req.params.id), { $set: payload }, { new: true, runValidators: true });
   if (!item) throw new AppError(404, 'رکورد پیدا نشد');
   res.json(item);
@@ -485,12 +503,13 @@ function displayNameFor(user: Record<string, any>, telegramUser?: Pick<TelegramI
 }
 function todayKey(): string { return new Intl.DateTimeFormat('en-CA', { timeZone: env.TIMEZONE, year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date()); }
 function searchableFields(resource: string): string[] {
-  return ({ matches: ['homeTeam','awayTeam','competitionName'], questions: ['text','category'], quizzes: ['title'], competitions: ['title'], rewards: ['title'], sponsors: ['name'], badges: ['name'], broadcasts: ['title','message'], settings: ['key'], users: ['displayName','clubName'], coinPackages: ['title','badge'] } as Record<string,string[]>)[resource] ?? ['title'];
+  return ({ matches: ['competitionName'], questions: ['text','category'], quizzes: ['title'], competitions: ['title'], rewards: ['title'], sponsors: ['name'], badges: ['name'], broadcasts: ['title','message'], settings: ['key'], users: ['displayName','clubName'], coinPackages: ['title','badge'] } as Record<string,string[]>)[resource] ?? ['title'];
 }
 function sanitizeAdminPayload(resource: string, payload: unknown): Record<string, any> {
   if (!payload || typeof payload !== 'object' || Array.isArray(payload)) throw new AppError(400, 'بدنه درخواست نامعتبر است');
   const value = { ...(payload as Record<string, any>) };
   delete value._id; delete value.__v; delete value.createdAt; delete value.updatedAt; delete value.telegramId; delete value.points; delete value.weeklyPoints; delete value.referralCode;
+  if (resource === 'matches') { delete value.homeTeam; delete value.awayTeam; delete value.homeLogo; delete value.awayLogo; }
   if (resource === 'users') {
     const allowed = ['displayName','clubName','favoriteTeam','membershipConfirmed','blockedBot'];
     return Object.fromEntries(Object.entries(value).filter(([key]) => allowed.includes(key)));
@@ -501,3 +520,11 @@ function sanitizeAdminPayload(resource: string, payload: unknown): Record<string
   }
   return value;
 }
+async function validateMatchTeams(payload: Record<string, any>): Promise<void> {
+  const ids = [payload.homeTeamId, payload.awayTeamId].filter(Boolean);
+  if (!ids.length) return;
+  if (ids.some(id => !mongoose.isValidObjectId(id))) throw new AppError(400, 'شناسه تیم مسابقه معتبر نیست');
+  if (payload.homeTeamId && payload.awayTeamId && String(payload.homeTeamId) === String(payload.awayTeamId)) throw new AppError(400, 'تیم میزبان و میهمان باید متفاوت باشند');
+  if (await Team.countDocuments({ _id: { $in: ids } }) !== new Set(ids.map(String)).size) throw new AppError(400, 'یکی از تیم‌های مسابقه پیدا نشد');
+}
+function escapeRegex(value: string): string { return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'); }

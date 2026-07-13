@@ -22,7 +22,13 @@ const schema = z.object({
   UPLOAD_DIR: z.string().min(1).default('uploads'),
   PAYMENT_PROVIDER: z.enum(['none', 'test']).default('none'),
   DAILY_COIN_REWARD: z.coerce.number().int().min(1).max(100_000).default(25),
-  TRANSFER_FEE_PERCENT: z.coerce.number().int().min(0).max(50).default(5)
+  TRANSFER_FEE_PERCENT: z.coerce.number().int().min(0).max(50).default(5),
+  FOOTBALL_API_BASE_URL: z.string().url().refine(value => /^https?:\/\//i.test(value), 'Football API URL must use HTTP(S)').default('https://v3.football.api-sports.io'),
+  FOOTBALL_API_KEY: z.string().default(''),
+  FOOTBALL_API_KEY_HEADER: z.string().regex(/^[A-Za-z0-9-]+$/).default('x-apisports-key'),
+  FOOTBALL_API_LEAGUE_ID: z.preprocess((value) => value === '' ? undefined : value, z.coerce.number().int().positive().optional()),
+  FOOTBALL_API_SEASON: z.preprocess((value) => value === '' ? undefined : value, z.coerce.number().int().min(1900).max(2100).optional()),
+  FOOTBALL_API_TIMEOUT_MS: z.coerce.number().int().min(1_000).max(60_000).default(15_000)
 });
 
 const parsed = schema.superRefine((value, context) => {

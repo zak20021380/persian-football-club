@@ -22,3 +22,8 @@ export * from './CoinTransaction.js';
 export * from './ClubPlayer.js';
 export * from './Squad.js';
 export * from './TransferOffer.js';
+export * from './Team.js';
+export * from './FantasyPlayer.js';
+export * from './FantasyScoringConfig.js';
+export * from './PlayerMatchStat.js';
+export * from './FootballApiSync.js';

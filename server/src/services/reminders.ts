@@ -4,6 +4,7 @@ import { env } from '../config/env.js';
 import { ImportantMatch, Prediction, Reminder, User, type IReminder, type MatchReminderMinutes } from '../models/index.js';
 import { AppError } from '../utils/errors.js';
 import { escapeTelegramHtml, withTelegramRetry } from '../utils/telegram.js';
+import { presentMatch } from './matchPresentation.js';
 
 export const MATCH_REMINDER_MINUTES = [15, 30, 60] as const;
 
@@ -110,8 +111,8 @@ export async function ensureTelegramReminderAccess(telegram: Pick<Telegram, 'get
 export async function synchronizePendingMatchReminders(now = new Date()): Promise<void> {
   const reminders = await Reminder.find({ type: 'match', status: 'pending' }).limit(2_000);
   if (!reminders.length) return;
-  const matches = await ImportantMatch.find({ _id: { $in: reminders.map((item) => item.entityId) } });
-  const matchMap = new Map(matches.map((match) => [String(match._id), match]));
+  const matches = await ImportantMatch.find({ _id: { $in: reminders.map((item) => item.entityId) } }).populate('homeTeamId awayTeamId', 'name shortName logoUrl').lean();
+  const matchMap = new Map(matches.map((match) => [String(match._id), presentMatch(match)]));
   await Promise.all(reminders.map(async (reminder) => {
     let changed = false;
     const minutes = reminder.reminderMinutes ?? 30;
@@ -130,7 +131,8 @@ export async function synchronizePendingMatchReminders(now = new Date()): Promis
 }
 
 export async function deliverClaimedMatchReminder(reminder: HydratedDocument<IReminder>, telegram: Pick<Telegram, 'sendMessage'>, now = new Date()): Promise<'sent'|'rescheduled'|'cancelled'> {
-  const match = await ImportantMatch.findById(reminder.entityId);
+  const rawMatch = await ImportantMatch.findById(reminder.entityId).populate('homeTeamId awayTeamId', 'name shortName logoUrl').lean();
+  const match = rawMatch ? presentMatch(rawMatch) : null;
   const minutes = reminder.reminderMinutes ?? 30;
   const plan = planMatchReminder(match, minutes, now);
   if (plan.action === 'cancel') {
