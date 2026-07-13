@@ -180,7 +180,7 @@ function positionLabel(position: ClubPlayer['position']) {
 }
 
 function listingStatus(status?: NonNullable<ClubPlayer['transferListing']>['status']) {
-  return ({ active: 'فعال در بازار', paused: 'آگهی متوقف', sold: 'فروخته شده', expired: 'آگهی منقضی' } as const)[status ?? 'active'];
+  return ({ active: 'فعال در بازار', negotiable: 'قابل مذاکره', paused: 'آگهی متوقف', sold: 'فروخته شده', expired: 'آگهی منقضی' } as const)[status ?? 'active'];
 }
 
 function shortName(name: string) { const parts = name.trim().split(/\s+/); return parts.at(-1) || name; }

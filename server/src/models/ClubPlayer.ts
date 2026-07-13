@@ -5,8 +5,9 @@ export type PlayerPosition = 'GK'|'RB'|'CB'|'LB'|'DM'|'CM'|'AM'|'RW'|'LW'|'ST';
 export interface IPlayerTransferListing {
   isListed: boolean;
   askingPrice?: number;
-  status?: 'active'|'paused'|'sold'|'expired';
+  status?: 'active'|'negotiable'|'paused'|'sold'|'expired';
   expiresAt?: Date;
+  sellerId?: Types.ObjectId;
 }
 
 export interface IClubPlayer {
@@ -27,8 +28,9 @@ export interface IClubPlayer {
 const listingSchema = new Schema<IPlayerTransferListing>({
   isListed: { type: Boolean, required: true, default: false },
   askingPrice: { type: Number, min: 0 },
-  status: { type: String, enum: ['active','paused','sold','expired'] },
-  expiresAt: { type: Date }
+  status: { type: String, enum: ['active','negotiable','paused','sold','expired'] },
+  expiresAt: { type: Date },
+  sellerId: { type: Schema.Types.ObjectId, ref: 'User' }
 }, { _id: false });
 
 const schema = new Schema<IClubPlayer>({

@@ -6,7 +6,7 @@ import { ClubPlayer, Squad, TransferOffer } from '../models/index.js';
 import { asyncHandler } from '../utils/asyncHandler.js';
 import { AppError } from '../utils/errors.js';
 import { reassignSquadSlot, validateSquadPositions, type SquadPosition } from '../services/squad.js';
-import { acceptTransferOffer, cancelTransferOffer, counterTransferOffer, createTransferOffer, listTransferOffers, rejectTransferOffer } from '../services/transferOffers.js';
+import { acceptTransferOffer, cancelTransferOffer, counterTransferOffer, createTransferOffer, listTransferMarket, listTransferOffers, rejectTransferOffer } from '../services/transferOffers.js';
 
 const router = Router();
 const formationSchema = z.enum(['4-3-3','4-4-2','4-2-3-1','3-5-2','3-4-3','5-3-2','4-1-4-1','custom']);
@@ -44,6 +44,10 @@ router.get('/players', asyncHandler(async (req, res) => {
 
 router.get('/offers', asyncHandler(async (req, res) => {
   res.json(await listTransferOffers(req.authUser!._id));
+}));
+
+router.get('/market', asyncHandler(async (req, res) => {
+  res.json(await listTransferMarket(req.authUser!._id));
 }));
 
 router.post('/offers', asyncHandler(async (req, res) => {

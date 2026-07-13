@@ -2,7 +2,7 @@ import crypto from 'node:crypto';
 import mongoose, { Types } from 'mongoose';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { ClubPlayer, Squad, TransferOffer, User } from '../models/index.js';
-import { acceptTransferOffer, assertOfferExpiration, calculateTransferSettlement, cancelTransferOffer, rejectTransferOffer } from '../services/transferOffers.js';
+import { acceptTransferOffer, assertOfferExpiration, calculateTransferSettlement, cancelTransferOffer, createTransferOffer, rejectTransferOffer } from '../services/transferOffers.js';
 
 afterEach(() => vi.restoreAllMocks());
 
@@ -62,7 +62,7 @@ describe('atomic offer acceptance', () => {
 
     expect(buyerUpdate).toHaveBeenCalledWith({ _id: buyerId, coinBalance: { $gte: 1_000 } }, { $inc: { coinBalance: -1_000 } }, expect.objectContaining({ session }));
     expect(player.ownerId).toEqual(buyerId);
-    expect(player.transferListing).toEqual({ isListed: false, status: 'sold' });
+    expect(player.transferListing).toEqual({ isListed: false, status: 'sold', sellerId });
     expect(offer.status).toBe('accepted');
     expect(cancelConflicts).toHaveBeenCalledWith({ _id: { $ne: offerId }, playerId, status: 'active' }, expect.objectContaining({ $set: expect.objectContaining({ status: 'cancelled' }) }), { session });
     expect(result.feeAmount).toBe(50);
@@ -109,5 +109,22 @@ describe('offer action ownership', () => {
       expect.objectContaining({ $set: expect.objectContaining({ status: 'rejected' }) }),
       { new: true }
     );
+  });
+});
+
+describe('market offer rules', () => {
+  it('accepts the negotiable listing status in the player schema', () => {
+    const player = new ClubPlayer({ ownerId: new Types.ObjectId(), name: 'بازیکن بازار', position: 'CM', overall: 70, transferListing: { isListed: true, status: 'negotiable', askingPrice: 500 } });
+    expect(player.validateSync()?.errors['transferListing.status']).toBeUndefined();
+  });
+
+  it('rejects an offer below the fixed asking price before checking out', async () => {
+    const buyerId = new Types.ObjectId();
+    const sellerId = new Types.ObjectId();
+    vi.spyOn(TransferOffer, 'findOne').mockResolvedValue(null);
+    vi.spyOn(ClubPlayer, 'findById').mockReturnValue({ select: vi.fn().mockResolvedValue({ _id: new Types.ObjectId(), ownerId: sellerId, transferListing: { isListed: true, status: 'active', askingPrice: 1_000 } }) } as never);
+    const userLookup = vi.spyOn(User, 'findById');
+    await expect(createTransferOffer(buyerId, { playerId: String(new Types.ObjectId()), amount: 900, expiresAt: new Date(Date.now() + 60 * 60_000), clientRequestId: crypto.randomUUID() })).rejects.toMatchObject({ code: 'OFFER_BELOW_ASKING_PRICE' });
+    expect(userLookup).not.toHaveBeenCalled();
   });
 });

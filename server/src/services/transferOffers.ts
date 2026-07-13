@@ -78,6 +78,60 @@ export async function listTransferOffers(userId: Types.ObjectId) {
   };
 }
 
+export async function listTransferMarket(userId: Types.ObjectId) {
+  const now = new Date();
+  await ClubPlayer.updateMany(
+    { 'transferListing.isListed': true, 'transferListing.expiresAt': { $lte: now } },
+    { $set: { 'transferListing.isListed': false, 'transferListing.status': 'expired' } }
+  );
+  const players = await ClubPlayer.find({
+    $or: [
+      { 'transferListing.isListed': true, 'transferListing.status': { $in: ['active', 'negotiable'] } },
+      { 'transferListing.isListed': true, 'transferListing.status': { $exists: false } },
+      { 'transferListing.status': 'sold' },
+    ],
+  }).sort({ updatedAt: -1 }).limit(100).lean();
+  const playerIds = players.map(player => player._id);
+  const sellerIds = [...new Set(players.map(player => String(player.transferListing?.sellerId ?? player.ownerId)))];
+  const [sellers, activeOffers, currentUser] = await Promise.all([
+    User.find({ _id: { $in: sellerIds } }).select('firstName lastName username favoriteTeam').lean(),
+    TransferOffer.find({ playerId: { $in: playerIds }, status: 'active', expiresAt: { $gt: now } }).select('playerId buyerId').lean(),
+    User.findById(userId).select('coinBalance').lean(),
+  ]);
+  const sellerById = new Map(sellers.map(seller => [String(seller._id), seller]));
+  const offersByPlayer = new Map<string, typeof activeOffers>();
+  activeOffers.forEach(offer => {
+    const key = String(offer.playerId);
+    offersByPlayer.set(key, [...(offersByPlayer.get(key) ?? []), offer]);
+  });
+  return {
+    listings: players.map(player => {
+      const listing = player.transferListing!;
+      const sellerId = listing.sellerId ?? player.ownerId;
+      const seller = sellerById.get(String(sellerId));
+      const sellerName = [seller?.firstName, seller?.lastName].filter(Boolean).join(' ') || seller?.username;
+      const playerOffers = offersByPlayer.get(String(player._id)) ?? [];
+      return {
+        _id: String(player._id),
+        name: player.name,
+        position: player.position,
+        photoUrl: player.photoUrl,
+        nationality: player.nationality,
+        club: player.club,
+        marketValue: player.marketValue,
+        askingPrice: listing.askingPrice,
+        status: listing.status ?? 'active',
+        expiresAt: listing.expiresAt,
+        sellerClub: seller?.favoriteTeam || sellerName || 'باشگاه ثبت نشده',
+        activeOfferCount: playerOffers.length,
+        ownedByCurrentUser: String(player.ownerId) === String(userId),
+        hasActiveOfferFromCurrentUser: playerOffers.some(offer => String(offer.buyerId) === String(userId)),
+      };
+    }),
+    userBalance: currentUser?.coinBalance ?? 0,
+  };
+}
+
 export async function createTransferOffer(userId: Types.ObjectId, input: CreateOfferInput) {
   assertOfferExpiration(input.expiresAt);
   const existing = await TransferOffer.findOne({ senderId: userId, clientRequestId: input.clientRequestId });
@@ -85,8 +139,12 @@ export async function createTransferOffer(userId: Types.ObjectId, input: CreateO
   const player = await ClubPlayer.findById(input.playerId).select('ownerId transferListing');
   if (!player) throw new AppError(404, 'بازیکن پیدا نشد', 'PLAYER_NOT_FOUND');
   if (String(player.ownerId) === String(userId)) throw new AppError(409, 'نمی‌توانید برای بازیکن خودتان پیشنهاد ثبت کنید', 'OWN_PLAYER_OFFER');
-  if (!player.transferListing?.isListed || player.transferListing.status !== 'active' || (player.transferListing.expiresAt && player.transferListing.expiresAt <= new Date())) {
+  const listingStatus = player.transferListing?.status ?? 'active';
+  if (!player.transferListing?.isListed || !['active', 'negotiable'].includes(listingStatus) || (player.transferListing.expiresAt && player.transferListing.expiresAt <= new Date())) {
     throw new AppError(409, 'این بازیکن در بازار فعال نیست', 'PLAYER_NOT_LISTED');
+  }
+  if (listingStatus === 'active' && player.transferListing.askingPrice !== undefined && input.amount < player.transferListing.askingPrice) {
+    throw new AppError(422, 'مبلغ پیشنهاد نباید از قیمت درخواستی کمتر باشد', 'OFFER_BELOW_ASKING_PRICE');
   }
   const buyer = await User.findById(userId).select('coinBalance');
   if (!buyer) throw new AppError(404, 'خریدار پیدا نشد', 'BUYER_NOT_FOUND');
@@ -124,7 +182,7 @@ export async function acceptTransferOffer(userId: Types.ObjectId, offerId: strin
     if (!seller) throw new AppError(404, 'فروشنده پیدا نشد', 'SELLER_NOT_FOUND');
 
     player.ownerId = activeOffer.buyerId;
-    player.transferListing = { isListed: false, status: 'sold' };
+    player.transferListing = { ...player.transferListing, isListed: false, status: 'sold', sellerId: activeOffer.sellerId };
     await player.save({ session });
     await movePlayerBetweenSquads(activeOffer.playerId, activeOffer.sellerId, activeOffer.buyerId, session);
 
