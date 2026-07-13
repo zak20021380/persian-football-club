@@ -91,8 +91,9 @@ export function ProfilePage() {
   const referrals = useQuery({ queryKey: ['referrals'], queryFn: async () => (await api.get<ReferralData>('/referrals')).data });
   const [editing, setEditing] = useState(false);
   const [team, setTeam] = useState('');
+  const MAX_TEAM_LENGTH = 25;
   const save = useMutation({
-    mutationFn: async () => (await api.patch('/profile', { favoriteTeam: team })).data,
+    mutationFn: async () => (await api.patch('/profile', { favoriteTeam: team.trim() })).data,
     onSuccess: async () => {
       toast.success('تیم محبوب ذخیره شد');
       setEditing(false);
@@ -156,8 +157,11 @@ export function ProfilePage() {
           <Card className="profile-editor profile-animate border-emerald-300/20 bg-emerald-300/[.045]">
             <div className="mb-4"><p className="text-[9px] font-bold text-emerald-300">شخصی‌سازی پروفایل</p><h3 className="mt-1 text-sm font-black">تیم محبوبت کدام است؟</h3></div>
             <label className="label" htmlFor="favorite-team">نام تیم محبوب</label>
-            <input id="favorite-team" className="input" value={team} onChange={(event) => setTeam(event.target.value)} placeholder="مثلاً پرسپولیس یا رئال مادرید" autoFocus/>
-            <div className="mt-3 flex gap-2"><button type="button" className="btn-secondary flex-1" onClick={() => setEditing(false)}>انصراف</button><LoadingButton loading={save.isPending} disabled={team.trim().length < 2} className="flex-1" onClick={() => save.mutate()}><Check size={17}/>ذخیره</LoadingButton></div>
+            <input id="favorite-team" className="input" value={team} onChange={(event) => setTeam(event.target.value)} placeholder="مثلاً پرسپولیس یا رئال مادرید" maxLength={MAX_TEAM_LENGTH} autoFocus/>
+            <div className="mt-1.5 text-[9px] text-slate-500">
+              <span className={cn(team.length >= MAX_TEAM_LENGTH && 'text-red-400')}>{faNumber(team.length)}/{faNumber(MAX_TEAM_LENGTH)}</span>
+            </div>
+            <div className="mt-3 flex gap-2"><button type="button" className="btn-secondary flex-1" onClick={() => setEditing(false)}>انصراف</button><LoadingButton loading={save.isPending} disabled={team.trim().length === 0} className="flex-1" onClick={() => save.mutate()}><Check size={17}/>ذخیره</LoadingButton></div>
           </Card>
         )}
 
