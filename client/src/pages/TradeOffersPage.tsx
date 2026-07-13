@@ -468,7 +468,7 @@ export function TradeOffersPage() {
       {list.length === 0 ? (
         <EmptyState direction={tab}/>
       ) : (
-        <section aria-label="فهرست پیشنهادها" className="space-y-2.5">
+        <section aria-label="فهرست پیشنهادها" className={tab === 'received' ? 'space-y-3' : 'space-y-2.5'}>
           {list.map((offer, index) => (
             <OfferCard
               key={offer.id}
@@ -558,6 +558,17 @@ function OfferCard({ offer, index, now, pending, onOpen, onAccept, onReject, onC
   const remainingText = remaining(offer.expiresAt, now);
   const isReceived = offer.direction === 'received';
   const active = offer.status === 'active';
+  if (isReceived) {
+    return <ReceivedOfferCard
+      offer={offer}
+      index={index}
+      remainingText={remainingText}
+      pending={pending}
+      onOpen={onOpen}
+      onAccept={onAccept}
+      onReject={onReject}
+    />;
+  }
   return <article
     style={{ animationDelay: `${Math.min(index, 8) * 30}ms` }}
     className="offer-card relative overflow-hidden rounded-[1.45rem] border border-white/[.08] bg-[linear-gradient(155deg,rgba(15,30,46,.96),rgba(8,20,35,.99))] p-3 shadow-[0_10px_24px_rgba(0,0,0,.18)]"
@@ -625,6 +636,73 @@ function OfferCard({ offer, index, now, pending, onOpen, onAccept, onReject, onC
   </article>;
 }
 
+function ReceivedOfferCard({ offer, index, remainingText, pending, onOpen, onAccept, onReject }: { offer: DisplayOffer; index: number; remainingText: string; pending: boolean; onOpen: () => void; onAccept: () => void; onReject: () => void }) {
+  const KindIcon = kindMeta[offer.kind].icon;
+  const active = offer.status === 'active';
+  return <article
+    style={{ animationDelay: `${Math.min(index, 8) * 30}ms` }}
+    className="offer-card relative min-w-0 overflow-hidden rounded-[1.25rem] border border-white/[.075] bg-[linear-gradient(155deg,rgba(14,29,45,.97),rgba(8,19,33,.99))] p-2.5 shadow-[0_8px_20px_rgba(0,0,0,.16)]"
+  >
+    <button type="button" onClick={onOpen} aria-label={`جزئیات پیشنهاد ${offer.player.name}`} className="absolute inset-0 z-0 cursor-pointer"/>
+
+    <div className="relative z-10 flex min-w-0 items-start gap-2.5">
+      <PlayerAvatar offer={offer} size="compact"/>
+      <div className="pointer-events-none min-w-0 flex-1 pt-0.5">
+        <h3 className="truncate whitespace-nowrap text-[11px] font-black leading-5 text-white">{offer.player.name}</h3>
+        <p className="flex min-w-0 items-center gap-1 whitespace-nowrap text-[7.5px] leading-4 text-slate-500">
+          <span className="shrink-0">{positionLabel(offer.player.position)}</span>
+          <span className="shrink-0 text-white/15">•</span>
+          <Building2 size={9} className="shrink-0 text-slate-600"/>
+          <span className="truncate">{offer.player.club}</span>
+        </p>
+      </div>
+      <div className="pointer-events-none min-w-[72px] shrink-0 self-center text-left">
+        <span className="block whitespace-nowrap text-[6.5px] font-bold text-slate-500">مبلغ پیشنهادی</span>
+        <strong className="mt-0.5 block truncate whitespace-nowrap text-[14px] font-black tracking-tight text-amber-200">{faNumber(offer.amount)} <span className="text-[8px] text-amber-200/70">سکه</span></strong>
+      </div>
+    </div>
+
+    <div className="relative z-10 mt-2 flex min-h-7 min-w-0 items-center gap-2 border-y border-white/[.055] py-1.5 text-[7.5px]">
+      <span className="flex min-w-0 items-center gap-1 whitespace-nowrap text-slate-400">
+        <Timer size={10} className={active ? 'shrink-0 text-emerald-300' : 'shrink-0 text-slate-500'}/>
+        <span className="truncate">{remainingText}</span>
+      </span>
+      <span className="h-3 w-px shrink-0 bg-white/[.08]"/>
+      <span className="flex min-w-0 items-center gap-1 whitespace-nowrap text-slate-500">
+        <KindIcon size={9} className="shrink-0"/>
+        <span className="truncate">{kindMeta[offer.kind].label}</span>
+      </span>
+      <span className={cn('mr-auto inline-flex shrink-0 items-center gap-1 rounded-full border px-2 py-0.5 text-[6.5px] font-black', statusMeta[offer.status].className)}>
+        <span className={cn('h-1 w-1 rounded-full', statusMeta[offer.status].dot)}/>
+        {statusMeta[offer.status].label}
+      </span>
+    </div>
+
+    <footer className="relative z-10 grid min-w-0 grid-cols-3 gap-1.5 py-1.5 text-[6.5px] text-slate-500">
+      <span className="flex min-w-0 items-center gap-1 whitespace-nowrap" title={offer.counterparty.name}>
+        <ShieldCheck size={9} className="shrink-0 text-emerald-300/70"/>
+        <span className="truncate">{offer.counterparty.name}</span>
+      </span>
+      <span className="flex min-w-0 items-center gap-1 whitespace-nowrap" title={offer.player.nationality}>
+        <Flag size={9} className="shrink-0"/>
+        <span className="truncate">{offer.player.nationality}</span>
+      </span>
+      <span className="flex min-w-0 items-center justify-end gap-1 whitespace-nowrap" title={`ارزش بازار ${faNumber(offer.player.marketValue)} سکه`}>
+        <CircleDollarSign size={9} className="shrink-0 text-amber-300/70"/>
+        <span className="truncate">ارزش {faNumber(offer.player.marketValue)}</span>
+      </span>
+    </footer>
+
+    {active && (
+      <div className="relative z-20 grid grid-cols-3 gap-1.5 border-t border-white/[.055] pt-2">
+        <ActionButton onClick={(event) => { event.stopPropagation(); onAccept(); }} icon={Check} label="قبول" tone="accept" loading={pending} className="min-h-8 rounded-lg py-1"/>
+        <ActionButton onClick={(event) => { event.stopPropagation(); onReject(); }} icon={X} label="رد" tone="reject" disabled={pending} className="min-h-8 rounded-lg py-1"/>
+        <ActionButton onClick={(event) => { event.stopPropagation(); onOpen(); }} icon={ArrowLeftRight} label="پیشنهاد متقابل" tone="counter" disabled={pending} className="min-h-8 rounded-lg py-1"/>
+      </div>
+    )}
+  </article>;
+}
+
 function ActionButton({ onClick, icon: Icon, label, tone, className, disabled = false, loading = false }: { onClick: (event: React.MouseEvent<HTMLButtonElement>) => void; icon: typeof Check; label: string; tone: 'accept' | 'reject' | 'counter' | 'view'; className?: string; disabled?: boolean; loading?: boolean }) {
   const palette = {
     accept: 'border-emerald-300/25 bg-emerald-400/[.12] text-emerald-100',
@@ -657,8 +735,8 @@ function CounterpartyBadge({ club }: { club: Counterparty }) {
   </div>;
 }
 
-function PlayerAvatar({ offer, size = 'card' }: { offer: DisplayOffer; size?: 'card' | 'sheet' }) {
-  const dims = size === 'card' ? 'h-12 w-12' : 'h-16 w-16';
+function PlayerAvatar({ offer, size = 'card' }: { offer: DisplayOffer; size?: 'compact' | 'card' | 'sheet' }) {
+  const dims = size === 'compact' ? 'h-11 w-11' : size === 'card' ? 'h-12 w-12' : 'h-16 w-16';
   if (offer.player.demoIndex !== undefined) {
     const column = offer.player.demoIndex % 4;
     const row = Math.floor(offer.player.demoIndex / 4);
