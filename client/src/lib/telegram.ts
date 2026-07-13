@@ -15,7 +15,15 @@ export function initializeTelegram(): void {
   } catch { /* Browser preview is supported in development. */ }
 }
 export function telegramInitData(): string {
+  const raw = window.Telegram?.WebApp?.initData;
+  if (typeof raw === 'string') return raw;
   try { return retrieveRawInitData() ?? ''; } catch { return ''; }
+}
+
+declare global {
+  interface Window {
+    Telegram?: { WebApp?: { initData?: string } };
+  }
 }
 export function impact(style: 'light'|'medium'|'heavy' = 'light'): void {
   try { hapticFeedback.impactOccurred(style); } catch { /* unsupported client */ }

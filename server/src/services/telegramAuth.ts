@@ -27,7 +27,7 @@ export function validateTelegramInitData(initData: string, botToken: string, max
   }
   params.delete('hash');
   const dataCheckString = [...params.entries()]
-    .sort(([a], [b]) => a.localeCompare(b))
+    .sort(([a], [b]) => a < b ? -1 : a > b ? 1 : 0)
     .map(([key, value]) => `${key}=${value}`)
     .join('\n');
   const secretKey = crypto.createHmac('sha256', 'WebAppData').update(botToken).digest();
@@ -44,14 +44,21 @@ export function validateTelegramInitData(initData: string, botToken: string, max
   if (!rawUser) throw new AppError(401, 'کاربر تلگرام یافت نشد', 'TELEGRAM_USER_MISSING');
   let user: TelegramInitUser;
   try { user = JSON.parse(rawUser) as TelegramInitUser; } catch { throw new AppError(401, 'اطلاعات کاربر نامعتبر است', 'TELEGRAM_USER_INVALID'); }
-  if (!Number.isSafeInteger(user.id) || !user.first_name) throw new AppError(401, 'شناسه کاربر نامعتبر است', 'TELEGRAM_USER_INVALID');
+  if (!Number.isSafeInteger(user.id) || user.id <= 0 || typeof user.first_name !== 'string' || user.first_name.trim().length < 1 || user.first_name.length > 64) {
+    throw new AppError(401, 'شناسه کاربر نامعتبر است', 'TELEGRAM_USER_INVALID');
+  }
+  if ((user.last_name !== undefined && (typeof user.last_name !== 'string' || user.last_name.length > 64))
+    || (user.username !== undefined && (typeof user.username !== 'string' || user.username.length > 64))
+    || (user.photo_url !== undefined && (typeof user.photo_url !== 'string' || user.photo_url.length > 2_048))) {
+    throw new AppError(401, 'اطلاعات کاربر نامعتبر است', 'TELEGRAM_USER_INVALID');
+  }
 
   return { user, authDate, queryId: params.get('query_id') ?? undefined, startParam: params.get('start_param') ?? undefined, raw: params };
 }
 
 export function createSignedInitDataForTest(user: TelegramInitUser, botToken: string, authDate = Math.floor(Date.now() / 1000)): string {
   const params = new URLSearchParams({ auth_date: String(authDate), query_id: 'test-query', user: JSON.stringify(user) });
-  const dataCheckString = [...params.entries()].sort(([a],[b]) => a.localeCompare(b)).map(([k,v]) => `${k}=${v}`).join('\n');
+  const dataCheckString = [...params.entries()].sort(([a],[b]) => a < b ? -1 : a > b ? 1 : 0).map(([k,v]) => `${k}=${v}`).join('\n');
   const secretKey = crypto.createHmac('sha256', 'WebAppData').update(botToken).digest();
   params.set('hash', crypto.createHmac('sha256', secretKey).update(dataCheckString).digest('hex'));
   return params.toString();

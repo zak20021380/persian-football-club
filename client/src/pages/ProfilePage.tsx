@@ -38,7 +38,7 @@ const badgeIcons: Record<string, typeof Award> = { rocket: Rocket, target: Targe
 
 function Avatar({ user }: { user: User }) {
   return user.photoUrl ? (
-    <img src={user.photoUrl} alt={`${user.firstName} ${user.lastName || ''}`} className="h-[86px] w-[86px] rounded-[1.75rem] object-cover ring-4 ring-emerald-300/15"/>
+    <img src={user.photoUrl} alt={user.firstName} className="h-[86px] w-[86px] rounded-[1.75rem] object-cover ring-4 ring-emerald-300/15"/>
   ) : (
     <div className="grid h-[86px] w-[86px] place-items-center rounded-[1.75rem] bg-gradient-to-br from-emerald-300 to-emerald-600 text-3xl font-black text-ink-950 ring-4 ring-emerald-300/10">{user.firstName.slice(0, 1)}</div>
   );
@@ -90,14 +90,19 @@ export function ProfilePage() {
   const profile = useQuery({ queryKey: ['profile'], queryFn: async () => (await api.get<User>('/profile')).data });
   const referrals = useQuery({ queryKey: ['referrals'], queryFn: async () => (await api.get<ReferralData>('/referrals')).data });
   const [editing, setEditing] = useState(false);
-  const [team, setTeam] = useState('');
-  const MAX_TEAM_LENGTH = 25;
+  const [displayName, setDisplayName] = useState('');
+  const [clubName, setClubName] = useState('');
+  const MAX_NAME_LENGTH = 50;
+  const MAX_CLUB_LENGTH = 80;
   const save = useMutation({
-    mutationFn: async () => (await api.patch('/profile', { favoriteTeam: team.trim() })).data,
+    mutationFn: async () => (await api.patch('/profile', {
+      ...(displayName.trim() ? { displayName: displayName.trim() } : {}),
+      ...(clubName.trim() ? { clubName: clubName.trim() } : {})
+    })).data,
     onSuccess: async () => {
-      toast.success('تیم محبوب ذخیره شد');
+      toast.success('پروفایل ذخیره شد');
       setEditing(false);
-      await queryClient.invalidateQueries({ queryKey: ['profile'] });
+      await Promise.all([queryClient.invalidateQueries({ queryKey: ['profile'] }), queryClient.invalidateQueries({ queryKey: ['bootstrap'] })]);
     },
     onError: (error) => toast.error((error as Error).message)
   });
@@ -120,7 +125,8 @@ export function ProfilePage() {
     await copy();
   };
   const openEditor = () => {
-    setTeam(user.favoriteTeam || '');
+    setDisplayName(user.displayName || '');
+    setClubName(user.clubName || '');
     setEditing(true);
   };
 
@@ -139,9 +145,9 @@ export function ProfilePage() {
           <div className="relative shrink-0"><Avatar user={user}/><span className="absolute -bottom-1 -left-1 h-5 w-5 rounded-full border-4 border-ink-950 bg-emerald-400"/></div>
           <div className="min-w-0 flex-1">
             <div className="flex items-center gap-1.5 text-[9px] font-black text-emerald-300"><Sparkles size={12}/> عضو باشگاه فوتبالی</div>
-            <h2 className="mt-1 truncate text-xl font-black">{user.firstName} {user.lastName}</h2>
-            <p className="mt-1 truncate text-[10px] text-slate-500">@{user.username || 'footballer'}</p>
-            <button type="button" onClick={openEditor} className="mt-3 inline-flex max-w-full items-center gap-1.5 rounded-full border border-emerald-300/15 bg-emerald-300/[.07] px-3 py-1.5 text-[9px] font-bold text-emerald-300 transition active:scale-95"><ShieldCheck size={12}/><span className="truncate">{user.favoriteTeam || 'تیم محبوبت را انتخاب کن'}</span></button>
+            <h2 className="mt-1 truncate text-xl font-black">{user.firstName}</h2>
+            <p className="mt-1 truncate text-[10px] text-slate-500">{user.clubName || user.favoriteTeam || 'باشگاه فوتبالی'}</p>
+            <button type="button" onClick={openEditor} className="mt-3 inline-flex max-w-full items-center gap-1.5 rounded-full border border-emerald-300/15 bg-emerald-300/[.07] px-3 py-1.5 text-[9px] font-bold text-emerald-300 transition active:scale-95"><ShieldCheck size={12}/><span className="truncate">{user.clubName || user.favoriteTeam || 'نام باشگاهت را ثبت کن'}</span></button>
           </div>
         </div>
       </header>
@@ -155,13 +161,13 @@ export function ProfilePage() {
       <div className="mt-6 space-y-6 px-4">
         {editing && (
           <Card className="profile-editor profile-animate border-emerald-300/20 bg-emerald-300/[.045]">
-            <div className="mb-4"><p className="text-[9px] font-bold text-emerald-300">شخصی‌سازی پروفایل</p><h3 className="mt-1 text-sm font-black">تیم محبوبت کدام است؟</h3></div>
-            <label className="label" htmlFor="favorite-team">نام تیم محبوب</label>
-            <input id="favorite-team" className="input" value={team} onChange={(event) => setTeam(event.target.value)} placeholder="مثلاً پرسپولیس یا رئال مادرید" maxLength={MAX_TEAM_LENGTH} autoFocus/>
-            <div className="mt-1.5 text-[9px] text-slate-500">
-              <span className={cn(team.length >= MAX_TEAM_LENGTH && 'text-red-400')}>{faNumber(team.length)}/{faNumber(MAX_TEAM_LENGTH)}</span>
-            </div>
-            <div className="mt-3 flex gap-2"><button type="button" className="btn-secondary flex-1" onClick={() => setEditing(false)}>انصراف</button><LoadingButton loading={save.isPending} disabled={team.trim().length === 0} className="flex-1" onClick={() => save.mutate()}><Check size={17}/>ذخیره</LoadingButton></div>
+            <div className="mb-4"><p className="text-[9px] font-bold text-emerald-300">شخصی‌سازی پروفایل</p><h3 className="mt-1 text-sm font-black">نام نمایشی و باشگاه</h3></div>
+            <label className="label" htmlFor="display-name">نام نمایشی</label>
+            <input id="display-name" className="input" value={displayName} onChange={(event) => setDisplayName(event.target.value)} placeholder={user.firstName} maxLength={MAX_NAME_LENGTH} autoFocus/>
+            <label className="label mt-3" htmlFor="club-name">نام باشگاه</label>
+            <input id="club-name" className="input" value={clubName} onChange={(event) => setClubName(event.target.value)} placeholder="مثلاً باشگاه ستاره‌ها" maxLength={MAX_CLUB_LENGTH}/>
+            <div className="mt-1.5 flex justify-between text-[9px] text-slate-500"><span>{faNumber(displayName.length)}/{faNumber(MAX_NAME_LENGTH)}</span><span>{faNumber(clubName.length)}/{faNumber(MAX_CLUB_LENGTH)}</span></div>
+            <div className="mt-3 flex gap-2"><button type="button" className="btn-secondary flex-1" onClick={() => setEditing(false)}>انصراف</button><LoadingButton loading={save.isPending} disabled={(!displayName.trim() && !clubName.trim()) || (displayName.trim().length > 0 && displayName.trim().length < 2) || (clubName.trim().length > 0 && clubName.trim().length < 2)} className="flex-1" onClick={() => save.mutate()}><Check size={17}/>ذخیره</LoadingButton></div>
           </Card>
         )}
 

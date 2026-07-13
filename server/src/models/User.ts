@@ -2,10 +2,8 @@ import { Schema, model } from 'mongoose';
 
 export interface IUser {
   telegramId: number;
-  username?: string;
-  firstName: string;
-  lastName?: string;
-  photoUrl?: string;
+  displayName?: string;
+  clubName?: string;
   favoriteTeam?: string;
   points: number;
   coinBalance: number;
@@ -30,10 +28,8 @@ export interface IUser {
 
 const schema = new Schema<IUser>({
   telegramId: { type: Number, required: true, unique: true, index: true },
-  username: { type: String, trim: true },
-  firstName: { type: String, required: true, trim: true },
-  lastName: { type: String, trim: true },
-  photoUrl: String,
+  displayName: { type: String, trim: true, minlength: 2, maxlength: 50 },
+  clubName: { type: String, trim: true, minlength: 2, maxlength: 80 },
   favoriteTeam: { type: String, trim: true, maxlength: 80 },
   points: { type: Number, default: 0, min: 0, index: true },
   coinBalance: { type: Number, default: 0, min: 0 },

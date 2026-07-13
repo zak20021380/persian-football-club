@@ -42,7 +42,7 @@ export async function listTransferOffers(userId: Types.ObjectId) {
   const partyIds = [...new Set(offers.flatMap(offer => [String(offer.senderId), String(offer.recipientId)]))];
   const [players, parties] = await Promise.all([
     ClubPlayer.find({ _id: { $in: playerIds } }).select('name position photoUrl nationality club marketValue contractStatus transferListing').lean(),
-    User.find({ _id: { $in: partyIds } }).select('firstName lastName username photoUrl').lean(),
+    User.find({ _id: { $in: partyIds } }).select('displayName clubName favoriteTeam').lean(),
   ]);
   const playerById = new Map(players.map(player => [String(player._id), player]));
   const partyById = new Map(parties.map(party => [String(party._id), party]));
@@ -52,7 +52,7 @@ export async function listTransferOffers(userId: Types.ObjectId) {
     const direction = String(offer.senderId) === String(userId) ? 'sent' as const : 'received' as const;
     const counterpartyId = direction === 'sent' ? offer.recipientId : offer.senderId;
     const party = partyById.get(String(counterpartyId));
-    const counterpartyName = [party?.firstName, party?.lastName].filter(Boolean).join(' ') || party?.username || 'باشگاه ناشناس';
+    const counterpartyName = party?.clubName || party?.displayName || party?.favoriteTeam || 'باشگاه ناشناس';
     return [{
       _id: String(offer._id),
       direction,
@@ -67,7 +67,7 @@ export async function listTransferOffers(userId: Types.ObjectId) {
         _id: String(player._id), name: player.name, position: player.position, photoUrl: player.photoUrl,
         nationality: player.nationality, club: player.club, marketValue: player.marketValue, contractStatus: player.contractStatus,
       },
-      counterparty: { _id: String(counterpartyId), name: counterpartyName, username: party?.username, photoUrl: party?.photoUrl },
+      counterparty: { _id: String(counterpartyId), name: counterpartyName },
       listingAskingPrice: player.transferListing?.askingPrice,
     }];
   });
@@ -94,7 +94,7 @@ export async function listTransferMarket(userId: Types.ObjectId) {
   const playerIds = players.map(player => player._id);
   const sellerIds = [...new Set(players.map(player => String(player.transferListing?.sellerId ?? player.ownerId)))];
   const [sellers, activeOffers, currentUser] = await Promise.all([
-    User.find({ _id: { $in: sellerIds } }).select('firstName lastName username favoriteTeam').lean(),
+    User.find({ _id: { $in: sellerIds } }).select('displayName clubName favoriteTeam').lean(),
     TransferOffer.find({ playerId: { $in: playerIds }, status: 'active', expiresAt: { $gt: now } }).select('playerId buyerId').lean(),
     User.findById(userId).select('coinBalance').lean(),
   ]);
@@ -109,7 +109,7 @@ export async function listTransferMarket(userId: Types.ObjectId) {
       const listing = player.transferListing!;
       const sellerId = listing.sellerId ?? player.ownerId;
       const seller = sellerById.get(String(sellerId));
-      const sellerName = [seller?.firstName, seller?.lastName].filter(Boolean).join(' ') || seller?.username;
+      const sellerName = seller?.clubName || seller?.displayName || seller?.favoriteTeam;
       const playerOffers = offersByPlayer.get(String(player._id)) ?? [];
       return {
         _id: String(player._id),
@@ -122,7 +122,7 @@ export async function listTransferMarket(userId: Types.ObjectId) {
         askingPrice: listing.askingPrice,
         status: listing.status ?? 'active',
         expiresAt: listing.expiresAt,
-        sellerClub: seller?.favoriteTeam || sellerName || 'باشگاه ثبت نشده',
+        sellerClub: sellerName || 'باشگاه ثبت نشده',
         activeOfferCount: playerOffers.length,
         ownedByCurrentUser: String(player.ownerId) === String(userId),
         hasActiveOfferFromCurrentUser: playerOffers.some(offer => String(offer.buyerId) === String(userId)),

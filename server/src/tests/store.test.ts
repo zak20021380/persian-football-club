@@ -20,7 +20,7 @@ describe('coin store safety', () => {
   });
 
   it('keeps coin balance non-negative at model validation', () => {
-    const user = new User({ telegramId: 1, firstName: 'تست', referralCode: 'store-test', coinBalance: -1 });
+    const user = new User({ telegramId: 1, displayName: 'تست', referralCode: 'store-test', coinBalance: -1 });
     expect(user.validateSync()?.errors.coinBalance).toBeTruthy();
   });
 

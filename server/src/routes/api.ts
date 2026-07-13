@@ -14,7 +14,10 @@ import { scoreMatch } from '../services/matchScoring.js';
 import { isPredictionOpen } from '../services/prediction.js';
 import { availableMatchReminderMinutes, ensureTelegramReminderAccess, matchReminderSendAt } from '../services/reminders.js';
 import { createSponsorRedirectToken, trackSponsorEvent, verifySponsorRedirectToken, assertSafeHttpUrl } from '../services/sponsor.js';
-import { rewardPendingReferral } from '../services/referral.js';
+import { createPendingReferral, rewardPendingReferral } from '../services/referral.js';
+import { createSessionToken } from '../services/session.js';
+import { validateTelegramInitData, type TelegramInitUser } from '../services/telegramAuth.js';
+import { recoverTelegramUser } from '../services/userRecovery.js';
 import { AppError } from '../utils/errors.js';
 import { asyncHandler } from '../utils/asyncHandler.js';
 import funRouter from './fun.js';
@@ -25,6 +28,32 @@ const router = Router();
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 2 * 1024 * 1024, files: 1 }, fileFilter: (_req, file, cb) => cb(null, /^image\/(png|jpeg|webp|gif)$/.test(file.mimetype)) });
 
 router.get('/health', (_req, res) => res.json({ ok: true, service: 'persian-football-club', time: new Date().toISOString() }));
+router.post('/auth/telegram', asyncHandler(async (req, res) => {
+  const { initData } = z.object({ initData: z.string().max(16_384).default('') }).strict().parse(req.body);
+  let telegramUser: TelegramInitUser;
+  let startParam: string | undefined;
+  let developmentMock = false;
+  if (!initData && env.NODE_ENV === 'development') {
+    telegramUser = { id: env.DEV_MOCK_TELEGRAM_ID, first_name: 'کاربر توسعه' };
+    developmentMock = true;
+  } else {
+    const validated = validateTelegramInitData(initData, env.BOT_TOKEN, env.INIT_DATA_MAX_AGE_SECONDS);
+    telegramUser = validated.user;
+    startParam = validated.startParam;
+  }
+  const recovered = await recoverTelegramUser(telegramUser);
+  if (recovered.created && startParam?.startsWith('ref_')) {
+    await createPendingReferral(startParam.slice(4), recovered.user._id, recovered.user.telegramId);
+  }
+  const session = createSessionToken(String(recovered.user._id), telegramUser);
+  res.set('Cache-Control', 'no-store');
+  res.json({
+    token: session.token,
+    expiresAt: session.expiresAt,
+    developmentMock,
+    user: publicUser(recovered.user.toObject(), {}, telegramUser)
+  });
+}));
 router.get('/sponsors/:id/redirect', asyncHandler(async (req, res) => {
   const token = z.string().min(20).parse(req.query.token);
   const payload = verifySponsorRedirectToken(token);
@@ -46,7 +75,7 @@ router.get('/bootstrap', asyncHandler(async (req, res) => {
     Badge.find({ _id: { $in: user.badgeIds } }).lean()
   ]);
   res.json({
-    user: publicUser(user.toObject(), { weeklyRank, allTimeRank, badges }),
+    user: publicUser(user.toObject(), { weeklyRank, allTimeRank, badges }, req.telegramUser),
     membershipConfirmed: user.membershipConfirmed,
     joinUrl: env.CHANNEL_JOIN_URL,
     botUsername: env.BOT_USERNAME,
@@ -80,7 +109,7 @@ router.get('/home', asyncHandler(async (req, res) => {
     ImportantMatch.find({ published: true, status: { $in: ['live','scheduled'] }, kickoffAt: { $gte: new Date(now.getTime() - 3 * 60 * 60 * 1000) } }).sort({ status: 1, kickoffAt: 1 }).limit(5).lean(),
     Competition.find({ published: true, status: 'active', startsAt: { $lte: now }, endsAt: { $gt: now } }).sort({ endsAt: 1 }).limit(4).lean(),
     Quiz.findOne({ published: true, status: 'active', startsAt: { $lte: now }, endsAt: { $gt: now } }).sort({ startsAt: -1 }).lean(),
-    User.find({ membershipConfirmed: true }).sort({ weeklyPoints: -1, createdAt: 1 }).limit(5).select('firstName lastName username photoUrl weeklyPoints points').lean(),
+    User.find({ membershipConfirmed: true }).sort({ weeklyPoints: -1, createdAt: 1 }).limit(5).select('displayName clubName weeklyPoints points').lean(),
     Reward.find({ active: true, startsAt: { $lte: now }, endsAt: { $gt: now } }).sort({ endsAt: 1 }).limit(4).lean(),
     Sponsor.findOne({ active: true, placement: 'home', startsAt: { $lte: now }, endsAt: { $gt: now } }).sort({ createdAt: -1 }).lean(),
     Prediction.countDocuments({ userId: user._id }),
@@ -106,11 +135,11 @@ router.get('/home', asyncHandler(async (req, res) => {
     activeCompetition = { ...featuredCompetition, rank, attempted: Boolean(entry) };
   }
   res.json({
-    user: { firstName: user.firstName, points: user.points, coinBalance: user.coinBalance ?? 0, weeklyRank, streak: user.streak },
+    user: { firstName: displayNameFor(user.toObject(), req.telegramUser), points: user.points, coinBalance: user.coinBalance ?? 0, weeklyRank, streak: user.streak },
     club: null,
     transferStatus: { activeListings: 0, receivedOffers: 0, expiringOffers: 0 },
     activeCompetition,
-    matches: matchesWithPredictions, competitions, dailyQuiz, leaders, rewards, sponsor: sponsorView, predictionsCount
+    matches: matchesWithPredictions, competitions, dailyQuiz, leaders: leaders.map((leader) => publicUser(leader)), rewards, sponsor: sponsorView, predictionsCount
   });
 }));
 
@@ -246,28 +275,37 @@ router.get('/rankings', asyncHandler(async (req, res) => {
   const type = String(req.query.type ?? 'weekly');
   const current = req.authUser!;
   if (type === 'predictors') {
-    const leaders = await User.find({ membershipConfirmed: true }).sort({ correctPredictions: -1, exactPredictions: -1 }).limit(50).select('firstName lastName username photoUrl correctPredictions exactPredictions').lean();
+    const leaders = await User.find({ membershipConfirmed: true }).sort({ correctPredictions: -1, exactPredictions: -1 }).limit(50).select('displayName clubName favoriteTeam correctPredictions exactPredictions').lean();
     const rank = await User.countDocuments({ correctPredictions: { $gt: current.correctPredictions } }).then((n) => n + 1);
-    res.json({ type, leaders, current: { ...publicUser(current.toObject()), rank } }); return;
+    res.json({ type, leaders: leaders.map((leader) => publicUser(leader)), current: { ...publicUser(current.toObject(), {}, req.telegramUser), rank } }); return;
   }
   if (type === 'referrals') {
-    const leaders = await User.find({ membershipConfirmed: true }).sort({ successfulReferrals: -1 }).limit(50).select('firstName lastName username photoUrl successfulReferrals points').lean();
+    const leaders = await User.find({ membershipConfirmed: true }).sort({ successfulReferrals: -1 }).limit(50).select('displayName clubName favoriteTeam successfulReferrals points').lean();
     const rank = await User.countDocuments({ successfulReferrals: { $gt: current.successfulReferrals } }).then((n) => n + 1);
-    res.json({ type, leaders, current: { ...publicUser(current.toObject()), rank } }); return;
+    res.json({ type, leaders: leaders.map((leader) => publicUser(leader)), current: { ...publicUser(current.toObject(), {}, req.telegramUser), rank } }); return;
   }
   if (type === 'competition') {
     const competitionId = z.string().refine(mongoose.isValidObjectId).parse(req.query.competitionId);
-    const entries = await CompetitionEntry.find({ competitionId }).sort({ score: -1, durationMs: 1 }).limit(50).populate('userId', 'firstName lastName username photoUrl').lean();
+    const entries = await CompetitionEntry.find({ competitionId }).sort({ score: -1, durationMs: 1 }).limit(50).populate('userId', 'displayName clubName favoriteTeam').lean();
     const mine = await CompetitionEntry.findOne({ competitionId, userId: current._id }).sort({ score: -1, durationMs: 1 }).lean();
     let rank: number | null = null;
     if (mine) rank = await CompetitionEntry.countDocuments({ competitionId, $or: [{ score: { $gt: mine.score } }, { score: mine.score, durationMs: { $lt: mine.durationMs } }] }).then((n) => n + 1);
-    res.json({ type, leaders: entries, current: mine ? { ...mine, rank } : null }); return;
+    const leaders = entries.map((entry) => {
+      const populatedUser = entry.userId as unknown;
+      return {
+        ...entry,
+        userId: populatedUser && typeof populatedUser === 'object'
+          ? publicUser(populatedUser as Record<string, unknown>)
+          : populatedUser
+      };
+    });
+    res.json({ type, leaders, current: mine ? { ...mine, rank } : null }); return;
   }
   const field = type === 'all' ? 'points' : 'weeklyPoints';
-  const leaders = await User.find({ membershipConfirmed: true }).sort({ [field]: -1, createdAt: 1 }).limit(50).select(`firstName lastName username photoUrl ${field} points weeklyPoints`).lean();
+  const leaders = await User.find({ membershipConfirmed: true }).sort({ [field]: -1, createdAt: 1 }).limit(50).select(`displayName clubName favoriteTeam ${field} points weeklyPoints`).lean();
   const value = field === 'points' ? current.points : current.weeklyPoints;
   const rank = await User.countDocuments({ [field]: { $gt: value } }).then((n) => n + 1);
-  res.json({ type, leaders, current: { ...publicUser(current.toObject()), rank } });
+  res.json({ type, leaders: leaders.map((leader) => publicUser(leader)), current: { ...publicUser(current.toObject(), {}, req.telegramUser), rank } });
 }));
 
 router.get('/rewards', verifyLiveMembership, asyncHandler(async (req, res) => {
@@ -286,14 +324,20 @@ router.get('/profile', asyncHandler(async (req, res) => {
     Badge.find({ _id: { $in: user.badgeIds } }).lean(),
     Referral.find({ referrerId: user._id, status: 'rewarded' }).sort({ rewardedAt: -1 }).limit(50).lean()
   ]);
-  res.json({ ...publicUser(user.toObject(), { weeklyRank, allTimeRank, badges }), referrals });
+  res.json({ ...publicUser(user.toObject(), { weeklyRank, allTimeRank, badges }, req.telegramUser), referrals });
 }));
 
 router.patch('/profile', asyncHandler(async (req, res) => {
-  const { favoriteTeam } = z.object({ favoriteTeam: z.string().trim().min(2).max(80) }).parse(req.body);
-  req.authUser!.favoriteTeam = favoriteTeam;
+  const input = z.object({
+    displayName: z.string().trim().min(2).max(50).optional(),
+    clubName: z.string().trim().min(2).max(80).optional(),
+    favoriteTeam: z.string().trim().min(2).max(80).optional()
+  }).strict().refine((value) => Object.keys(value).length > 0, 'حداقل یک مقدار باید وارد شود').parse(req.body);
+  if (input.displayName !== undefined) req.authUser!.displayName = input.displayName;
+  if (input.clubName !== undefined) req.authUser!.clubName = input.clubName;
+  if (input.favoriteTeam !== undefined) req.authUser!.favoriteTeam = input.favoriteTeam;
   await req.authUser!.save();
-  res.json(publicUser(req.authUser!.toObject()));
+  res.json(publicUser(req.authUser!.toObject(), {}, req.telegramUser));
 }));
 
 router.get('/referrals', verifyLiveMembership, asyncHandler(async (req, res) => {
@@ -417,23 +461,38 @@ export default router;
 
 function param(value: string | string[]): string { return Array.isArray(value) ? value[0] : value; }
 
-function publicUser(user: Record<string, any>, extra: Record<string, unknown> = {}) {
+function publicUser(user: Record<string, any>, extra: Record<string, unknown> = {}, telegramUser?: Pick<TelegramInitUser, 'first_name'|'last_name'|'photo_url'>) {
   const safe = { ...user };
   delete safe.telegramId;
   delete safe.referredBy;
   delete safe.blockedBot;
-  return { ...safe, quizAccuracy: safe.quizTotal ? Math.round((safe.quizCorrect / safe.quizTotal) * 100) : 0, ...extra };
+  delete safe.firstName;
+  delete safe.lastName;
+  delete safe.username;
+  delete safe.photoUrl;
+  return {
+    ...safe,
+    firstName: displayNameFor(user, telegramUser),
+    photoUrl: telegramUser?.photo_url,
+    quizAccuracy: safe.quizTotal ? Math.round((safe.quizCorrect / safe.quizTotal) * 100) : 0,
+    ...extra
+  };
+}
+function displayNameFor(user: Record<string, any>, telegramUser?: Pick<TelegramInitUser, 'first_name'|'last_name'>): string {
+  if (user.displayName) return String(user.displayName);
+  const telegramName = telegramUser ? [telegramUser.first_name, telegramUser.last_name].filter(Boolean).join(' ').trim() : '';
+  return telegramName || user.clubName || user.favoriteTeam || 'بازیکن باشگاه';
 }
 function todayKey(): string { return new Intl.DateTimeFormat('en-CA', { timeZone: env.TIMEZONE, year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date()); }
 function searchableFields(resource: string): string[] {
-  return ({ matches: ['homeTeam','awayTeam','competitionName'], questions: ['text','category'], quizzes: ['title'], competitions: ['title'], rewards: ['title'], sponsors: ['name'], badges: ['name'], broadcasts: ['title','message'], settings: ['key'], users: ['firstName','lastName','username'], coinPackages: ['title','badge'] } as Record<string,string[]>)[resource] ?? ['title'];
+  return ({ matches: ['homeTeam','awayTeam','competitionName'], questions: ['text','category'], quizzes: ['title'], competitions: ['title'], rewards: ['title'], sponsors: ['name'], badges: ['name'], broadcasts: ['title','message'], settings: ['key'], users: ['displayName','clubName'], coinPackages: ['title','badge'] } as Record<string,string[]>)[resource] ?? ['title'];
 }
 function sanitizeAdminPayload(resource: string, payload: unknown): Record<string, any> {
   if (!payload || typeof payload !== 'object' || Array.isArray(payload)) throw new AppError(400, 'بدنه درخواست نامعتبر است');
   const value = { ...(payload as Record<string, any>) };
   delete value._id; delete value.__v; delete value.createdAt; delete value.updatedAt; delete value.telegramId; delete value.points; delete value.weeklyPoints; delete value.referralCode;
   if (resource === 'users') {
-    const allowed = ['favoriteTeam','membershipConfirmed','blockedBot'];
+    const allowed = ['displayName','clubName','favoriteTeam','membershipConfirmed','blockedBot'];
     return Object.fromEntries(Object.entries(value).filter(([key]) => allowed.includes(key)));
   }
   if (resource === 'coinPackages') {

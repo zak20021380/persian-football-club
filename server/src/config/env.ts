@@ -12,6 +12,10 @@ const schema = z.object({
   BASE_URL: z.string().url().default('http://localhost:3000'),
   WEBHOOK_SECRET: z.string().min(8).default('development-webhook-secret'),
   CRON_SECRET: z.string().min(8).default('development-cron-secret'),
+  SESSION_SECRET: z.string().min(32).default('development-session-secret-change-me'),
+  SESSION_TTL_SECONDS: z.coerce.number().int().min(300).max(86_400).default(3600),
+  INIT_DATA_MAX_AGE_SECONDS: z.coerce.number().int().min(60).max(86_400).default(3600),
+  DEV_MOCK_TELEGRAM_ID: z.coerce.number().int().positive().default(900001),
   NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
   PORT: z.coerce.number().int().positive().default(3000),
   TIMEZONE: z.string().default('Asia/Tehran'),
@@ -21,7 +25,14 @@ const schema = z.object({
   TRANSFER_FEE_PERCENT: z.coerce.number().int().min(0).max(50).default(5)
 });
 
-const parsed = schema.safeParse(process.env);
+const parsed = schema.superRefine((value, context) => {
+  if (value.NODE_ENV === 'production' && value.BOT_TOKEN === 'development-token') {
+    context.addIssue({ code: 'custom', path: ['BOT_TOKEN'], message: 'BOT_TOKEN must be configured in production' });
+  }
+  if (value.NODE_ENV === 'production' && value.SESSION_SECRET === 'development-session-secret-change-me') {
+    context.addIssue({ code: 'custom', path: ['SESSION_SECRET'], message: 'SESSION_SECRET must be configured in production' });
+  }
+}).safeParse(process.env);
 if (!parsed.success) {
   console.error('Invalid environment variables', parsed.error.flatten().fieldErrors);
   process.exit(1);

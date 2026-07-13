@@ -16,7 +16,7 @@ interface ModerationPost {
   likeCount: number;
   moderationStatus: 'published' | 'hidden';
   createdAt: string;
-  ownerId?: { firstName: string; lastName?: string; username?: string; photoUrl?: string };
+  ownerId?: { displayName?: string; clubName?: string };
 }
 interface ModerationResponse { items: ModerationPost[]; total: number; page: number; pages: number }
 
@@ -38,7 +38,7 @@ export function FunModerationPage() {
           <Card key={post._id} className="overflow-hidden p-0">
             {post.imageUrl && <img src={post.imageUrl} alt="" className="max-h-64 w-full object-contain bg-black/20"/>}
             <div className="p-4">
-              <div className="flex items-center justify-between gap-3"><div className="min-w-0"><h2 className="truncate text-xs font-black">{post.ownerId?.firstName || 'کاربر باشگاه'} {post.ownerId?.lastName}</h2><p className="mt-1 text-[9px] text-slate-500">{tehranDate(post.createdAt)}</p></div><span className="flex shrink-0 items-center gap-1.5 rounded-full bg-rose-400/[.1] px-3 py-1.5 text-[9px] font-black text-rose-300"><Flag size={12}/>{faNumber(post.reportCount)} گزارش</span></div>
+              <div className="flex items-center justify-between gap-3"><div className="min-w-0"><h2 className="truncate text-xs font-black">{post.ownerId?.displayName || post.ownerId?.clubName || 'بازیکن باشگاه'}</h2><p className="mt-1 text-[9px] text-slate-500">{tehranDate(post.createdAt)}</p></div><span className="flex shrink-0 items-center gap-1.5 rounded-full bg-rose-400/[.1] px-3 py-1.5 text-[9px] font-black text-rose-300"><Flag size={12}/>{faNumber(post.reportCount)} گزارش</span></div>
               {post.caption && <p className="mt-3 break-words whitespace-pre-wrap text-[11px] leading-6 text-slate-300">{post.caption}</p>}
               <div className="mt-4 grid grid-cols-2 gap-2">
                 <button type="button" disabled={moderate.isPending} onClick={() => moderate.mutate({ id: post._id, moderationStatus: post.moderationStatus === 'published' ? 'hidden' : 'published' })} className={cn('btn-secondary px-2 text-[10px]', post.moderationStatus === 'published' ? 'text-amber-300' : 'text-emerald-300')}>{moderate.isPending && moderate.variables?.id === post._id ? <LoaderCircle size={16} className="animate-spin"/> : post.moderationStatus === 'published' ? <EyeOff size={16}/> : <Eye size={16}/>} {post.moderationStatus === 'published' ? 'مخفی‌کردن' : 'بازگردانی'}</button>

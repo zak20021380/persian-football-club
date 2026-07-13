@@ -32,7 +32,7 @@ const podiumStyles = {
 
 function Avatar({ user, className = '' }: { user: User; className?: string }) {
   return user.photoUrl ? (
-    <img src={user.photoUrl} alt={`${user.firstName} ${user.lastName || ''}`} className={cn('rounded-2xl object-cover', className)}/>
+    <img src={user.photoUrl} alt={user.firstName} className={cn('rounded-2xl object-cover', className)}/>
   ) : (
     <div className={cn('grid place-items-center rounded-2xl bg-gradient-to-br from-emerald-300 to-emerald-600 font-black text-ink-950', className)}>{user.firstName.slice(0, 1)}</div>
   );
@@ -66,8 +66,8 @@ function CurrentRank({ user, type }: { user: RankingData['current']; type: Ranki
         </div>
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-1.5 text-[9px] font-black text-emerald-300"><Sparkles size={12}/> جایگاه فعلی شما</div>
-          <h2 className="mt-1 truncate text-sm font-black">{user.firstName} {user.lastName}</h2>
-          <p className="mt-1 truncate text-[9px] text-slate-500">@{user.username || 'footballer'}</p>
+          <h2 className="mt-1 truncate text-sm font-black">{user.firstName}</h2>
+          <p className="mt-1 truncate text-[9px] text-slate-500">{user.clubName || 'باشگاه فوتبالی'}</p>
         </div>
         <div className="shrink-0 text-left">
           <strong className="block text-sm font-black text-white">{rankingValue(user, type)}</strong>
@@ -105,7 +105,7 @@ function Podium({ leaders, type }: { leaders: User[]; type: RankingType }) {
               </div>
               <div className={cn('flex w-full flex-col items-center justify-end rounded-t-[1.4rem] border border-b-0 bg-gradient-to-b px-1 pb-3 pt-6 text-center', style.height, style.tone, style.border)}>
                 <h3 className="line-clamp-1 w-full text-[10px] font-black sm:text-xs">{user.firstName}</h3>
-                <p className="mt-1 line-clamp-1 w-full text-[8px] text-slate-500">@{user.username || 'footballer'}</p>
+                <p className="mt-1 line-clamp-1 w-full text-[8px] text-slate-500">{user.clubName || 'باشگاه فوتبالی'}</p>
                 <strong className={cn('mt-2 whitespace-nowrap text-[9px] font-black', rank === 1 ? 'text-amber-300' : 'text-emerald-300')}>{rankingValue(user, type)}</strong>
               </div>
             </div>
@@ -122,7 +122,7 @@ function LeaderRow({ user, index, type }: { user: User; index: number; type: Ran
     <div className="flex min-h-[68px] items-center gap-3 rounded-2xl px-3 transition active:bg-white/[.04] even:bg-white/[.022]">
       <span className="grid h-9 w-9 shrink-0 place-items-center rounded-xl border border-white/[.07] bg-white/[.035] text-xs font-black text-slate-400">{faNumber(rank)}</span>
       <Avatar user={user} className="h-10 w-10"/>
-      <div className="min-w-0 flex-1"><p className="truncate text-xs font-bold">{user.firstName} {user.lastName}</p><p className="mt-1 truncate text-[9px] text-slate-500">@{user.username || 'footballer'}</p></div>
+      <div className="min-w-0 flex-1"><p className="truncate text-xs font-bold">{user.firstName}</p><p className="mt-1 truncate text-[9px] text-slate-500">{user.clubName || 'باشگاه فوتبالی'}</p></div>
       <strong className="shrink-0 text-[10px] font-black text-emerald-300">{rankingValue(user, type)}</strong>
     </div>
   );

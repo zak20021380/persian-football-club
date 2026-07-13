@@ -54,7 +54,7 @@ export async function createFunPost(input: { ownerId: ObjectId; caption?: string
 export async function listFunPosts(userId: ObjectId, cursor: string | undefined, limit: number) {
   const query: Record<string, unknown> = { moderationStatus: 'published' };
   if (cursor) query._id = { $lt: new mongoose.Types.ObjectId(cursor) };
-  const posts = await FunPost.find(query).sort({ _id: -1 }).limit(limit + 1).populate('ownerId', 'firstName lastName username photoUrl').lean();
+  const posts = await FunPost.find(query).sort({ _id: -1 }).limit(limit + 1).populate('ownerId', 'displayName clubName favoriteTeam').lean();
   const page = posts.slice(0, limit);
   const likes = await FunPostLike.find({ userId, postId: { $in: page.map((post) => post._id) } }).select('postId').lean();
   const likedIds = new Set(likes.map((like) => String(like.postId)));
@@ -65,7 +65,7 @@ export async function listFunPosts(userId: ObjectId, cursor: string | undefined,
 }
 
 export async function funPostById(postId: string, userId: ObjectId) {
-  const post = await FunPost.findById(postId).populate('ownerId', 'firstName lastName username photoUrl').lean();
+  const post = await FunPost.findById(postId).populate('ownerId', 'displayName clubName favoriteTeam').lean();
   if (!post) throw new AppError(404, 'پست فان پیدا نشد', 'FUN_POST_NOT_FOUND');
   const liked = Boolean(await FunPostLike.exists({ postId: post._id, userId }));
   return funPostView(post, userId, liked);
@@ -115,7 +115,7 @@ export async function deleteFunPost(postId: string, requesterId: ObjectId, admin
 export async function listFunModeration(page: number, limit: number, reportedOnly: boolean) {
   const query = reportedOnly ? { reportCount: { $gt: 0 } } : {};
   const [items, total] = await Promise.all([
-    FunPost.find(query).sort({ reportCount: -1, _id: -1 }).skip((page - 1) * limit).limit(limit).populate('ownerId', 'firstName lastName username photoUrl').lean(),
+    FunPost.find(query).sort({ reportCount: -1, _id: -1 }).skip((page - 1) * limit).limit(limit).populate('ownerId', 'displayName clubName favoriteTeam').lean(),
     FunPost.countDocuments(query)
   ]);
   return { items, total, page, pages: Math.ceil(total / limit) };
@@ -128,7 +128,8 @@ export async function moderateFunPost(postId: string, moderationStatus: 'publish
 }
 
 function funPostView(post: any, viewerId: ObjectId, liked: boolean) {
-  const owner = post.ownerId && typeof post.ownerId === 'object' && 'firstName' in post.ownerId ? post.ownerId : null;
+  const owner = post.ownerId && typeof post.ownerId === 'object' && '_id' in post.ownerId ? post.ownerId : null;
+  const ownerName = owner?.displayName || owner?.clubName || owner?.favoriteTeam || 'بازیکن باشگاه';
   return {
     _id: String(post._id),
     caption: post.caption,
@@ -137,6 +138,6 @@ function funPostView(post: any, viewerId: ObjectId, liked: boolean) {
     createdAt: post.createdAt,
     liked,
     isOwner: String(owner?._id ?? post.ownerId) === String(viewerId),
-    owner: owner ? { _id: String(owner._id), firstName: owner.firstName, lastName: owner.lastName, username: owner.username, photoUrl: owner.photoUrl } : { _id: String(post.ownerId), firstName: 'کاربر باشگاه' }
+    owner: owner ? { _id: String(owner._id), firstName: ownerName, clubName: owner.clubName } : { _id: String(post.ownerId), firstName: 'بازیکن باشگاه' }
   };
 }

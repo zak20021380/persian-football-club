@@ -39,7 +39,7 @@ function FunPostCard({ post, index, onLike, liking, onReport, reporting, onDelet
     <article className="fun-card overflow-hidden rounded-[1.65rem] border border-white/[.085] bg-ink-900/92 shadow-card" style={{ animationDelay: `${Math.min(index, 5) * 55}ms` }}>
       <div className="flex items-center gap-3 px-3.5 py-3">
         <PostAvatar post={post}/>
-        <div className="min-w-0 flex-1"><h2 className="truncate text-xs font-black">{post.owner.firstName} {post.owner.lastName}</h2><p className="mt-1 truncate text-[9px] text-slate-500">@{post.owner.username || 'footballer'} · {relativeTime(post.createdAt)}</p></div>
+        <div className="min-w-0 flex-1"><h2 className="truncate text-xs font-black">{post.owner.firstName}</h2><p className="mt-1 truncate text-[9px] text-slate-500">{post.owner.clubName || 'باشگاه فوتبالی'} · {relativeTime(post.createdAt)}</p></div>
         {post.isOwner ? <button type="button" disabled={deleting} onClick={onDelete} aria-label="حذف پست" className="grid h-10 w-10 shrink-0 place-items-center rounded-2xl text-slate-500 transition active:scale-90 active:bg-rose-400/10 active:text-rose-300">{deleting ? <LoaderCircle size={16} className="animate-spin"/> : <Trash2 size={16}/>}</button> : <button type="button" disabled={reporting} onClick={onReport} aria-label="گزارش پست" className="grid h-10 w-10 shrink-0 place-items-center rounded-2xl text-slate-500 transition active:scale-90 active:bg-white/[.05]">{reporting ? <LoaderCircle size={16} className="animate-spin"/> : <MoreHorizontal size={18}/>}</button>}
       </div>
 
