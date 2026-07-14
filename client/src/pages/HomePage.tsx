@@ -7,7 +7,6 @@ import {
   Clock3,
   Coins,
   Flame,
-  Gift,
   Handshake,
   Inbox,
   Medal,
@@ -34,31 +33,31 @@ import { cn, faNumber, remaining, tehranDate } from '@/lib/utils';
 import type { HomeData, Match } from '@/types/api';
 
 const quickActions = [
-  { to: '/matches', label: 'پیش‌بینی', icon: Target, tone: 'bg-emerald-400/[.12] text-emerald-300' },
-  { to: '/quiz', label: 'کوییز روز', icon: CircleHelp, tone: 'bg-violet-400/[.12] text-violet-300' },
-  { to: '/rankings', label: 'رتبه‌بندی', icon: Trophy, tone: 'bg-amber-400/[.12] text-amber-300' },
-  { to: '/rewards', label: 'جوایز', icon: Gift, tone: 'bg-sky-400/[.12] text-sky-300' }
+  { to: '/matches', label: 'پیش‌بینی', icon: Target, tone: 'home-action-cyan' },
+  { to: '/quiz', label: 'کوییز روز', icon: CircleHelp, tone: 'home-action-magenta' },
+  { to: '/rankings', label: 'رتبه‌بندی', icon: Trophy, tone: 'home-action-mint' }
 ];
 
 function QuickActions({ predictionsCount }: { predictionsCount: number }) {
   return (
-    <div className="home-quick-actions grid grid-cols-4 gap-1 rounded-[1.6rem] border border-white/[.08] bg-ink-900/95 p-2 shadow-2xl shadow-black/25 backdrop-blur-xl">
+    <div className="home-quick-actions grid grid-cols-3 gap-1.5 p-1.5">
       {quickActions.map(({ to, label, icon: Icon, tone }, index) => (
-        <Link key={to} to={to} className="group relative flex min-h-[76px] flex-col items-center justify-center gap-2 rounded-2xl transition active:scale-95 active:bg-white/[.04]">
-          <span className={cn('grid h-10 w-10 place-items-center rounded-2xl transition group-active:scale-95', tone)}><Icon size={19}/></span>
-          <span className="text-[10px] font-bold text-slate-300">{label}</span>
-          {index === 0 && predictionsCount > 0 && <span className="absolute left-2 top-2 h-2 w-2 rounded-full bg-emerald-400 ring-4 ring-ink-900"/>}
+        <Link key={to} to={to} className="home-quick-action group relative flex min-h-[78px] flex-col items-center justify-center gap-2 overflow-hidden px-2 transition active:scale-[.97]">
+          <span className="absolute right-2 top-1.5 text-[7px] font-black tracking-[.18em] text-white/20" dir="ltr">0{index + 1}</span>
+          <span className={cn('grid h-9 w-9 place-items-center transition group-active:scale-95', tone)}><Icon size={18} strokeWidth={2.3}/></span>
+          <span className="text-[10px] font-extrabold text-slate-200">{label}</span>
+          {index === 0 && predictionsCount > 0 && <span className="absolute left-2 top-2 h-1.5 w-1.5 rounded-full bg-cyan-300 ring-[3px] ring-[#10091e]"/>}
         </Link>
       ))}
     </div>
   );
 }
 
-function HeroStat({ icon, label, value, primary = false }: { icon: ReactNode; label: string; value: string; primary?: boolean }) {
+function HeroStat({ icon, label, value, tone }: { icon: ReactNode; label: string; value: string; tone: 'mint'|'cyan'|'magenta' }) {
   return (
-    <div className={cn('min-w-0 rounded-2xl border px-3 py-3', primary ? 'border-emerald-300/25 bg-emerald-400/[.13]' : 'border-white/[.08] bg-white/[.045]')}>
-      <div className={cn('mb-2 flex items-center gap-1.5 text-[10px] font-medium', primary ? 'text-emerald-200' : 'text-slate-400')}>{icon}<span className="truncate">{label}</span></div>
-      <strong className="block truncate text-base font-black text-white">{value}</strong>
+    <div className={cn('home-hero-stat min-w-0 px-3 py-3', `home-hero-stat-${tone}`)}>
+      <div className="mb-2 flex items-center gap-1.5 text-[9px] font-bold text-slate-400">{icon}<span className="truncate">{label}</span></div>
+      <strong className="block truncate text-base font-black tracking-tight text-white">{value}</strong>
     </div>
   );
 }
@@ -67,11 +66,12 @@ function FeaturedMatch({ match }: { match: Match }) {
   const hasScore = match.status === 'finished' || match.status === 'live';
   return (
     <Link to={`/matches/${match._id}`} className="block">
-      <article className="featured-match group overflow-hidden rounded-[1.75rem] border border-white/[.09] bg-ink-900/90 shadow-card transition active:scale-[.99]">
-        <div className="flex items-center justify-between border-b border-white/[.06] px-4 py-3">
+      <article className="featured-match group overflow-hidden border border-white/[.1] transition active:scale-[.99]">
+        <div className="home-featured-stripe"/>
+        <div className="relative flex items-center justify-between border-b border-white/[.07] px-4 py-3">
           <div className="flex min-w-0 items-center gap-2">
-            <span className="grid h-7 w-7 shrink-0 place-items-center rounded-xl bg-emerald-400/10 text-emerald-300"><Trophy size={13}/></span>
-            <span className="truncate text-[11px] font-bold text-slate-300">{match.competitionName}</span>
+            <span className="home-competition-mark grid h-7 w-7 shrink-0 place-items-center text-[#10051d]"><Trophy size={13} strokeWidth={2.7}/></span>
+            <div className="min-w-0"><span className="block text-[7px] font-black tracking-[.15em] text-cyan-300" dir="ltr">FEATURED MATCH</span><span className="block truncate text-[10px] font-bold text-slate-300">{match.competitionName}</span></div>
           </div>
           {match.status === 'live' ? (
             <span className="flex items-center gap-1.5 rounded-full bg-rose-400/10 px-2.5 py-1 text-[10px] font-black text-rose-300"><Radio size={11}/> زنده</span>
@@ -80,17 +80,17 @@ function FeaturedMatch({ match }: { match: Match }) {
           )}
         </div>
 
-        <div className="relative grid grid-cols-[1fr_auto_1fr] items-center gap-2 px-3 py-6 sm:px-6">
-          <div className="match-glow absolute left-1/2 top-1/2 h-28 w-28 -translate-x-1/2 -translate-y-1/2 rounded-full bg-emerald-400/[.07] blur-2xl"/>
+        <div className="relative grid grid-cols-[1fr_auto_1fr] items-center gap-2 px-3 py-7 sm:px-6">
+          <div className="home-match-midline absolute inset-y-4 left-1/2 w-px -translate-x-1/2"/>
           <div className="relative flex min-w-0 flex-col items-center gap-3 text-center">
             <ClubCrest name={match.homeTeam} logo={match.homeLogo} className="h-[68px] w-[60px] sm:h-[76px] sm:w-[68px]"/>
             <strong className="line-clamp-1 w-full text-xs sm:text-sm">{match.homeTeam}</strong>
           </div>
           <div className="relative flex min-w-[58px] flex-col items-center">
             {hasScore ? (
-              <div className="whitespace-nowrap text-2xl font-black tracking-wider">{faNumber(match.homeScore ?? 0)} <span className="text-slate-600">–</span> {faNumber(match.awayScore ?? 0)}</div>
+              <div className="home-score-bug whitespace-nowrap px-3 py-2 text-2xl font-black tracking-wider">{faNumber(match.homeScore ?? 0)} <span className="text-slate-500">–</span> {faNumber(match.awayScore ?? 0)}</div>
             ) : (
-              <><span className="text-[9px] font-bold uppercase tracking-[.25em] text-slate-500">مسابقه</span><span className="my-1 text-lg font-black text-white">VS</span></>
+              <><span className="text-[8px] font-bold uppercase tracking-[.24em] text-slate-500">مسابقه</span><span className="home-vs-bug my-1.5 grid h-10 min-w-12 place-items-center px-2 text-lg font-black text-white">VS</span></>
             )}
           </div>
           <div className="relative flex min-w-0 flex-col items-center gap-3 text-center">
@@ -100,13 +100,13 @@ function FeaturedMatch({ match }: { match: Match }) {
         </div>
 
         {match.prediction && (
-          <div className="mx-3 mb-3 flex min-h-11 items-center justify-between rounded-2xl bg-sky-400/[.09] px-3 text-[11px] font-bold text-sky-200 sm:mx-4 sm:px-4">
+          <div className="home-prediction-bar mx-3 mb-3 flex min-h-11 items-center justify-between px-3 text-[11px] font-bold text-cyan-100 sm:mx-4 sm:px-4">
             <span className="flex items-center gap-2"><Target size={15}/> پیش‌بینی شما ثبت شده</span>
             <span className="flex items-center gap-1 text-white">مشاهده <ChevronLeft size={15}/></span>
           </div>
         )}
         {match.predictionOpen && !match.prediction && (
-          <div className="mx-3 mb-3 flex min-h-11 items-center justify-between rounded-2xl bg-emerald-400/[.1] px-3 text-[11px] font-bold text-emerald-200 sm:mx-4 sm:px-4">
+          <div className="home-prediction-bar mx-3 mb-3 flex min-h-11 items-center justify-between px-3 text-[11px] font-bold text-emerald-200 sm:mx-4 sm:px-4">
             <span className="flex items-center gap-2"><BellRing size={15}/> پیش‌بینی این بازی فعاله</span>
             <span className="flex items-center gap-1 text-white">ثبت پیش‌بینی <ChevronLeft size={15}/></span>
           </div>
@@ -181,43 +181,49 @@ export function HomePage() {
 
   return (
     <main className="home-page pb-5">
-      <header className="home-hero safe-top relative overflow-hidden px-4 pb-11 pt-3">
-        <div className="home-hero-grid absolute inset-0 opacity-50"/>
-        <div className="absolute -left-20 -top-20 h-64 w-64 rounded-full bg-emerald-400/[.09] blur-3xl"/>
-        <div className="absolute -right-32 top-16 h-72 w-72 rounded-full border border-emerald-300/[.08]"/>
-        <div className="absolute -right-20 top-28 h-48 w-48 rounded-full border border-emerald-300/[.07]"/>
+      <header className="home-hero safe-top relative overflow-hidden px-4 pb-12 pt-3">
+        <div className="home-stadium-lights absolute inset-x-0 top-0 h-56"/>
+        <div className="home-hero-grid absolute inset-0"/>
+        <div className="home-broadcast-angle absolute inset-0"/>
+        <div className="home-broadcast-angle-secondary absolute inset-0"/>
+        <div className="home-stadium-arc absolute"/>
 
         <div className="relative flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <BrandMark className="h-12 w-12"/>
+            <BrandMark className="home-header-brand h-11 w-11"/>
             <div>
-              <p className="text-[10px] font-bold tracking-wide text-emerald-300">باشگاه هواداران فوتبال</p>
-              <p className="mt-0.5 text-sm font-black text-white">فوتبال کلاب</p>
+              <p className="text-[8px] font-black tracking-[.13em] text-cyan-300" dir="ltr">MATCHDAY / FOOTBALL CLUB</p>
+              <p className="mt-1 text-sm font-black text-white">فوتبال کلاب</p>
             </div>
           </div>
-          <div className="flex items-center gap-2"><WalletShortcut/><Link to="/profile" aria-label="پروفایل من" className="relative grid h-11 w-11 place-items-center rounded-2xl border border-white/10 bg-white/[.06] text-sm font-black text-emerald-200 backdrop-blur">
+          <div className="flex items-center gap-2"><WalletShortcut className="home-header-button"/><Link to="/profile" aria-label="پروفایل من" className="home-header-button relative grid h-11 w-11 place-items-center text-sm font-black text-emerald-100 backdrop-blur">
             {data.user.firstName.slice(0, 1)}
-            <span className="absolute -bottom-0.5 -left-0.5 h-3 w-3 rounded-full border-2 border-ink-950 bg-emerald-400"/>
+            <span className="absolute -bottom-0.5 -left-0.5 h-3 w-3 rounded-full border-2 border-[#10051d] bg-cyan-300"/>
           </Link></div>
         </div>
 
-        <div className="relative mt-7">
-          <div className="flex items-center gap-2 text-xs font-medium text-slate-400"><Sparkles size={14} className="text-amber-300"/> سلام {data.user.firstName}، خوش اومدی</div>
-          <h1 className="mt-2 max-w-sm text-[1.65rem] font-black leading-[1.45] tracking-tight text-white">بازی رو دنبال کن،<br/><span className="text-emerald-300">نتیجه رو پیش‌بینی کن.</span></h1>
+        <div className="relative mt-9 max-w-[86%]">
+          <div className="home-hero-kicker inline-flex items-center gap-2 px-3 py-1.5 text-[8px] font-black tracking-[.12em] text-white" dir="ltr"><Sparkles size={11} className="text-cyan-300"/> THE MATCH STARTS HERE</div>
+          <p className="mt-3 text-[11px] font-semibold text-slate-300">سلام {data.user.firstName}، آماده‌ی مسابقه‌ای؟</p>
+          <h1 className="mt-1 text-[1.8rem] font-black leading-[1.35] tracking-tight text-white">فوتبال را زندگی کن؛<br/><span className="home-hero-title-accent">نتیجه را تو بساز.</span></h1>
+          <div className="mt-4 flex items-center gap-2 text-[9px] font-bold text-slate-400"><span className="h-0.5 w-9 bg-cyan-300"/> پیش‌بینی، رقابت، افتخار</div>
         </div>
 
-        <div className="relative mt-6 grid grid-cols-3 gap-2">
-          <HeroStat primary icon={<Zap size={13}/>} label="امتیاز کل" value={faNumber(data.user.points)}/>
-          <HeroStat icon={<Medal size={13}/>} label="رتبه هفته" value={`#${faNumber(data.user.weeklyRank)}`}/>
-          <HeroStat icon={<Flame size={13}/>} label="استریک" value={`${faNumber(data.user.streak)} روز`}/>
+        <div className="relative mt-7 grid grid-cols-3 gap-2">
+          <HeroStat tone="mint" icon={<Zap size={13}/>} label="امتیاز کل" value={faNumber(data.user.points)}/>
+          <HeroStat tone="cyan" icon={<Medal size={13}/>} label="رتبه هفته" value={`#${faNumber(data.user.weeklyRank)}`}/>
+          <HeroStat tone="magenta" icon={<Flame size={13}/>} label="استریک" value={`${faNumber(data.user.streak)} روز`}/>
         </div>
       </header>
 
-      <div className="relative -mt-6 px-4"><QuickActions predictionsCount={data.predictionsCount}/></div>
+      <div className="relative -mt-5 px-4"><QuickActions predictionsCount={data.predictionsCount}/></div>
 
       <div className="mt-7 space-y-8 px-4">
         <section>
-          <SectionTitle title="بازی‌های مهم" action="همه بازی‌ها" to="/matches"/>
+          <div className="mb-3 flex items-end justify-between">
+            <div><span className="text-[7px] font-black tracking-[.18em] text-fuchsia-300" dir="ltr">MAIN EVENT</span><h2 className="mt-1 text-base font-black tracking-tight">بازی‌های مهم</h2></div>
+            <Link to="/matches" className="flex min-h-9 items-center gap-1 text-[10px] font-bold text-cyan-300">همه بازی‌ها<ArrowLeft size={14}/></Link>
+          </div>
           {firstMatch ? (
             <div className="space-y-3">
               <FeaturedMatch match={firstMatch}/>
