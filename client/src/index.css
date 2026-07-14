@@ -44,6 +44,7 @@ button { touch-action: manipulation; }
 .fun-card { animation: fun-card-in .5s cubic-bezier(.22,1,.36,1) both; }
 .fun-sheet { animation: fun-sheet-in .38s cubic-bezier(.22,1,.36,1) both; }
 .fun-like[aria-pressed="true"] svg { animation: fun-heart .35s cubic-bezier(.22,1,.36,1); }
+.fun-sort-tab[aria-selected="true"] svg { animation: fun-sort-pulse .35s cubic-bezier(.22,1,.36,1); }
 .competition-hero { background: radial-gradient(circle at 15% 0%,rgba(52,211,153,.07),transparent 34%),linear-gradient(155deg,rgba(12,30,45,.98),rgba(8,19,33,.99)); animation: competition-rise .5s cubic-bezier(.22,1,.36,1) both; }
 .quiz-start,.quiz-question,.quiz-result { animation: quiz-rise .45s cubic-bezier(.22,1,.36,1) both; }
 .store-wallet { background: radial-gradient(circle at 10% 0%,rgba(251,191,36,.12),transparent 38%),linear-gradient(145deg,rgba(28,31,40,.98),rgba(10,22,37,.99)); animation: store-rise .48s cubic-bezier(.22,1,.36,1) both; }
@@ -90,8 +91,9 @@ button { touch-action: manipulation; }
 @keyframes fun-sheet-in { from { opacity: .6; transform: translateY(36px); } to { opacity: 1; transform: translateY(0); } }
 @keyframes fun-orbit { from { opacity: .65; transform: translate(-8px,-5px) scale(.92); } to { opacity: 1; transform: translate(12px,8px) scale(1.08); } }
 @keyframes fun-heart { 0% { transform: scale(.7); } 65% { transform: scale(1.22) rotate(-8deg); } 100% { transform: scale(1); } }
+@keyframes fun-sort-pulse { 0% { transform: scale(.85); } 60% { transform: scale(1.12); } 100% { transform: scale(1); } }
 @media (prefers-reduced-motion: reduce) {
-  .profile-animate,.profile-hero-glow,.fun-orb,.fun-card,.fun-sheet,.fun-like[aria-pressed="true"] svg,.matches-orb,.match-card,.match-panel-animate,.exact-score-reveal,.home-cup-card,.competition-hero,.quiz-start,.quiz-question,.quiz-result,.store-wallet,.squad-player,.lineup-player,.squad-backdrop,.squad-sheet,.player-modal-backdrop,.player-modal-panel,.player-collection-card,.offer-card { animation: none; }
+  .profile-animate,.profile-hero-glow,.fun-orb,.fun-card,.fun-sheet,.fun-like[aria-pressed="true"] svg,.fun-sort-tab[aria-selected="true"] svg,.matches-orb,.match-card,.match-panel-animate,.exact-score-reveal,.home-cup-card,.competition-hero,.quiz-start,.quiz-question,.quiz-result,.store-wallet,.squad-player,.lineup-player,.squad-backdrop,.squad-sheet,.player-modal-backdrop,.player-modal-panel,.player-collection-card,.offer-card { animation: none; }
   .referral-card { transition: none; }
   ::view-transition-group(*) { animation-duration: 1ms; }
 }

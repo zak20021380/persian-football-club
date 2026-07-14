@@ -7,6 +7,8 @@ import { buildFunDeepLink } from './funShare.js';
 
 type ObjectId = mongoose.Types.ObjectId;
 type ReportReason = 'spam' | 'abuse' | 'inappropriate' | 'other';
+export type FunPostSort = 'newest' | 'mostLiked' | 'oldest';
+export const FUN_POST_SORTS: readonly FunPostSort[] = ['newest', 'mostLiked', 'oldest'] as const;
 
 export function sanitizeFunCaption(input?: string): string | undefined {
   if (!input) return undefined;
@@ -53,17 +55,63 @@ export async function createFunPost(input: { ownerId: ObjectId; caption?: string
   }
 }
 
-export async function listFunPosts(userId: ObjectId, cursor: string | undefined, limit: number) {
-  const query: Record<string, unknown> = { moderationStatus: 'published' };
-  if (cursor) query._id = { $lt: new mongoose.Types.ObjectId(cursor) };
-  const posts = await FunPost.find(query).sort({ _id: -1 }).limit(limit + 1).populate('ownerId', 'displayName clubName favoriteTeam').lean();
+export async function listFunPosts(userId: ObjectId, cursor: string | undefined, limit: number, sort: FunPostSort = 'newest') {
+  const baseQuery: Record<string, unknown> = { moderationStatus: 'published' };
+  let sortSpec: Record<string, 1 | -1>;
+  let query: Record<string, unknown> = { ...baseQuery };
+
+  if (sort === 'oldest') {
+    sortSpec = { _id: 1 };
+    if (cursor) {
+      if (!mongoose.isValidObjectId(cursor)) throw new AppError(400, 'کرسر نامعتبر است', 'FUN_CURSOR_INVALID');
+      query._id = { $gt: new mongoose.Types.ObjectId(cursor) };
+    }
+  } else if (sort === 'mostLiked') {
+    sortSpec = { likeCount: -1, _id: -1 };
+    if (cursor) {
+      const parsed = parseMostLikedCursor(cursor);
+      if (!parsed) throw new AppError(400, 'کرسر نامعتبر است', 'FUN_CURSOR_INVALID');
+      query.$or = [
+        { likeCount: { $lt: parsed.likeCount } },
+        { likeCount: parsed.likeCount, _id: { $lt: parsed.id } }
+      ];
+    }
+  } else {
+    sortSpec = { _id: -1 };
+    if (cursor) {
+      if (!mongoose.isValidObjectId(cursor)) throw new AppError(400, 'کرسر نامعتبر است', 'FUN_CURSOR_INVALID');
+      query._id = { $lt: new mongoose.Types.ObjectId(cursor) };
+    }
+  }
+
+  const posts = await FunPost.find(query).sort(sortSpec).limit(limit + 1).populate('ownerId', 'displayName clubName favoriteTeam').lean();
   const page = posts.slice(0, limit);
   const likes = await FunPostLike.find({ userId, postId: { $in: page.map((post) => post._id) } }).select('postId').lean();
   const likedIds = new Set(likes.map((like) => String(like.postId)));
+  const lastPost = page.at(-1);
+  let nextCursor: string | null = null;
+  if (posts.length > limit && lastPost) {
+    nextCursor = sort === 'mostLiked' ? encodeMostLikedCursor(lastPost.likeCount, String(lastPost._id)) : String(lastPost._id);
+  }
   return {
     items: page.map((post) => funPostView(post, userId, likedIds.has(String(post._id)))),
-    nextCursor: posts.length > limit ? String(page.at(-1)!._id) : null
+    nextCursor
   };
+}
+
+function parseMostLikedCursor(cursor: string): { likeCount: number; id: ObjectId } | null {
+  const separatorIndex = cursor.indexOf('_');
+  if (separatorIndex <= 0) return null;
+  const likeStr = cursor.slice(0, separatorIndex);
+  const idStr = cursor.slice(separatorIndex + 1);
+  if (!/^\d+$/.test(likeStr) || !mongoose.isValidObjectId(idStr)) return null;
+  const likeCount = Number(likeStr);
+  if (!Number.isFinite(likeCount) || likeCount < 0) return null;
+  return { likeCount, id: new mongoose.Types.ObjectId(idStr) };
+}
+
+function encodeMostLikedCursor(likeCount: number, id: string): string {
+  return `${Math.max(0, Math.floor(likeCount))}_${id}`;
 }
 
 export async function funPostById(postId: string, userId: ObjectId) {

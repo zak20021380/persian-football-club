@@ -28,5 +28,6 @@ const schema = new Schema<IFunPost>({
 
 schema.index({ ownerId: 1, clientRequestId: 1 }, { unique: true });
 schema.index({ moderationStatus: 1, _id: -1 });
+schema.index({ moderationStatus: 1, likeCount: -1, _id: -1 });
 
 export const FunPost = model<IFunPost>('FunPost', schema);

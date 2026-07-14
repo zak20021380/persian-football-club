@@ -9,6 +9,7 @@ import {
   createFunPost,
   deleteFunPost,
   funPostById,
+  FUN_POST_SORTS,
   listFunModeration,
   listFunPosts,
   moderateFunPost,
@@ -57,10 +58,11 @@ function singleImage(req: Request, res: Response, next: NextFunction): void {
 
 router.get('/posts', asyncHandler(async (req, res) => {
   const input = z.object({
-    cursor: z.string().refine(mongoose.isValidObjectId).optional(),
-    limit: z.coerce.number().int().min(5).max(20).default(10)
+    cursor: z.string().min(1).max(64).optional(),
+    limit: z.coerce.number().int().min(5).max(20).default(10),
+    sort: z.enum(FUN_POST_SORTS).default('newest')
   }).parse(req.query);
-  res.json(await listFunPosts(req.authUser!._id, input.cursor, input.limit));
+  res.json(await listFunPosts(req.authUser!._id, input.cursor, input.limit, input.sort));
 }));
 
 router.get('/posts/:postId', asyncHandler(async (req, res) => {

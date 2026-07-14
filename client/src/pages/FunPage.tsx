@@ -1,8 +1,10 @@
 import { useEffect, useRef, useState } from 'react';
-import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { keepPreviousData, useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useSearchParams } from 'react-router-dom';
 import {
   AlertTriangle,
+  ArrowDownNarrowWide,
+  ArrowUpNarrowWide,
   Camera,
   Copy,
   Eye,
@@ -31,6 +33,27 @@ import { cn, faNumber } from '@/lib/utils';
 import type { FunFeedPage, FunPost, Id } from '@/types/api';
 
 const captionLimit = 600;
+
+type FunSort = 'newest' | 'mostLiked' | 'oldest';
+
+const FUN_SORT_OPTIONS: ReadonlyArray<{ value: FunSort; label: string; icon: typeof ArrowDownNarrowWide }> = [
+  { value: 'newest', label: 'جدیدترین', icon: ArrowDownNarrowWide },
+  { value: 'mostLiked', label: 'بیشترین لایک', icon: Heart },
+  { value: 'oldest', label: 'قدیمی‌ترین', icon: ArrowUpNarrowWide }
+];
+
+function compareForSort(a: { createdAt: string; likeCount: number }, b: { createdAt: string; likeCount: number }, sort: FunSort): number {
+  if (sort === 'mostLiked') {
+    if (b.likeCount !== a.likeCount) return b.likeCount - a.likeCount;
+    return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+  }
+  const direction = sort === 'oldest' ? 1 : -1;
+  return (new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()) * direction;
+}
+
+function isFunSort(value: string | null | undefined): value is FunSort {
+  return value === 'newest' || value === 'mostLiked' || value === 'oldest';
+}
 
 function relativeTime(value: string): string {
   const seconds = Math.round((new Date(value).getTime() - Date.now()) / 1000);
@@ -498,9 +521,42 @@ function CreatePostSheet({ onClose, onPublished }: { onClose: () => void; onPubl
   );
 }
 
+function FunSortBar({ value, onChange, disabled }: { value: FunSort; onChange: (next: FunSort) => void; disabled?: boolean }) {
+  return (
+    <div
+      role="tablist"
+      aria-label="مرتب‌سازی میم‌ها"
+      className="flex min-w-0 items-center gap-1 rounded-2xl border border-white/[.07] bg-ink-900/85 p-1 shadow-[0_6px_18px_rgba(0,0,0,.18)] backdrop-blur"
+    >
+      {FUN_SORT_OPTIONS.map(({ value: option, label, icon: Icon }) => {
+        const isActive = value === option;
+        return (
+          <button
+            key={option}
+            type="button"
+            role="tab"
+            aria-selected={isActive}
+            disabled={disabled}
+            onClick={() => { if (!isActive) onChange(option); }}
+            className={cn(
+              'fun-sort-tab flex min-h-8 min-w-0 flex-1 items-center justify-center gap-1 rounded-xl px-2 py-1.5 text-[9px] font-black transition active:scale-95 disabled:cursor-not-allowed disabled:opacity-60',
+              isActive
+                ? 'bg-gradient-to-b from-fuchsia-400/25 to-violet-500/10 text-white shadow-[inset_0_1px_0_rgba(244,114,182,.18),0_4px_14px_rgba(217,70,239,.18)]'
+                : 'text-slate-400 hover:text-slate-200'
+            )}
+          >
+            <Icon size={12} className={cn('shrink-0', isActive ? 'text-fuchsia-200' : 'text-slate-500')} strokeWidth={isActive ? 2.4 : 1.8} />
+            <span className="truncate">{label}</span>
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
 export function FunPage() {
   const queryClient = useQueryClient();
-  const [searchParams] = useSearchParams();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [creating, setCreating] = useState(false);
   const [localLikes, setLocalLikes] = useState<Record<string, { liked: boolean; likeCount: number }>>({});
   const [localShareCounts, setLocalShareCounts] = useState<Record<string, number>>({});
@@ -508,12 +564,22 @@ export function FunPage() {
   const shareLock = useRef(false);
   const deepLinkedPostId = searchParams.get('post');
   const validDeepLinkedPostId = deepLinkedPostId && /^[a-f\d]{24}$/i.test(deepLinkedPostId) ? deepLinkedPostId : null;
+  const sortParam = searchParams.get('sort');
+  const sort: FunSort = isFunSort(sortParam) ? sortParam : 'newest';
+  const setSort = (next: FunSort) => {
+    const params = new URLSearchParams(searchParams);
+    if (next === 'newest') params.delete('sort');
+    else params.set('sort', next);
+    setSearchParams(params, { replace: true });
+  };
 
   const feed = useInfiniteQuery({
-    queryKey: ['funPosts'],
+    queryKey: ['funPosts', sort],
     initialPageParam: null as string | null,
-    queryFn: async ({ pageParam }) => (await api.get<FunFeedPage>('/fun/posts', { params: { cursor: pageParam || undefined, limit: 10 } })).data,
-    getNextPageParam: (lastPage) => lastPage.nextCursor || undefined
+    queryFn: async ({ pageParam }) => (await api.get<FunFeedPage>('/fun/posts', { params: { cursor: pageParam || undefined, limit: 10, sort } })).data,
+    getNextPageParam: (lastPage) => lastPage.nextCursor || undefined,
+    placeholderData: keepPreviousData,
+    staleTime: 15_000
   });
   const deepLinkedPost = useQuery({
     queryKey: ['funPost', validDeepLinkedPostId],
@@ -559,15 +625,17 @@ export function FunPage() {
     : feedPosts;
   const useMockFeed = !validDeepLinkedPostId && !feed.isLoading && !feed.error && realPosts.length === 0;
   const posts: MemePost[] = useMockFeed
-    ? mockMemes.map(meme => {
-        const local = localLikes[meme._id];
-        return {
-          ...meme,
-          liked: local?.liked ?? meme.liked,
-          likeCount: local?.likeCount ?? meme.likeCount,
-          shareCount: localShareCounts[meme._id] ?? meme.shareCount
-        };
-      })
+    ? mockMemes
+        .map(meme => {
+          const local = localLikes[meme._id];
+          return {
+            ...meme,
+            liked: local?.liked ?? meme.liked,
+            likeCount: local?.likeCount ?? meme.likeCount,
+            shareCount: localShareCounts[meme._id] ?? meme.shareCount
+          };
+        })
+        .sort((a, b) => compareForSort(a, b, sort))
     : realPosts.map(post => ({
         ...post,
         category: 'فان' as MemeCategory,
@@ -692,6 +760,8 @@ export function FunPage() {
             نمایش آزمایشی · ۶ میم نمونه برای ارزیابی ظاهر
           </div>
         )}
+
+        <FunSortBar value={sort} onChange={setSort} disabled={feed.isFetching && !feed.data} />
 
         {feed.isLoading || (validDeepLinkedPostId && deepLinkedPost.isLoading) ? (
           <FeedSkeleton />

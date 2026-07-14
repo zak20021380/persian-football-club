@@ -1,9 +1,9 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import mongoose from 'mongoose';
 import sharp from 'sharp';
-import { FunPost, FunPostShare } from '../models/index.js';
+import { FunPost, FunPostLike, FunPostShare } from '../models/index.js';
 import { detectImage, toTelegramShareJpeg, validateFunImage } from '../services/funImage.js';
-import { sanitizeFunCaption } from '../services/fun.js';
+import { listFunPosts, sanitizeFunCaption } from '../services/fun.js';
 import {
   buildFunDeepLink,
   buildFunInlinePhotoResult,
@@ -164,5 +164,71 @@ describe('fun Telegram sharing payload', () => {
 
     await expect(completeFunPostShare({ postId, userId, completionToken })).resolves.toEqual({ shareCount: 4, counted: false });
     expect(increment).not.toHaveBeenCalled();
+  });
+});
+
+describe('listFunPosts sort', () => {
+  const userId = new mongoose.Types.ObjectId();
+
+  function buildChain(posts: Array<{ _id: string; likeCount: number }>) {
+    const sortFn = vi.fn().mockReturnThis();
+    const limitFn = vi.fn().mockReturnThis();
+    const populateFn = vi.fn().mockReturnThis();
+    const leanFn = vi.fn().mockResolvedValue(posts.map(post => ({ _id: new mongoose.Types.ObjectId(post._id), likeCount: post.likeCount, ownerId: { _id: new mongoose.Types.ObjectId() } })));
+    vi.spyOn(FunPost, 'find').mockReturnValue({ sort: sortFn, limit: limitFn, populate: populateFn, lean: leanFn } as never);
+    vi.spyOn(FunPostLike, 'find').mockReturnValue({ select: () => ({ lean: () => Promise.resolve([]) }) } as never);
+    return { sortFn };
+  }
+
+  it('sorts by _id desc for newest and encodes the next cursor as the last _id', async () => {
+    const lastId = new mongoose.Types.ObjectId().toString();
+    const { sortFn } = buildChain([
+      { _id: new mongoose.Types.ObjectId().toString(), likeCount: 1 },
+      { _id: lastId, likeCount: 1 },
+      { _id: new mongoose.Types.ObjectId().toString(), likeCount: 99 }
+    ]);
+    const result = await listFunPosts(userId, undefined, 2, 'newest');
+    expect(sortFn).toHaveBeenCalledWith({ _id: -1 });
+    expect(result.nextCursor).toBe(lastId);
+  });
+
+  it('sorts by _id asc for oldest and applies a greater-than cursor', async () => {
+    const { sortFn } = buildChain([
+      { _id: new mongoose.Types.ObjectId().toString(), likeCount: 1 }
+    ]);
+    const cursorId = new mongoose.Types.ObjectId().toString();
+    await listFunPosts(userId, cursorId, 10, 'oldest');
+    expect(sortFn).toHaveBeenCalledWith({ _id: 1 });
+    const findCall = (FunPost.find as unknown as ReturnType<typeof vi.fn>).mock.calls.at(-1)![0];
+    expect(findCall._id).toEqual({ $gt: expect.any(mongoose.Types.ObjectId) });
+  });
+
+  it('sorts by likeCount desc, then _id desc for mostLiked and encodes a compound cursor', async () => {
+    const lastId = new mongoose.Types.ObjectId().toString();
+    const { sortFn } = buildChain([
+      { _id: new mongoose.Types.ObjectId().toString(), likeCount: 50 },
+      { _id: lastId, likeCount: 10 },
+      { _id: new mongoose.Types.ObjectId().toString(), likeCount: 1 }
+    ]);
+    const result = await listFunPosts(userId, undefined, 2, 'mostLiked');
+    expect(sortFn).toHaveBeenCalledWith({ likeCount: -1, _id: -1 });
+    expect(result.nextCursor).toBe(`10_${lastId}`);
+  });
+
+  it('parses the mostLiked compound cursor and applies the correct $or filter', async () => {
+    const { sortFn } = buildChain([{ _id: new mongoose.Types.ObjectId().toString(), likeCount: 0 }]);
+    const cursorId = new mongoose.Types.ObjectId().toString();
+    await listFunPosts(userId, `25_${cursorId}`, 10, 'mostLiked');
+    expect(sortFn).toHaveBeenCalledWith({ likeCount: -1, _id: -1 });
+    const findCall = (FunPost.find as unknown as ReturnType<typeof vi.fn>).mock.calls.at(-1)![0];
+    expect(findCall.$or).toEqual([
+      { likeCount: { $lt: 25 } },
+      { likeCount: 25, _id: { $lt: expect.any(mongoose.Types.ObjectId) } }
+    ]);
+  });
+
+  it('rejects an invalid mostLiked cursor with a 400', async () => {
+    buildChain([]);
+    await expect(listFunPosts(userId, 'not-a-cursor', 10, 'mostLiked')).rejects.toMatchObject({ statusCode: 400, code: 'FUN_CURSOR_INVALID' });
   });
 });
