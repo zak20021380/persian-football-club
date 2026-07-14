@@ -299,12 +299,12 @@ function MemeCard({
 
       {post.imageUrl && (
         <div className="relative overflow-hidden border-y border-white/[.06] bg-black/35">
-          <div className="relative w-full overflow-hidden" style={{ aspectRatio: '4 / 5' }}>
+          <div className="relative h-[200px] w-full overflow-hidden sm:h-[230px]">
             <img
               src={post.imageUrl}
               alt={post.caption || 'تصویر میم'}
               loading="lazy"
-              className="h-full w-full object-cover"
+              className="h-full w-full object-cover object-center"
             />
             <span className={cn('absolute right-2 top-2 inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[7.5px] font-black backdrop-blur-md sm:hidden', categoryStyles[post.category])}>
               {post.category}
@@ -384,7 +384,7 @@ function FeedSkeleton() {
               <Skeleton className="h-2 w-16" />
             </div>
           </div>
-          <Skeleton className="aspect-[4/5] w-full" />
+          <Skeleton className="h-[200px] w-full sm:h-[230px]" />
           <Skeleton className="h-9 w-full" />
         </Card>
       ))}
