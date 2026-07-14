@@ -80,7 +80,6 @@ DAILY_COIN_REWARD=25
 | `NODE_ENV` | `development`، `test` یا `production` |
 | `PORT` | پورت Express؛ Railway/Render معمولاً خودکار تنظیم می‌کنند |
 | `TIMEZONE` | `Asia/Tehran` |
-| `UPLOAD_DIR` | مسیر دیسک برای نگهداری تصاویر آپلودی؛ پیش‌فرض `uploads` |
 | `PAYMENT_PROVIDER` | در توسعه `test` برای جریان صریح آزمایشی؛ در production تا زمان افزودن درگاه واقعی `none` |
 | `DAILY_COIN_REWARD` | تعداد سکه هدیه قابل دریافت در هر بازه ۲۴ ساعته |
 
@@ -187,7 +186,7 @@ MONGODB_URI=mongodb+srv://USER:PASSWORD@cluster.mongodb.net/football-club?retryW
 npm run seed
 ```
 
-برای نگهداری دائمی تصاویر بخش «فان»، مسیر `UPLOAD_DIR` را روی یک Volume پایدار سرویس میزبانی mount کنید. لایه ذخیره‌سازی در `server/src/services/storage.ts` مستقل است و می‌تواند بعداً با فضای ابری جایگزین شود.
+تصاویر اصلی و نسخه‌های JPEG قابل اشتراک بخش «فان» در MongoDB GridFS و در همان دیتابیس `MONGODB_URI` ذخیره می‌شوند؛ بنابراین به فایل‌سیستم موقت Railway یا Render وابسته نیستند و نیازی به Volume یا `UPLOAD_DIR` ندارند.
 
 8. سرویس را redeploy کنید تا webhook با URL نهایی ثبت شود.
 

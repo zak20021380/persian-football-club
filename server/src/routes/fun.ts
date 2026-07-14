@@ -79,8 +79,8 @@ router.post('/posts/:postId/share/prepare', sharePrepareLimiter, asyncHandler(as
 
 router.post('/posts/:postId/share/complete', shareCompleteLimiter, asyncHandler(async (req, res) => {
   const postId = objectId(req.params.postId);
-  const { preparedMessageId } = z.object({ preparedMessageId: z.string().min(1).max(256) }).strict().parse(req.body);
-  res.json(await completeFunPostShare({ postId, userId: req.authUser!._id, preparedMessageId }));
+  const { completionToken } = z.object({ completionToken: z.string().regex(/^[A-Za-z0-9_-]{43}$/) }).strict().parse(req.body);
+  res.json(await completeFunPostShare({ postId, userId: req.authUser!._id, completionToken }));
 }));
 
 router.post('/posts', verifyLiveMembership, singleImage, asyncHandler(async (req, res) => {

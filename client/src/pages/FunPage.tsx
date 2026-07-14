@@ -597,7 +597,7 @@ export function FunPage() {
     try {
       const isMock = post._id.startsWith('mock-meme-');
       if (!isMock && canUseNativeTelegramShare()) {
-        const prepared = (await api.post<{ preparedMessageId: string }>(`/fun/posts/${post._id}/share/prepare`)).data;
+        const prepared = (await api.post<{ preparedMessageId: string; completionToken: string }>(`/fun/posts/${post._id}/share/prepare`)).data;
         const result = await sharePreparedTelegramMessage(prepared.preparedMessageId);
         if (result.status === 'cancelled') {
           toast('اشتراک‌گذاری لغو شد', { icon: 'ℹ️' });
@@ -613,7 +613,7 @@ export function FunPage() {
         for (let attempt = 0; attempt < 2 && !completion; attempt += 1) {
           try {
             completion = (await api.post<{ shareCount: number }>(`/fun/posts/${post._id}/share/complete`, {
-              preparedMessageId: prepared.preparedMessageId
+              completionToken: prepared.completionToken
             })).data;
           } catch { /* Retry once; the Telegram share itself has already succeeded. */ }
         }

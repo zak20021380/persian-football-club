@@ -7,6 +7,7 @@ import { detectImage, FUN_IMAGE_MAX_BYTES, toTelegramShareJpeg } from './funImag
 import { imageStorage } from './storage.js';
 
 type ObjectId = mongoose.Types.ObjectId;
+export const FUN_SHARE_COMPLETION_TTL_MS = 10 * 60 * 1_000;
 
 interface TelegramPreparedMessage {
   id: string;
@@ -64,41 +65,51 @@ export async function prepareFunPostShare(input: { postId: string; userId: Objec
 
   const result = buildFunInlinePhotoResult({ postId: String(post._id), caption: post.caption, imageUrl, deepLink });
   const prepared = await savePreparedInlineMessage(input.telegramUserId, result);
+  const completionToken = crypto.randomBytes(32).toString('base64url');
+  const expiresAt = new Date(Math.min(prepared.expiration_date * 1_000, Date.now() + FUN_SHARE_COMPLETION_TTL_MS));
+  if (expiresAt.getTime() <= Date.now()) throw new AppError(502, 'پیام آماده‌شده تلگرام منقضی است', 'TELEGRAM_SHARE_PREPARE_EXPIRED');
   await FunPostShare.create({
     postId: post._id,
     userId: input.userId,
     preparedMessageId: prepared.id,
+    completionTokenHash: hashCompletionToken(completionToken),
     status: 'pending',
-    expiresAt: new Date(prepared.expiration_date * 1_000)
+    expiresAt
   });
-  return { preparedMessageId: prepared.id, expiresAt: new Date(prepared.expiration_date * 1_000).toISOString(), shareUrl: deepLink };
+  return { preparedMessageId: prepared.id, completionToken, expiresAt: expiresAt.toISOString(), shareUrl: deepLink };
 }
 
-export async function completeFunPostShare(input: { postId: string; userId: ObjectId; preparedMessageId: string }) {
-  const completedAt = new Date();
-  const share = await FunPostShare.findOneAndUpdate(
-    {
-      postId: input.postId,
-      userId: input.userId,
-      preparedMessageId: input.preparedMessageId,
-      status: 'pending',
-      expiresAt: { $gt: completedAt }
-    },
-    { $set: { status: 'completed', completedAt } },
-    { new: true }
-  );
-  if (!share) {
-    const existing = await FunPostShare.findOne({ postId: input.postId, userId: input.userId, preparedMessageId: input.preparedMessageId });
-    if (!existing) throw new AppError(400, 'درخواست ثبت اشتراک‌گذاری معتبر نیست', 'FUN_SHARE_INVALID');
-    if (existing.status !== 'completed') throw new AppError(410, 'زمان ثبت این اشتراک‌گذاری گذشته است', 'FUN_SHARE_EXPIRED');
-    const post = await FunPost.findById(input.postId).select('shareCount').lean();
-    if (!post) throw new AppError(404, 'این میم دیگر موجود نیست', 'FUN_POST_NOT_FOUND');
-    return { shareCount: post.shareCount ?? 0, counted: false };
-  }
+export async function completeFunPostShare(input: { postId: string; userId: ObjectId; completionToken: string }) {
+  const completionTokenHash = hashCompletionToken(input.completionToken);
+  return mongoose.connection.transaction(async (session) => {
+    const completedAt = new Date();
+    const binding = { postId: input.postId, userId: input.userId, completionTokenHash };
+    const share = await FunPostShare.findOneAndUpdate(
+      { ...binding, status: 'pending', expiresAt: { $gt: completedAt } },
+      { $set: { status: 'completed', completedAt } },
+      { new: true, session }
+    );
+    if (!share) {
+      const existing = await FunPostShare.findOne(binding, null, { session });
+      if (!existing) throw new AppError(400, 'درخواست ثبت اشتراک‌گذاری معتبر نیست', 'FUN_SHARE_INVALID');
+      if (existing.status !== 'completed') throw new AppError(410, 'زمان ثبت این اشتراک‌گذاری گذشته است', 'FUN_SHARE_EXPIRED');
+      const post = await FunPost.findOne({ _id: input.postId }, { shareCount: 1 }, { session }).lean();
+      if (!post) throw new AppError(404, 'این میم دیگر موجود نیست', 'FUN_POST_NOT_FOUND');
+      return { shareCount: post.shareCount ?? 0, counted: false };
+    }
 
-  const post = await FunPost.findByIdAndUpdate(input.postId, { $inc: { shareCount: 1 } }, { new: true }).select('shareCount').lean();
-  if (!post) throw new AppError(404, 'این میم دیگر موجود نیست', 'FUN_POST_NOT_FOUND');
-  return { shareCount: post.shareCount ?? 0, counted: true };
+    const post = await FunPost.findOneAndUpdate(
+      { _id: input.postId },
+      { $inc: { shareCount: 1 } },
+      { new: true, session, projection: { shareCount: 1 } }
+    ).lean();
+    if (!post) throw new AppError(404, 'این میم دیگر موجود نیست', 'FUN_POST_NOT_FOUND');
+    return { shareCount: post.shareCount ?? 0, counted: true };
+  });
+}
+
+export function hashCompletionToken(token: string): string {
+  return crypto.createHash('sha256').update(token, 'utf8').digest('hex');
 }
 
 async function ensurePublicShareJpeg(post: { _id: mongoose.Types.ObjectId; imageKey?: string; imageUrl?: string }): Promise<string> {

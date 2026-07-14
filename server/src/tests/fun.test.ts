@@ -1,8 +1,19 @@
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+import mongoose from 'mongoose';
 import sharp from 'sharp';
+import { FunPost, FunPostShare } from '../models/index.js';
 import { detectImage, toTelegramShareJpeg, validateFunImage } from '../services/funImage.js';
 import { sanitizeFunCaption } from '../services/fun.js';
-import { buildFunDeepLink, buildFunInlinePhotoResult, buildSavePreparedMessageBody } from '../services/funShare.js';
+import {
+  buildFunDeepLink,
+  buildFunInlinePhotoResult,
+  buildSavePreparedMessageBody,
+  completeFunPostShare,
+  FUN_SHARE_COMPLETION_TTL_MS,
+  hashCompletionToken
+} from '../services/funShare.js';
+
+afterEach(() => vi.restoreAllMocks());
 
 function png(): Buffer {
   const buffer = Buffer.alloc(45);
@@ -101,5 +112,57 @@ describe('fun Telegram sharing payload', () => {
     const converted = await toTelegramShareJpeg(source);
     expect(detectImage(converted)?.mime).toBe('image/jpeg');
     expect(converted.length).toBeLessThanOrEqual(5 * 1024 * 1024);
+  });
+
+  it('uses a short-lived hashed completion token', () => {
+    const token = 'a'.repeat(43);
+    expect(FUN_SHARE_COMPLETION_TTL_MS).toBe(10 * 60 * 1_000);
+    expect(hashCompletionToken(token)).toMatch(/^[a-f\d]{64}$/);
+    expect(hashCompletionToken(token)).not.toContain(token);
+  });
+
+  it('atomically binds completion to the authenticated user, post and one pending token', async () => {
+    const postId = new mongoose.Types.ObjectId().toString();
+    const userId = new mongoose.Types.ObjectId();
+    const completionToken = 'b'.repeat(43);
+    const session = {} as mongoose.ClientSession;
+    vi.spyOn(mongoose.connection, 'transaction').mockImplementation(async callback => callback(session));
+    const shareUpdate = vi.spyOn(FunPostShare, 'findOneAndUpdate').mockResolvedValue({ status: 'completed' } as never);
+    const lean = vi.fn().mockResolvedValue({ shareCount: 9 });
+    vi.spyOn(FunPost, 'findOneAndUpdate').mockReturnValue({ lean } as never);
+
+    await expect(completeFunPostShare({ postId, userId, completionToken })).resolves.toEqual({ shareCount: 9, counted: true });
+    expect(shareUpdate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        postId,
+        userId,
+        completionTokenHash: hashCompletionToken(completionToken),
+        status: 'pending',
+        expiresAt: { $gt: expect.any(Date) }
+      }),
+      { $set: { status: 'completed', completedAt: expect.any(Date) } },
+      { new: true, session }
+    );
+    expect(FunPost.findOneAndUpdate).toHaveBeenCalledWith(
+      { _id: postId },
+      { $inc: { shareCount: 1 } },
+      { new: true, session, projection: { shareCount: 1 } }
+    );
+  });
+
+  it('returns an idempotent result without incrementing twice for a completed token', async () => {
+    const postId = new mongoose.Types.ObjectId().toString();
+    const userId = new mongoose.Types.ObjectId();
+    const completionToken = 'c'.repeat(43);
+    const session = {} as mongoose.ClientSession;
+    vi.spyOn(mongoose.connection, 'transaction').mockImplementation(async callback => callback(session));
+    vi.spyOn(FunPostShare, 'findOneAndUpdate').mockResolvedValue(null);
+    vi.spyOn(FunPostShare, 'findOne').mockResolvedValue({ status: 'completed' } as never);
+    const lean = vi.fn().mockResolvedValue({ shareCount: 4 });
+    vi.spyOn(FunPost, 'findOne').mockReturnValue({ lean } as never);
+    const increment = vi.spyOn(FunPost, 'findOneAndUpdate');
+
+    await expect(completeFunPostShare({ postId, userId, completionToken })).resolves.toEqual({ shareCount: 4, counted: false });
+    expect(increment).not.toHaveBeenCalled();
   });
 });
