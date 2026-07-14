@@ -7,6 +7,7 @@ export interface IFunPost {
   imageKey?: string;
   clientRequestId: string;
   likeCount: number;
+  shareCount: number;
   reportCount: number;
   moderationStatus: 'published' | 'hidden';
   createdAt: Date;
@@ -20,6 +21,7 @@ const schema = new Schema<IFunPost>({
   imageKey: String,
   clientRequestId: { type: String, required: true },
   likeCount: { type: Number, default: 0, min: 0 },
+  shareCount: { type: Number, default: 0, min: 0 },
   reportCount: { type: Number, default: 0, min: 0, index: true },
   moderationStatus: { type: String, enum: ['published', 'hidden'], default: 'published', index: true }
 }, { timestamps: true });

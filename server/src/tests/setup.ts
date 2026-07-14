@@ -5,6 +5,7 @@ process.env.MONGODB_URI = 'mongodb://127.0.0.1:27017/test';
 process.env.CHANNEL_ID = '-1000000000000';
 process.env.CHANNEL_JOIN_URL = 'https://t.me/test';
 process.env.BASE_URL = 'http://localhost:3000';
+process.env.TELEGRAM_MINI_APP_DEEP_LINK_BASE = 'https://t.me/test_bot/test_app';
 process.env.WEBHOOK_SECRET = 'test-webhook-secret';
 process.env.CRON_SECRET = 'test-cron-secret';
 process.env.SESSION_SECRET = 'test-session-secret-at-least-32-characters';

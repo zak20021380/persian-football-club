@@ -52,6 +52,7 @@ CHANNEL_USERNAME=
 CHANNEL_JOIN_URL=
 ADMIN_IDS=
 BASE_URL=
+TELEGRAM_MINI_APP_DEEP_LINK_BASE=
 WEBHOOK_SECRET=
 CRON_SECRET=
 NODE_ENV=development
@@ -73,6 +74,7 @@ DAILY_COIN_REWARD=25
 | `CHANNEL_JOIN_URL` | لینک عضویت عمومی یا لینک دعوت کانال خصوصی |
 | `ADMIN_IDS` | شناسه‌های عددی تلگرام مدیران، جداشده با ویرگول |
 | `BASE_URL` | URL کامل HTTPS سرویس، بدون `/` پایانی |
+| `TELEGRAM_MINI_APP_DEEP_LINK_BASE` | لینک عمومی HTTPS مینی‌اپ تلگرام بدون `startapp`؛ نمونه: `https://t.me/your_bot/your_app` |
 | `WEBHOOK_SECRET` | رشته تصادفی قوی حداقل ۸ کاراکتر |
 | `CRON_SECRET` | رشته تصادفی مستقل برای endpoint کرون |
 | `NODE_ENV` | `development`، `test` یا `production` |

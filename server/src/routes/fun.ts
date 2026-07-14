@@ -2,6 +2,7 @@ import type { NextFunction, Request, Response } from 'express';
 import { Router } from 'express';
 import mongoose from 'mongoose';
 import multer from 'multer';
+import rateLimit from 'express-rate-limit';
 import { z } from 'zod';
 import { requireAdmin, verifyLiveMembership } from '../middleware/auth.js';
 import {
@@ -15,10 +16,27 @@ import {
   setFunPostLike
 } from '../services/fun.js';
 import { FUN_IMAGE_MAX_BYTES, FUN_IMAGE_MIME_TYPES } from '../services/funImage.js';
+import { completeFunPostShare, prepareFunPostShare } from '../services/funShare.js';
 import { AppError } from '../utils/errors.js';
 import { asyncHandler } from '../utils/asyncHandler.js';
 
 const router = Router();
+const sharePrepareLimiter = rateLimit({
+  windowMs: 60_000,
+  limit: 10,
+  standardHeaders: 'draft-8',
+  legacyHeaders: false,
+  keyGenerator: (req) => String(req.authUser?._id ?? 'unauthenticated'),
+  message: { error: 'تعداد تلاش‌های اشتراک‌گذاری زیاد است؛ کمی بعد دوباره امتحان کنید', code: 'FUN_SHARE_RATE_LIMIT' }
+});
+const shareCompleteLimiter = rateLimit({
+  windowMs: 60_000,
+  limit: 20,
+  standardHeaders: 'draft-8',
+  legacyHeaders: false,
+  keyGenerator: (req) => String(req.authUser?._id ?? 'unauthenticated'),
+  message: { error: 'تعداد درخواست‌های ثبت اشتراک‌گذاری زیاد است', code: 'FUN_SHARE_RATE_LIMIT' }
+});
 const upload = multer({
   storage: multer.memoryStorage(),
   limits: { fileSize: FUN_IMAGE_MAX_BYTES, files: 1, fields: 3 },
@@ -43,6 +61,26 @@ router.get('/posts', asyncHandler(async (req, res) => {
     limit: z.coerce.number().int().min(5).max(20).default(10)
   }).parse(req.query);
   res.json(await listFunPosts(req.authUser!._id, input.cursor, input.limit));
+}));
+
+router.get('/posts/:postId', asyncHandler(async (req, res) => {
+  res.json(await funPostById(objectId(req.params.postId), req.authUser!._id));
+}));
+
+router.post('/posts/:postId/share/prepare', sharePrepareLimiter, asyncHandler(async (req, res) => {
+  const postId = objectId(req.params.postId);
+  z.object({}).strict().parse(req.body ?? {});
+  res.status(201).json(await prepareFunPostShare({
+    postId,
+    userId: req.authUser!._id,
+    telegramUserId: req.authUser!.telegramId
+  }));
+}));
+
+router.post('/posts/:postId/share/complete', shareCompleteLimiter, asyncHandler(async (req, res) => {
+  const postId = objectId(req.params.postId);
+  const { preparedMessageId } = z.object({ preparedMessageId: z.string().min(1).max(256) }).strict().parse(req.body);
+  res.json(await completeFunPostShare({ postId, userId: req.authUser!._id, preparedMessageId }));
 }));
 
 router.post('/posts', verifyLiveMembership, singleImage, asyncHandler(async (req, res) => {

@@ -10,6 +10,7 @@ const schema = z.object({
   CHANNEL_JOIN_URL: z.string().url().default('https://t.me/example'),
   ADMIN_IDS: z.string().default(''),
   BASE_URL: z.string().url().default('http://localhost:3000'),
+  TELEGRAM_MINI_APP_DEEP_LINK_BASE: z.string().url().default('http://localhost:3000'),
   WEBHOOK_SECRET: z.string().min(8).default('development-webhook-secret'),
   CRON_SECRET: z.string().min(8).default('development-cron-secret'),
   SESSION_SECRET: z.string().min(32).default('development-session-secret-change-me'),
@@ -37,6 +38,9 @@ const parsed = schema.superRefine((value, context) => {
   }
   if (value.NODE_ENV === 'production' && value.SESSION_SECRET === 'development-session-secret-change-me') {
     context.addIssue({ code: 'custom', path: ['SESSION_SECRET'], message: 'SESSION_SECRET must be configured in production' });
+  }
+  if (value.NODE_ENV === 'production' && !value.TELEGRAM_MINI_APP_DEEP_LINK_BASE.startsWith('https://')) {
+    context.addIssue({ code: 'custom', path: ['TELEGRAM_MINI_APP_DEEP_LINK_BASE'], message: 'TELEGRAM_MINI_APP_DEEP_LINK_BASE must use HTTPS in production' });
   }
 }).safeParse(process.env);
 if (!parsed.success) {

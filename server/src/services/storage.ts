@@ -1,5 +1,5 @@
 import crypto from 'node:crypto';
-import { mkdir, unlink, writeFile } from 'node:fs/promises';
+import { mkdir, readFile, unlink, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { env } from '../config/env.js';
 
@@ -7,6 +7,7 @@ export type StoredImage = { key: string; url: string };
 
 export interface ImageStorage {
   save(buffer: Buffer, extension: 'jpg' | 'png' | 'webp'): Promise<StoredImage>;
+  read(key: string): Promise<Buffer>;
   delete(key: string): Promise<void>;
 }
 
@@ -26,15 +27,26 @@ class LocalImageStorage implements ImageStorage {
     return { key, url: `/uploads/${key}` };
   }
 
+  async read(key: string): Promise<Buffer> {
+    const normalized = safeKey(key);
+    return readFile(path.join(uploadRoot(), normalized));
+  }
+
   async delete(key: string): Promise<void> {
-    const normalized = key.replaceAll('\\', '/');
-    if (normalized.startsWith('/') || normalized.includes('..')) return;
+    let normalized: string;
+    try { normalized = safeKey(key); } catch { return; }
     try {
       await unlink(path.join(uploadRoot(), normalized));
     } catch (error) {
       if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error;
     }
   }
+}
+
+function safeKey(key: string): string {
+  const normalized = key.replaceAll('\\', '/');
+  if (!normalized || normalized.startsWith('/') || normalized.includes('..')) throw new Error('Invalid storage key');
+  return normalized;
 }
 
 export const imageStorage: ImageStorage = new LocalImageStorage();

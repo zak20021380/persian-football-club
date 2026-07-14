@@ -1,4 +1,5 @@
 import path from 'node:path';
+import sharp from 'sharp';
 import { AppError } from '../utils/errors.js';
 
 export const FUN_IMAGE_MAX_BYTES = 5 * 1024 * 1024;
@@ -31,6 +32,24 @@ export function detectImage(buffer: Buffer): { mime: FunImageMime; extension: Fu
   if (isJpeg(buffer)) return { mime: 'image/jpeg', extension: 'jpg' };
   if (isWebp(buffer)) return { mime: 'image/webp', extension: 'webp' };
   return null;
+}
+
+export async function toTelegramShareJpeg(buffer: Buffer): Promise<Buffer> {
+  const attempts = [
+    { width: 2_000, quality: 85 },
+    { width: 1_600, quality: 76 },
+    { width: 1_280, quality: 68 }
+  ];
+  for (const attempt of attempts) {
+    const jpeg = await sharp(buffer, { failOn: 'warning', limitInputPixels: 40_000_000 })
+      .rotate()
+      .flatten({ background: '#101827' })
+      .resize({ width: attempt.width, height: attempt.width, fit: 'inside', withoutEnlargement: true })
+      .jpeg({ quality: attempt.quality, mozjpeg: true })
+      .toBuffer();
+    if (jpeg.length <= FUN_IMAGE_MAX_BYTES) return jpeg;
+  }
+  throw new AppError(413, 'تبدیل تصویر به نسخه قابل اشتراک تلگرام ممکن نشد', 'FUN_SHARE_IMAGE_TOO_LARGE');
 }
 
 function isPng(buffer: Buffer): boolean {

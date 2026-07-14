@@ -1,8 +1,9 @@
 import mongoose from 'mongoose';
-import { FunPost, FunPostLike, FunPostReport } from '../models/index.js';
+import { FunPost, FunPostLike, FunPostReport, FunPostShare } from '../models/index.js';
 import { AppError } from '../utils/errors.js';
-import { validateFunImage, type FunImageFile } from './funImage.js';
+import { toTelegramShareJpeg, validateFunImage, type FunImageFile } from './funImage.js';
 import { imageStorage } from './storage.js';
+import { buildFunDeepLink } from './funShare.js';
 
 type ObjectId = mongoose.Types.ObjectId;
 type ReportReason = 'spam' | 'abuse' | 'inappropriate' | 'other';
@@ -28,8 +29,9 @@ export async function createFunPost(input: { ownerId: ObjectId; caption?: string
 
   let stored: Awaited<ReturnType<typeof imageStorage.save>> | undefined;
   if (input.file) {
-    const image = validateFunImage(input.file);
-    stored = await imageStorage.save(input.file.buffer, image.extension);
+    validateFunImage(input.file);
+    const jpeg = await toTelegramShareJpeg(input.file.buffer);
+    stored = await imageStorage.save(jpeg, 'jpg');
   }
 
   try {
@@ -65,7 +67,7 @@ export async function listFunPosts(userId: ObjectId, cursor: string | undefined,
 }
 
 export async function funPostById(postId: string, userId: ObjectId) {
-  const post = await FunPost.findById(postId).populate('ownerId', 'displayName clubName favoriteTeam').lean();
+  const post = await FunPost.findOne({ _id: postId, moderationStatus: 'published' }).populate('ownerId', 'displayName clubName favoriteTeam').lean();
   if (!post) throw new AppError(404, 'پست فان پیدا نشد', 'FUN_POST_NOT_FOUND');
   const liked = Boolean(await FunPostLike.exists({ postId: post._id, userId }));
   return funPostView(post, userId, liked);
@@ -107,7 +109,8 @@ export async function deleteFunPost(postId: string, requesterId: ObjectId, admin
   await Promise.all([
     FunPost.deleteOne({ _id: post._id }),
     FunPostLike.deleteMany({ postId: post._id }),
-    FunPostReport.deleteMany({ postId: post._id })
+    FunPostReport.deleteMany({ postId: post._id }),
+    FunPostShare.deleteMany({ postId: post._id })
   ]);
   if (post.imageKey) await imageStorage.delete(post.imageKey);
 }
@@ -135,6 +138,8 @@ function funPostView(post: any, viewerId: ObjectId, liked: boolean) {
     caption: post.caption,
     imageUrl: post.imageUrl,
     likeCount: post.likeCount,
+    shareCount: post.shareCount ?? 0,
+    shareUrl: buildFunDeepLink(String(post._id)),
     createdAt: post.createdAt,
     liked,
     isOwner: String(owner?._id ?? post.ownerId) === String(viewerId),

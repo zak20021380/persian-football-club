@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest';
-import { detectImage, validateFunImage } from '../services/funImage.js';
+import sharp from 'sharp';
+import { detectImage, toTelegramShareJpeg, validateFunImage } from '../services/funImage.js';
 import { sanitizeFunCaption } from '../services/fun.js';
+import { buildFunDeepLink, buildFunInlinePhotoResult, buildSavePreparedMessageBody } from '../services/funShare.js';
 
 function png(): Buffer {
   const buffer = Buffer.alloc(45);
@@ -56,5 +58,48 @@ describe('fun caption sanitization', () => {
 
   it('rejects captions beyond the storage limit', () => {
     expect(() => sanitizeFunCaption('ف'.repeat(601))).toThrow('حداکثر ۶۰۰');
+  });
+});
+
+describe('fun Telegram sharing payload', () => {
+  it('builds an exact meme deep link without hardcoding a deployment URL', () => {
+    expect(buildFunDeepLink('507f1f77bcf86cd799439011')).toBe('https://t.me/test_bot/test_app?startapp=fun_507f1f77bcf86cd799439011');
+  });
+
+  it('builds a JPEG photo result with caption, brand footer and deep-link button', () => {
+    const result = buildFunInlinePhotoResult({
+      postId: '507f1f77bcf86cd799439011',
+      caption: 'میم تستی',
+      imageUrl: 'https://example.com/meme.jpg',
+      deepLink: 'https://t.me/test_bot/test_app?startapp=fun_507f1f77bcf86cd799439011'
+    });
+    expect(result.type).toBe('photo');
+    expect(result.photo_url).toBe('https://example.com/meme.jpg');
+    expect(result.thumbnail_url).toBe(result.photo_url);
+    expect(result.caption).toContain('میم تستی');
+    expect(result.caption).toContain('باشگاه فوتبالی');
+    expect(result.reply_markup.inline_keyboard[0][0]).toEqual({
+      text: 'مشاهده میم ⚽',
+      url: 'https://t.me/test_bot/test_app?startapp=fun_507f1f77bcf86cd799439011'
+    });
+    expect(Buffer.byteLength(result.id)).toBeLessThanOrEqual(64);
+  });
+
+  it('allows users, groups and channels while keeping bot chats disabled', () => {
+    const result = buildFunInlinePhotoResult({ postId: '507f1f77bcf86cd799439011', imageUrl: 'https://example.com/meme.jpg', deepLink: 'https://t.me/test_bot/test_app' });
+    expect(buildSavePreparedMessageBody(123456, result)).toMatchObject({
+      user_id: 123456,
+      allow_user_chats: true,
+      allow_bot_chats: false,
+      allow_group_chats: true,
+      allow_channel_chats: true
+    });
+  });
+
+  it('converts PNG and WEBP content to a Telegram-compatible JPEG under 5MB', async () => {
+    const source = await sharp({ create: { width: 24, height: 24, channels: 4, background: '#ff00aa80' } }).webp().toBuffer();
+    const converted = await toTelegramShareJpeg(source);
+    expect(detectImage(converted)?.mime).toBe('image/jpeg');
+    expect(converted.length).toBeLessThanOrEqual(5 * 1024 * 1024);
   });
 });

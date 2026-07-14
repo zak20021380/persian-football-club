@@ -22,8 +22,73 @@ export function telegramInitData(): string {
 
 declare global {
   interface Window {
-    Telegram?: { WebApp?: { initData?: string } };
+    Telegram?: {
+      WebApp?: {
+        initData?: string;
+        initDataUnsafe?: { start_param?: string };
+        isVersionAtLeast?: (version: string) => boolean;
+        shareMessage?: (preparedMessageId: string) => void;
+        onEvent?: (event: 'shareMessageSent' | 'shareMessageFailed', handler: (payload?: { error?: string } | string) => void) => void;
+        offEvent?: (event: 'shareMessageSent' | 'shareMessageFailed', handler: (payload?: { error?: string } | string) => void) => void;
+      };
+    };
   }
+}
+
+export function telegramStartParam(): string | undefined {
+  const unsafe = window.Telegram?.WebApp?.initDataUnsafe?.start_param;
+  if (unsafe) return unsafe;
+  const queryValue = new URLSearchParams(window.location.search).get('tgWebAppStartParam');
+  if (queryValue) return queryValue;
+  const initData = telegramInitData();
+  return initData ? new URLSearchParams(initData).get('start_param') ?? undefined : undefined;
+}
+
+export function funPostIdFromTelegramStartParam(value = telegramStartParam()): string | undefined {
+  return value?.match(/^fun_([a-f\d]{24})$/i)?.[1];
+}
+
+export function canUseNativeTelegramShare(): boolean {
+  const webApp = window.Telegram?.WebApp;
+  return Boolean(
+    webApp?.initData
+    && webApp.shareMessage
+    && webApp.isVersionAtLeast?.('8.0')
+  );
+}
+
+export type TelegramShareResult =
+  | { status: 'sent' }
+  | { status: 'cancelled' }
+  | { status: 'failed'; error?: string };
+
+export function sharePreparedTelegramMessage(preparedMessageId: string): Promise<TelegramShareResult> {
+  const webApp = window.Telegram?.WebApp;
+  if (!canUseNativeTelegramShare() || !webApp?.shareMessage) return Promise.resolve({ status: 'failed', error: 'UNSUPPORTED' });
+  const shareMessage = webApp.shareMessage.bind(webApp);
+
+  return new Promise((resolve) => {
+    let settled = false;
+    const finish = (result: TelegramShareResult) => {
+      if (settled) return;
+      settled = true;
+      webApp.offEvent?.('shareMessageSent', onSent);
+      webApp.offEvent?.('shareMessageFailed', onFailed);
+      resolve(result);
+    };
+    const onSent = () => finish({ status: 'sent' });
+    const onFailed = (payload?: { error?: string } | string) => {
+      const error = typeof payload === 'string' ? payload : payload?.error;
+      finish(error === 'USER_DECLINED' ? { status: 'cancelled' } : { status: 'failed', error });
+    };
+    webApp.onEvent?.('shareMessageSent', onSent);
+    webApp.onEvent?.('shareMessageFailed', onFailed);
+    try {
+      shareMessage(preparedMessageId);
+    } catch {
+      finish({ status: 'failed', error: 'UNKNOWN_ERROR' });
+    }
+  });
 }
 export function impact(style: 'light'|'medium'|'heavy' = 'light'): void {
   try { hapticFeedback.impactOccurred(style); } catch { /* unsupported client */ }

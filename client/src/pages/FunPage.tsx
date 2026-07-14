@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
-import { useInfiniteQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useSearchParams } from 'react-router-dom';
 import {
   AlertTriangle,
   Camera,
@@ -24,7 +25,8 @@ import { WalletShortcut } from '@/components/WalletShortcut';
 import { Card, EmptyState, ErrorState, Skeleton } from '@/components/ui';
 import { api } from '@/lib/api';
 import { FUN_IMAGE_ACCEPT, validateFunImageFile } from '@/lib/funImage';
-import { impact, notify } from '@/lib/telegram';
+import { copyText, shareMemeFallback } from '@/lib/share';
+import { canUseNativeTelegramShare, impact, notify, sharePreparedTelegramMessage } from '@/lib/telegram';
 import { cn, faNumber } from '@/lib/utils';
 import type { FunFeedPage, FunPost, Id } from '@/types/api';
 
@@ -74,12 +76,19 @@ const imagePrompt = (text: string) =>
 const memeImage = (prompt: string) =>
   `https://coresg-normal.trae.ai/api/ide/v1/text_to_image?prompt=${imagePrompt(prompt)}&image_size=portrait_4_3`;
 
+function mockMemeLink(id: string): string {
+  const link = new URL('/fun', window.location.origin);
+  link.searchParams.set('mock', id);
+  return link.toString();
+}
+
 const mockMemes: MemePost[] = [
   {
     _id: 'mock-meme-1' as Id,
     caption: 'وقتی تیمت دقیقه ۹۰ گل می‌خوره 😭',
     imageUrl: memeImage('A Persian football fan holding head in both hands crying at a stadium, dramatic night lights, teammates losing in background, cartoon meme style, vibrant colors'),
     likeCount: 1284,
+    shareUrl: mockMemeLink('mock-meme-1'),
     liked: false,
     isOwner: false,
     createdAt: new Date(Date.now() - 7 * 60_000).toISOString(),
@@ -94,6 +103,7 @@ const mockMemes: MemePost[] = [
     caption: 'من بعد از بستن میکس ۲۰ تایی 🤡',
     imageUrl: memeImage('A person sitting on a couch staring at a phone with a shocked and devastated expression, dark living room, single lamp light, Persian meme cartoon style, vibrant colors'),
     likeCount: 942,
+    shareUrl: mockMemeLink('mock-meme-2'),
     liked: true,
     isOwner: true,
     createdAt: new Date(Date.now() - 38 * 60_000).toISOString(),
@@ -108,6 +118,7 @@ const mockMemes: MemePost[] = [
     caption: 'داور وقتی VAR به نفع تیم ماست 😎',
     imageUrl: memeImage('A referee in a black uniform pointing at a VAR monitor with a confident thumbs up, Iranian football stadium with cheering fans, cartoon meme style, vibrant colors, dynamic pose'),
     likeCount: 2104,
+    shareUrl: mockMemeLink('mock-meme-3'),
     liked: false,
     isOwner: false,
     createdAt: new Date(Date.now() - 2 * 60 * 60_000).toISOString(),
@@ -122,6 +133,7 @@ const mockMemes: MemePost[] = [
     caption: 'هوادار قبل و بعد از بازی 😅',
     imageUrl: memeImage('Split scene comic: left side a cheerful Persian football fan with team scarf smiling confidently before match, right side the same fan sitting alone looking heartbroken and tired after match, cartoon meme style, vibrant colors'),
     likeCount: 3567,
+    shareUrl: mockMemeLink('mock-meme-4'),
     liked: false,
     isOwner: false,
     createdAt: new Date(Date.now() - 5 * 60 * 60_000).toISOString(),
@@ -136,6 +148,7 @@ const mockMemes: MemePost[] = [
     caption: 'وقتی مربی میگه تاکتیک داشتیم 🧠',
     imageUrl: memeImage('A football coach in a suit drawing chaotic arrows and shapes on a whiteboard, confused players in background scratching their heads, locker room setting, cartoon meme style, vibrant colors'),
     likeCount: 786,
+    shareUrl: mockMemeLink('mock-meme-5'),
     liked: false,
     isOwner: false,
     createdAt: new Date(Date.now() - 22 * 60 * 60_000).toISOString(),
@@ -150,6 +163,7 @@ const mockMemes: MemePost[] = [
     caption: 'فقط یه بازی ساده بود... 💥',
     imageUrl: memeImage('Dramatic football match scene with the ball just crossing the goal line, goalkeeper diving, players celebrating, confetti, Persian football style cartoon illustration, vibrant colors, dynamic action'),
     likeCount: 1640,
+    shareUrl: mockMemeLink('mock-meme-6'),
     liked: false,
     isOwner: false,
     createdAt: new Date(Date.now() - 2 * 24 * 60 * 60_000).toISOString(),
@@ -170,6 +184,9 @@ function MemeCard({
   deleting,
   onReport,
   reporting,
+  onShare,
+  sharing,
+  highlighted,
 }: {
   post: MemePost;
   index: number;
@@ -179,6 +196,9 @@ function MemeCard({
   deleting: boolean;
   onReport: () => void;
   reporting: boolean;
+  onShare: () => void;
+  sharing: boolean;
+  highlighted: boolean;
 }) {
   const [menuOpen, setMenuOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
@@ -192,26 +212,10 @@ function MemeCard({
     return () => document.removeEventListener('mousedown', handleClick);
   }, [menuOpen]);
 
-  const handleShare = async () => {
-    setMenuOpen(false);
-    const shareData = { title: 'فان فوتبالی', text: post.caption ?? 'یه میم باحال از فان فوتبالی' };
-    try {
-      if (navigator.share) {
-        await navigator.share(shareData);
-        toast.success('اشتراک‌گذاری انجام شد');
-      } else if (navigator.clipboard) {
-        await navigator.clipboard.writeText(post.caption ?? '');
-        toast.success('کپشن کپی شد');
-      }
-    } catch {
-      toast('اشتراک‌گذاری لغو شد', { icon: 'ℹ️' });
-    }
-  };
-
   const handleCopy = async () => {
     setMenuOpen(false);
     try {
-      await navigator.clipboard.writeText(post.caption ?? '');
+      await copyText(post.caption ?? '');
       toast.success('متن کپی شد');
     } catch {
       toast.error('کپی انجام نشد');
@@ -220,7 +224,11 @@ function MemeCard({
 
   return (
     <article
-      className="fun-card rounded-[1.4rem] border border-white/[.08] bg-ink-900/92 shadow-[0_10px_28px_rgba(0,0,0,.22)]"
+      id={`fun-post-${post._id}`}
+      className={cn(
+        'fun-card rounded-[1.4rem] border bg-ink-900/92 shadow-[0_10px_28px_rgba(0,0,0,.22)] transition',
+        highlighted ? 'border-fuchsia-300/60 ring-2 ring-fuchsia-300/20' : 'border-white/[.08]'
+      )}
       style={{ animationDelay: `${Math.min(index, 5) * 55}ms` }}
     >
       <div className="flex items-center gap-2.5 px-3 py-2.5">
@@ -254,11 +262,12 @@ function MemeCard({
               <button
                 type="button"
                 role="menuitem"
-                onClick={() => { setMenuOpen(false); void handleShare(); }}
-                className="flex w-full items-center gap-2 rounded-xl px-2.5 py-2 text-[9.5px] font-bold text-slate-200 transition active:scale-[.98] active:bg-white/[.06]"
+                disabled={sharing}
+                onClick={() => { setMenuOpen(false); onShare(); }}
+                className="flex w-full items-center gap-2 rounded-xl px-2.5 py-2 text-[9.5px] font-bold text-slate-200 transition active:scale-[.98] active:bg-white/[.06] disabled:opacity-50"
               >
-                <Share2 size={13} className="text-pitch-300" />
-                اشتراک‌گذاری
+                {sharing ? <LoaderCircle size={13} className="animate-spin text-pitch-300" /> : <Share2 size={13} className="text-pitch-300" />}
+                {sharing ? 'در حال آماده‌سازی...' : 'اشتراک‌گذاری'}
               </button>
               <button
                 type="button"
@@ -347,11 +356,12 @@ function MemeCard({
           </button>
           <button
             type="button"
-            onClick={() => void handleShare()}
-            className="flex min-h-9 items-center gap-1.5 rounded-xl px-2.5 text-[10px] font-black text-slate-300 transition active:scale-90 active:bg-white/[.05]"
+            onClick={onShare}
+            disabled={sharing}
+            className="flex min-h-9 items-center gap-1.5 rounded-xl px-2.5 text-[10px] font-black text-slate-300 transition active:scale-90 active:bg-white/[.05] disabled:cursor-wait disabled:opacity-60"
             aria-label="اشتراک‌گذاری"
           >
-            <Share2 size={14} strokeWidth={1.8} />
+            {sharing ? <LoaderCircle size={14} className="animate-spin" /> : <Share2 size={14} strokeWidth={1.8} />}
             <span>{formatCount(post.shareCount)}</span>
           </button>
         </div>
@@ -490,14 +500,26 @@ function CreatePostSheet({ onClose, onPublished }: { onClose: () => void; onPubl
 
 export function FunPage() {
   const queryClient = useQueryClient();
+  const [searchParams] = useSearchParams();
   const [creating, setCreating] = useState(false);
   const [localLikes, setLocalLikes] = useState<Record<string, { liked: boolean; likeCount: number }>>({});
+  const [localShareCounts, setLocalShareCounts] = useState<Record<string, number>>({});
+  const [sharingPostId, setSharingPostId] = useState<string | null>(null);
+  const shareLock = useRef(false);
+  const deepLinkedPostId = searchParams.get('post');
+  const validDeepLinkedPostId = deepLinkedPostId && /^[a-f\d]{24}$/i.test(deepLinkedPostId) ? deepLinkedPostId : null;
 
   const feed = useInfiniteQuery({
     queryKey: ['funPosts'],
     initialPageParam: null as string | null,
     queryFn: async ({ pageParam }) => (await api.get<FunFeedPage>('/fun/posts', { params: { cursor: pageParam || undefined, limit: 10 } })).data,
     getNextPageParam: (lastPage) => lastPage.nextCursor || undefined
+  });
+  const deepLinkedPost = useQuery({
+    queryKey: ['funPost', validDeepLinkedPostId],
+    enabled: Boolean(validDeepLinkedPostId),
+    retry: false,
+    queryFn: async () => (await api.get<FunPost>(`/fun/posts/${validDeepLinkedPostId}`)).data
   });
 
   const like = useMutation({
@@ -516,19 +538,41 @@ export function FunPage() {
     onError: (error) => toast.error((error as Error).message)
   });
 
-  const realPosts = feed.data?.pages.flatMap(page => page.items) ?? [];
-  const useMockFeed = !feed.isLoading && !feed.error && realPosts.length === 0;
+  useEffect(() => {
+    if (!validDeepLinkedPostId || !deepLinkedPost.data) return;
+    const frame = window.requestAnimationFrame(() => {
+      document.getElementById(`fun-post-${validDeepLinkedPostId}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    });
+    return () => window.cancelAnimationFrame(frame);
+  }, [deepLinkedPost.data, validDeepLinkedPostId]);
+
+  const deepLinkErrorShown = useRef<string | null>(null);
+  useEffect(() => {
+    if (!validDeepLinkedPostId || !deepLinkedPost.error || deepLinkErrorShown.current === validDeepLinkedPostId) return;
+    deepLinkErrorShown.current = validDeepLinkedPostId;
+    toast.error('این میم حذف شده یا دیگر قابل نمایش نیست');
+  }, [deepLinkedPost.error, validDeepLinkedPostId]);
+
+  const feedPosts = feed.data?.pages.flatMap(page => page.items) ?? [];
+  const realPosts = deepLinkedPost.data && !feedPosts.some(post => post._id === deepLinkedPost.data._id)
+    ? [deepLinkedPost.data, ...feedPosts]
+    : feedPosts;
+  const useMockFeed = !validDeepLinkedPostId && !feed.isLoading && !feed.error && realPosts.length === 0;
   const posts: MemePost[] = useMockFeed
     ? mockMemes.map(meme => {
         const local = localLikes[meme._id];
-        if (!local) return meme;
-        return { ...meme, liked: local.liked, likeCount: local.likeCount };
+        return {
+          ...meme,
+          liked: local?.liked ?? meme.liked,
+          likeCount: local?.likeCount ?? meme.likeCount,
+          shareCount: localShareCounts[meme._id] ?? meme.shareCount
+        };
       })
     : realPosts.map(post => ({
         ...post,
         category: 'فان' as MemeCategory,
         commentCount: 0,
-        shareCount: 0,
+        shareCount: localShareCounts[post._id] ?? post.shareCount,
         viewCount: Math.max(post.likeCount * 8, 24),
       }));
 
@@ -543,6 +587,67 @@ export function FunPage() {
       return;
     }
     like.mutate({ id: post._id, liked: !post.liked });
+  };
+
+  const sharePost = async (post: MemePost) => {
+    if (shareLock.current) return;
+    shareLock.current = true;
+    impact('light');
+    setSharingPostId(post._id);
+    try {
+      const isMock = post._id.startsWith('mock-meme-');
+      if (!isMock && canUseNativeTelegramShare()) {
+        const prepared = (await api.post<{ preparedMessageId: string }>(`/fun/posts/${post._id}/share/prepare`)).data;
+        const result = await sharePreparedTelegramMessage(prepared.preparedMessageId);
+        if (result.status === 'cancelled') {
+          toast('اشتراک‌گذاری لغو شد', { icon: 'ℹ️' });
+          return;
+        }
+        if (result.status === 'failed') {
+          notify('error');
+          toast.error('اشتراک‌گذاری میم در تلگرام انجام نشد');
+          return;
+        }
+
+        let completion: { shareCount: number } | undefined;
+        for (let attempt = 0; attempt < 2 && !completion; attempt += 1) {
+          try {
+            completion = (await api.post<{ shareCount: number }>(`/fun/posts/${post._id}/share/complete`, {
+              preparedMessageId: prepared.preparedMessageId
+            })).data;
+          } catch { /* Retry once; the Telegram share itself has already succeeded. */ }
+        }
+        if (completion) setLocalShareCounts(current => ({ ...current, [post._id]: completion.shareCount }));
+        notify('success');
+        toast.success('میم با موفقیت در تلگرام به اشتراک گذاشته شد');
+        if (!completion) toast.error('اشتراک انجام شد، اما ثبت شمارنده ناموفق بود');
+        return;
+      }
+
+      const shareData = {
+        title: 'فان فوتبالی',
+        text: post.caption ?? 'یک میم فوتبالی برای تو',
+        url: post.shareUrl
+      };
+      const fallbackResult = await shareMemeFallback(shareData);
+      if (fallbackResult === 'shared') {
+        notify('success');
+        toast.success('اشتراک‌گذاری میم انجام شد');
+        return;
+      }
+      notify('success');
+      toast.success('لینک میم کپی شد');
+    } catch (error) {
+      if (error instanceof DOMException && error.name === 'AbortError') {
+        toast('اشتراک‌گذاری لغو شد', { icon: 'ℹ️' });
+      } else {
+        notify('error');
+        toast.error((error as Error).message || 'اشتراک‌گذاری میم انجام نشد');
+      }
+    } finally {
+      shareLock.current = false;
+      setSharingPostId(null);
+    }
   };
 
   return (
@@ -588,7 +693,7 @@ export function FunPage() {
           </div>
         )}
 
-        {feed.isLoading ? (
+        {feed.isLoading || (validDeepLinkedPostId && deepLinkedPost.isLoading) ? (
           <FeedSkeleton />
         ) : feed.error ? (
           <ErrorState message={(feed.error as Error).message} onRetry={() => feed.refetch()} />
@@ -609,6 +714,9 @@ export function FunPage() {
                 onDelete={() => {
                   if (confirm('پست فان شما حذف شود؟')) remove.mutate(post._id);
                 }}
+                sharing={sharingPostId === post._id}
+                onShare={() => { void sharePost(post); }}
+                highlighted={post._id === validDeepLinkedPostId}
               />
             ))}
             {!useMockFeed && feed.hasNextPage && (
