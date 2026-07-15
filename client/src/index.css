@@ -189,6 +189,37 @@ button { touch-action: manipulation; }
 .fantasy-user-crest { border:1px solid rgba(146,244,237,.18); background:radial-gradient(circle at 30% 20%,rgba(255,255,255,.18),transparent 28%),linear-gradient(145deg,#a72b96,#3d226e 48%,#08727b); box-shadow:inset 0 1px rgba(255,255,255,.14),0 8px 18px rgba(1,2,13,.25); }
 .auxiliary-rankings { background:radial-gradient(circle at 8% 0,rgba(239,100,200,.055),transparent 30%),linear-gradient(145deg,rgba(27,10,43,.64),rgba(7,19,35,.9)); box-shadow:inset 0 1px rgba(255,255,255,.025); }
 .ranking-squad-hero { background:radial-gradient(circle at 50% 5%,rgba(73,228,242,.11),transparent 32%),radial-gradient(circle at 8% 25%,rgba(239,100,200,.09),transparent 24%),linear-gradient(145deg,rgba(35,10,51,.96),rgba(7,25,41,.98)); box-shadow:inset 0 1px rgba(255,255,255,.045),0 15px 32px rgba(0,0,0,.18); }
+.ranking-squad-identity { background:radial-gradient(circle at 86% -8%,rgba(73,228,242,.14),transparent 30%),radial-gradient(circle at 5% 12%,rgba(239,100,200,.13),transparent 32%),linear-gradient(142deg,rgba(42,9,57,.98),rgba(13,14,43,.99) 52%,rgba(5,27,42,.99)); box-shadow:inset 0 1px rgba(255,255,255,.055),0 14px 30px rgba(0,0,0,.2); }
+.ranking-squad-identity::before { content:''; position:absolute; z-index:-1; inset:0 auto 0 0; width:3px; background:linear-gradient(to bottom,var(--cyan),var(--magenta) 55%,var(--mint)); opacity:.72; }
+.ranking-squad-identity .fantasy-user-crest { width:52px; height:52px; margin:0; font-size:13px; border-radius:15px; }
+.ranking-stadium-light { z-index:-1; opacity:.12; background:linear-gradient(116deg,transparent 0 28%,rgba(255,255,255,.23) 28.4% 29.2%,transparent 29.6% 67%,rgba(73,228,242,.28) 67.4% 68.1%,transparent 68.5%); transform:translateY(-22%); }
+.ranking-identity-rank { border:1px solid rgba(248,207,105,.12); background:linear-gradient(145deg,rgba(248,207,105,.085),rgba(255,255,255,.02)); box-shadow:inset 0 1px rgba(255,255,255,.035); }
+.ranking-identity-metric { border:1px solid rgba(255,255,255,.05); background:linear-gradient(145deg,rgba(255,255,255,.035),rgba(255,255,255,.014)); box-shadow:inset 0 1px rgba(255,255,255,.025); }
+.ranking-captain-card { border:1px solid rgba(255,255,255,.06); background:linear-gradient(145deg,rgba(30,11,47,.68),rgba(7,21,37,.87)); box-shadow:inset 0 1px rgba(255,255,255,.025); }
+.ranking-gameweek-panel { background:radial-gradient(circle at 90% 0,rgba(73,228,242,.055),transparent 35%),linear-gradient(145deg,rgba(25,10,42,.65),rgba(7,21,37,.9)); box-shadow:inset 0 1px rgba(255,255,255,.025); }
+.public-fantasy-pitch { height:445px; isolation:isolate; background:radial-gradient(circle at 50% 44%,rgba(71,235,195,.11),transparent 37%),repeating-linear-gradient(0deg,rgba(255,255,255,.018) 0 44px,rgba(0,0,0,.026) 44px 88px),linear-gradient(155deg,#0d6250,#08443f 52%,#062f37); box-shadow:inset 0 0 54px rgba(2,10,22,.55),0 15px 32px rgba(0,0,0,.22); }
+.public-fantasy-pitch::before { content:''; position:absolute; z-index:0; inset:0; opacity:.12; background-image:linear-gradient(rgba(255,255,255,.04) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,.04) 1px,transparent 1px); background-size:18px 18px; pointer-events:none; }
+.public-fantasy-pitch::after { content:''; position:absolute; z-index:1; inset:-18% -12% auto; height:32%; border-radius:0 0 50% 50%; background:radial-gradient(ellipse at 50% 0,rgba(232,255,250,.11),transparent 66%); box-shadow:inset 0 -1px rgba(255,255,255,.06); pointer-events:none; }
+.public-pitch-atmosphere { z-index:0; opacity:.56; background:radial-gradient(circle at 9% 3%,rgba(239,100,200,.13),transparent 18%),radial-gradient(circle at 91% 3%,rgba(73,228,242,.13),transparent 18%),linear-gradient(105deg,transparent 0 19%,rgba(255,255,255,.025) 19.3% 20.5%,transparent 20.8% 79%,rgba(255,255,255,.02) 79.3% 80.5%,transparent 80.8%); }
+.public-fantasy-pitch > .pointer-events-none { z-index:2; }
+.public-pitch-player { z-index:5; width:48px; transition:transform .16s ease,filter .16s ease; }
+.public-pitch-player:active { transform:translate(-50%,-50%) scale(.94); filter:brightness(1.14); }
+.public-pitch-player.has-status > span:first-child { border-color:rgba(251,191,36,.28); }
+.public-empty-slot { z-index:4; background:rgba(3,15,27,.28); }
+.public-bench { position:relative; background:radial-gradient(circle at 50% 0,rgba(73,228,242,.05),transparent 35%),linear-gradient(145deg,rgba(26,10,43,.72),rgba(7,20,36,.92)); box-shadow:inset 0 1px rgba(255,255,255,.025); }
+.public-bench::before { content:''; position:absolute; inset:-7px 18% auto; height:7px; border:1px solid rgba(101,236,225,.12); border-bottom:0; border-radius:9px 9px 0 0; }
+.public-bench-player { background:linear-gradient(145deg,rgba(255,255,255,.035),rgba(255,255,255,.012)); transition:transform .16s ease,border-color .16s ease; }
+.public-bench-player:active { transform:scale(.96); border-color:rgba(73,228,242,.2); }
+.public-player-modal { background:radial-gradient(circle at 8% 0,rgba(239,100,200,.11),transparent 28%),radial-gradient(circle at 90% 5%,rgba(73,228,242,.08),transparent 25%),linear-gradient(180deg,#171028,#071523); box-shadow:0 -24px 70px rgba(0,0,0,.52); animation:ranking-preview-in .28s cubic-bezier(.22,1,.36,1) both; }
+@media (min-width:375px) {
+  .ranking-squad-identity .fantasy-user-crest { width:58px; height:58px; font-size:14px; }
+  .public-fantasy-pitch { height:480px; }
+  .public-pitch-player { width:54px; }
+}
+@media (min-width:430px) {
+  .public-fantasy-pitch { height:510px; }
+  .public-pitch-player { width:58px; }
+}
 .matches-hero { background: radial-gradient(circle at 12% 22%,rgba(65,224,240,.1),transparent 28%),linear-gradient(145deg,#2b0641,#140725 50%,#061827); }
 .ranking-hero::before,.matches-hero::before,.profile-hero::before,.fun-hero::before { content:''; position:absolute; inset:0; pointer-events:none; opacity:.14; background:linear-gradient(132deg,transparent 0 48%,#42e9e0 48.2% 51%,transparent 51.2%),linear-gradient(132deg,transparent 0 55%,#ec55c4 55.2% 57%,transparent 57.2%); transform:translateX(-34%) scale(1.2); }
 .matches-orb { animation: matches-glow 5s ease-in-out infinite alternate; }

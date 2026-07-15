@@ -9,6 +9,7 @@ import {
   Referral,
   Squad,
   Team,
+  TransferOffer,
   User
 } from '../models/index.js';
 import { env } from '../config/env.js';
@@ -70,6 +71,10 @@ export interface RankingClubPlayer {
   club?: string;
   marketValue?: number;
   fantasyPoints: number;
+  gameweekPoints: number;
+  hasPlayed: boolean;
+  availability: 'available'|'injured'|'suspended'|'unavailable';
+  statusNote?: string;
 }
 
 export interface RankingClubDetails {
@@ -83,6 +88,10 @@ export interface RankingClubDetails {
   customPositions: Array<{ role: string; x: number; y: number }>;
   totalSquadValue: number;
   totalFantasyPoints: number;
+  gameweekPoints: number;
+  gameweek: { startsAt: string; endsAt: string; playersPlayed: number; playersRemaining: number };
+  transfersMade: number;
+  transferCost: number;
   recentWeeks: Array<{ startsAt: string; points: number }>;
 }
 
@@ -297,14 +306,31 @@ export async function rankingClubDetails(userId: Types.ObjectId, period: Ranking
   const fantasyIdByClubPlayer = await fantasyLinks(roster);
   const fantasyIds = [...new Set(fantasyIdByClubPlayer.values())];
   const window = rankingPeriodWindow(period);
-  const selectedPoints = await fantasyPointsForRange(fantasyIds, window.start, window.end);
+  const currentWeekStart = rankingPeriodWindow('week').start!;
+  const currentWeekEnd = new Date();
+  const currentWeekBoundary = new Date(currentWeekStart.getTime() + 7 * 24 * 60 * 60 * 1000);
+  const [selectedPoints, currentWeekPoints, fantasyMetadata, playedMatches, transferSummary] = await Promise.all([
+    fantasyPointsForRange(fantasyIds, window.start, window.end),
+    fantasyPointsForRange(fantasyIds, currentWeekStart, currentWeekEnd),
+    FantasyPlayer.find({ _id: { $in: fantasyIds.map(id => new Types.ObjectId(id)) } }).select('_id realTeamId active').lean(),
+    ImportantMatch.find({ status: { $in: ['live','finished'] }, kickoffAt: { $gte: currentWeekStart, $lt: currentWeekEnd } }).select('homeTeamId awayTeamId').lean(),
+    TransferOffer.aggregate<{ _id: null; count: number; cost: number }>([
+      { $match: { buyerId: userId, status: 'accepted' } },
+      { $group: { _id: null, count: { $sum: 1 }, cost: { $sum: '$amount' } } }
+    ])
+  ]);
+  const fantasyMetaById = new Map(fantasyMetadata.map(player => [String(player._id), player]));
+  const playedTeamIds = new Set(playedMatches.flatMap(match => [String(match.homeTeamId), String(match.awayTeamId)]));
   const starterIds = squad?.starterIds ?? [];
   const captainId = squad?.captainId ? String(squad.captainId) : undefined;
+  const viceCaptainId = squad?.viceCaptainId ? String(squad.viceCaptainId) : undefined;
   const byId = new Map(roster.map(player => [String(player._id), player]));
   const presentPlayer = (id: unknown): RankingClubPlayer|null => {
     const player = id ? byId.get(String(id)) : undefined;
     if (!player) return null;
     const fantasyId = fantasyIdByClubPlayer.get(String(player._id));
+    const metadata = fantasyId ? fantasyMetaById.get(fantasyId) : undefined;
+    const availability = playerAvailability(player.contractStatus, metadata?.active);
     return {
       _id: String(player._id),
       name: player.name,
@@ -313,15 +339,20 @@ export async function rankingClubDetails(userId: Types.ObjectId, period: Ranking
       nationality: player.nationality,
       club: player.club,
       marketValue: player.marketValue,
-      fantasyPoints: fantasyId ? selectedPoints.get(fantasyId) ?? 0 : 0
+      fantasyPoints: fantasyId ? selectedPoints.get(fantasyId) ?? 0 : 0,
+      gameweekPoints: fantasyId ? currentWeekPoints.get(fantasyId) ?? 0 : 0,
+      hasPlayed: Boolean(metadata && playedTeamIds.has(String(metadata.realTeamId))),
+      availability: availability.status,
+      statusNote: availability.note
     };
   };
   const starters = Array.from({ length: 11 }, (_, index) => presentPlayer(starterIds[index]));
   const substitutes = (squad?.substituteIds ?? []).map(presentPlayer).filter((player): player is RankingClubPlayer => Boolean(player));
   const selectedLineup = starters.filter((player): player is RankingClubPlayer => Boolean(player));
   const totalFantasyPoints = lineupFantasyTotal(selectedLineup.map(player => ({ id: player._id, points: player.fantasyPoints })), captainId);
+  const gameweekPoints = lineupFantasyTotal(selectedLineup.map(player => ({ id: player._id, points: player.gameweekPoints })), captainId);
+  const playersPlayed = selectedLineup.filter(player => player.hasPlayed).length;
 
-  const currentWeekStart = rankingPeriodWindow('week').start!;
   const recentWeeks = await Promise.all([4, 3, 2, 1, 0].map(async offset => {
     const startsAt = new Date(currentWeekStart.getTime() - offset * 7 * 24 * 60 * 60 * 1000);
     const endsAt = offset === 0 ? new Date() : new Date(startsAt.getTime() + 7 * 24 * 60 * 60 * 1000);
@@ -340,9 +371,19 @@ export async function rankingClubDetails(userId: Types.ObjectId, period: Ranking
     starters,
     substitutes,
     captainId,
+    viceCaptainId,
     customPositions: squad?.customPositions ?? [],
     totalSquadValue: roster.reduce((total, player) => total + (player.marketValue ?? 0), 0),
     totalFantasyPoints,
+    gameweekPoints,
+    gameweek: {
+      startsAt: currentWeekStart.toISOString(),
+      endsAt: currentWeekBoundary.toISOString(),
+      playersPlayed,
+      playersRemaining: Math.max(0, selectedLineup.length - playersPlayed)
+    },
+    transfersMade: transferSummary[0]?.count ?? 0,
+    transferCost: transferSummary[0]?.cost ?? 0,
     recentWeeks
   };
 }
@@ -374,6 +415,15 @@ async function fantasyPointsForRange(fantasyIds: string[], start: Date|undefined
     { $group: { _id: '$playerId', score: { $sum: '$fantasyPoints' } } }
   ]);
   return scoreMap(values);
+}
+
+function playerAvailability(contractStatus: string|undefined, active: boolean|undefined): { status: RankingClubPlayer['availability']; note?: string } {
+  if (active === false) return { status: 'unavailable', note: 'بازیکن در فهرست فعال نیست' };
+  const normalized = contractStatus?.trim().toLocaleLowerCase('en-US') ?? '';
+  if (/injur|مصدوم/.test(normalized)) return { status: 'injured', note: contractStatus };
+  if (/suspend|ban|محروم/.test(normalized)) return { status: 'suspended', note: contractStatus };
+  if (/unavailable|inactive|غیرفعال|در دسترس نیست/.test(normalized)) return { status: 'unavailable', note: contractStatus };
+  return { status: 'available' };
 }
 
 function scoreMap(values: Array<{ _id: Types.ObjectId; score: number }>): Map<string, number> {
