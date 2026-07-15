@@ -49,7 +49,7 @@ button { touch-action: manipulation; }
 .feature-link:nth-child(3n) { --feature-accent:var(--magenta); }
 .themed-filter { border:1px solid rgba(82,228,222,.11); background:linear-gradient(145deg,rgba(31,12,49,.85),rgba(8,20,37,.97)); box-shadow:inset 0 1px rgba(255,255,255,.04),0 12px 28px rgba(0,0,0,.18); }
 .home-page { isolation: isolate; min-height: 100vh; background: linear-gradient(180deg,#090414 0,#080b1a 38%,#07111f 100%); }
-.home-hero { min-height:286px; background:radial-gradient(circle at 86% 24%,rgba(62,239,216,.055),transparent 27%),radial-gradient(circle at 8% 12%,rgba(218,54,182,.065),transparent 31%),linear-gradient(145deg,#210633 0%,#120720 52%,#071725 100%); box-shadow:inset 0 -1px rgba(87,249,218,.08); }
+.home-hero { min-height:270px; background:radial-gradient(circle at 86% 24%,rgba(62,239,216,.055),transparent 27%),radial-gradient(circle at 8% 12%,rgba(218,54,182,.065),transparent 31%),linear-gradient(145deg,#210633 0%,#120720 52%,#071725 100%); box-shadow:inset 0 -1px rgba(87,249,218,.08); }
 .home-hero::after { content:''; position:absolute; inset:auto 0 0; height:90px; pointer-events:none; background:linear-gradient(to bottom,transparent,rgba(5,9,24,.48)); }
 .home-hero-grid { opacity:.2; background-image:linear-gradient(rgba(255,255,255,.018) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,.018) 1px,transparent 1px); background-size:28px 28px; -webkit-mask-image:linear-gradient(to bottom,#000,transparent 86%); mask-image:linear-gradient(to bottom,#000,transparent 86%); }
 .home-broadcast-angle { pointer-events:none; opacity:.075; background:linear-gradient(135deg,transparent 0 49%,#40e8dc 49.2% 51.6%,transparent 51.8%); transform:translateX(-34%) scale(1.22); }
@@ -60,8 +60,15 @@ button { touch-action: manipulation; }
 .home-header-action:active { transform:scale(.94); background:rgba(255,255,255,.085); }
 .home-header-wallet { color:#f4cf76; border-color:rgba(244,207,118,.14); }
 .home-header-profile { color:#71ead8; border-color:rgba(113,234,216,.14); }
-.home-hero-label { color:#70e9dc; }
+.home-ffn-lockup { display:flex; align-items:center; color:#f7fbff; line-height:1; }
+.home-ffn-lockup strong { flex:0 0 auto; font-family:Arial,sans-serif; font-size:21px; font-style:italic; font-weight:900; letter-spacing:-.075em; text-shadow:2px 0 rgba(73,228,242,.28),-1px 0 rgba(239,100,200,.25); }
+.home-ffn-lockup span { max-width:62px; margin-left:7px; border-left:1px solid rgba(73,228,242,.23); padding-left:7px; color:rgba(197,218,229,.58); font-family:Arial,sans-serif; font-size:5.5px; font-weight:800; letter-spacing:.055em; line-height:1.25; }
+.home-ffn-official { min-height:23px; border:1px solid rgba(103,235,225,.12); border-radius:999px; background:linear-gradient(90deg,rgba(73,228,242,.075),rgba(114,248,220,.035)); padding:0 8px; color:#84e9dc; font-size:7px; font-weight:900; box-shadow:inset 0 1px rgba(255,255,255,.025); }
+.home-hero-headline { font-size:1.7rem; line-height:1.42; }
+.home-hero-setup,.home-hero-setup > span,.home-hero-title-accent { display:block; }
+.home-hero-setup > span { white-space:nowrap; }
 .home-hero-title-accent { color: #72f8dc; text-shadow: 0 8px 28px rgba(36,246,216,.1); }
+.home-hero-copy { font-size:9.5px; line-height:1.9; }
 .home-quick-actions { border: 1px solid rgba(255,255,255,.1); border-radius: 18px; background: linear-gradient(145deg,rgba(27,10,49,.98),rgba(8,18,35,.98)); box-shadow: inset 0 1px rgba(255,255,255,.055),0 18px 42px rgba(2,1,10,.3); }
 .home-quick-action { border: 1px solid transparent; border-radius: 12px; background: rgba(255,255,255,.018); }
 .home-quick-action::after { content: ''; position: absolute; inset: auto 18% 0; height: 2px; opacity: .55; background: currentColor; transform: skewX(-32deg); }
@@ -284,6 +291,10 @@ button { touch-action: manipulation; }
 }
 @media (min-width: 640px) {
   .home-hero { border-radius: 0 0 2rem 2rem; }
+}
+@media (min-width: 360px) {
+  .home-hero-setup > span { display:inline; }
+  .home-hero-setup > span + span { margin-inline-start:.25em; }
 }
 @media (max-width: 350px) {
   .demo-featured-match { min-height:276px; }

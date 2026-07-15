@@ -233,8 +233,14 @@ export function HomePage() {
         <div className="home-hero-grid absolute inset-0"/>
         <div className="home-broadcast-angle absolute inset-0"/>
 
-        <div className="relative flex items-center justify-between">
-          <BrandMark className="home-header-brand h-10 w-10"/>
+        <div className="relative flex items-center justify-between gap-3">
+          <div className="flex min-w-0 items-center gap-2.5">
+            <BrandMark className="home-header-brand h-10 w-10"/>
+            <div className="home-ffn-lockup min-w-0" dir="ltr" aria-label="FFN — Football Fuck News">
+              <strong>FFN</strong>
+              <span>Football Fuck News</span>
+            </div>
+          </div>
           <div className="home-header-actions flex items-center gap-2">
             <Link to="/store" aria-label="فروشگاه و کیف پول" title="فروشگاه و کیف پول" className="home-header-action home-header-wallet">
               <WalletCards size={18} strokeWidth={1.9}/>
@@ -245,10 +251,10 @@ export function HomePage() {
           </div>
         </div>
 
-        <div className="relative mt-7 max-w-[92%]">
-          <p className="home-hero-label text-right text-[8px] font-black tracking-[.16em]" dir="ltr">MATCHDAY / FOOTBALL CLUB</p>
-          <h1 className="mt-2 text-[2rem] font-black leading-[1.3] tracking-tight text-white">فوتبال را زندگی کن؛<br/><span className="home-hero-title-accent">نتیجه را تو بساز.</span></h1>
-          <p className="mt-3 max-w-[270px] text-[10px] font-medium leading-5 text-slate-400">پیش‌بینی کن، رقابت کن و باشگاه خودت را بساز.</p>
+        <div className="relative mt-5 max-w-[340px]">
+          <span className="home-ffn-official inline-flex items-center gap-1.5"><Shield size={10} strokeWidth={2.4}/>مینی‌اپ رسمی FFN</span>
+          <h1 className="home-hero-headline mt-2 font-black tracking-tight text-white"><span className="home-hero-setup"><span>باشگاهتو بساز،</span><span>ترکیبتو بچین،</span></span><span className="home-hero-title-accent">قهرمان شو.</span></h1>
+          <p className="home-hero-copy mt-2.5 max-w-[315px] font-medium text-slate-400">پیش‌بینی، فانتزی و رقابت‌های فوتبالی؛ همه در مینی‌اپ رسمی FFN.</p>
         </div>
       </header>
 
