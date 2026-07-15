@@ -6,26 +6,22 @@ import {
   CircleHelp,
   Clock3,
   Coins,
-  Flame,
   Handshake,
   Inbox,
-  Medal,
   Play,
   Radio,
   Shield,
   Shirt,
-  Sparkles,
   Tags,
   Target,
   Trophy,
-  Zap
+  UserRound,
+  WalletCards
 } from 'lucide-react';
-import type { ReactNode } from 'react';
 import { Link } from 'react-router-dom';
 import { BrandMark } from '@/components/BrandMark';
 import { ClubCrest } from '@/components/ClubCrest';
 import { MatchCard } from '@/components/MatchCard';
-import { WalletShortcut } from '@/components/WalletShortcut';
 import { SponsorCard } from '@/components/SponsorCard';
 import { Card, EmptyState, ErrorState, PageSkeleton, SectionTitle } from '@/components/ui';
 import { api } from '@/lib/api';
@@ -49,15 +45,6 @@ function QuickActions({ predictionsCount }: { predictionsCount: number }) {
           {index === 0 && predictionsCount > 0 && <span className="absolute left-2 top-2 h-1.5 w-1.5 rounded-full bg-cyan-300 ring-[3px] ring-[#10091e]"/>}
         </Link>
       ))}
-    </div>
-  );
-}
-
-function HeroStat({ icon, label, value, tone }: { icon: ReactNode; label: string; value: string; tone: 'mint'|'cyan'|'magenta' }) {
-  return (
-    <div className={cn('home-hero-stat min-w-0 px-3 py-3', `home-hero-stat-${tone}`)}>
-      <div className="mb-2 flex items-center gap-1.5 text-[9px] font-bold text-slate-400">{icon}<span className="truncate">{label}</span></div>
-      <strong className="block truncate text-base font-black tracking-tight text-white">{value}</strong>
     </div>
   );
 }
@@ -181,38 +168,26 @@ export function HomePage() {
 
   return (
     <main className="home-page pb-5">
-      <header className="home-hero safe-top relative overflow-hidden px-4 pb-12 pt-3">
-        <div className="home-stadium-lights absolute inset-x-0 top-0 h-56"/>
+      <header className="home-hero safe-top relative overflow-hidden px-4 pb-11 pt-3">
         <div className="home-hero-grid absolute inset-0"/>
         <div className="home-broadcast-angle absolute inset-0"/>
-        <div className="home-broadcast-angle-secondary absolute inset-0"/>
-        <div className="home-stadium-arc absolute"/>
 
         <div className="relative flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <BrandMark className="home-header-brand h-11 w-11"/>
-            <div>
-              <p className="text-[8px] font-black tracking-[.13em] text-cyan-300" dir="ltr">MATCHDAY / FOOTBALL CLUB</p>
-              <p className="mt-1 text-sm font-black text-white">فوتبال کلاب</p>
-            </div>
+          <BrandMark className="home-header-brand h-10 w-10"/>
+          <div className="home-header-actions flex items-center gap-2">
+            <Link to="/store" aria-label="فروشگاه و کیف پول" title="فروشگاه و کیف پول" className="home-header-action home-header-wallet">
+              <WalletCards size={18} strokeWidth={1.9}/>
+            </Link>
+            <Link to="/profile" aria-label="پروفایل من" title="پروفایل من" className="home-header-action home-header-profile">
+              <UserRound size={18} strokeWidth={1.9}/>
+            </Link>
           </div>
-          <div className="flex items-center gap-2"><WalletShortcut className="home-header-button"/><Link to="/profile" aria-label="پروفایل من" className="home-header-button relative grid h-11 w-11 place-items-center text-sm font-black text-emerald-100 backdrop-blur">
-            {data.user.firstName.slice(0, 1)}
-            <span className="absolute -bottom-0.5 -left-0.5 h-3 w-3 rounded-full border-2 border-[#10051d] bg-cyan-300"/>
-          </Link></div>
         </div>
 
-        <div className="relative mt-9 max-w-[86%]">
-          <div className="home-hero-kicker inline-flex items-center gap-2 px-3 py-1.5 text-[8px] font-black tracking-[.12em] text-white" dir="ltr"><Sparkles size={11} className="text-cyan-300"/> THE MATCH STARTS HERE</div>
-          <p className="mt-3 text-[11px] font-semibold text-slate-300">سلام {data.user.firstName}، آماده‌ی مسابقه‌ای؟</p>
-          <h1 className="mt-1 text-[1.8rem] font-black leading-[1.35] tracking-tight text-white">فوتبال را زندگی کن؛<br/><span className="home-hero-title-accent">نتیجه را تو بساز.</span></h1>
-          <div className="mt-4 flex items-center gap-2 text-[9px] font-bold text-slate-400"><span className="h-0.5 w-9 bg-cyan-300"/> پیش‌بینی، رقابت، افتخار</div>
-        </div>
-
-        <div className="relative mt-7 grid grid-cols-3 gap-2">
-          <HeroStat tone="mint" icon={<Zap size={13}/>} label="امتیاز کل" value={faNumber(data.user.points)}/>
-          <HeroStat tone="cyan" icon={<Medal size={13}/>} label="رتبه هفته" value={`#${faNumber(data.user.weeklyRank)}`}/>
-          <HeroStat tone="magenta" icon={<Flame size={13}/>} label="استریک" value={`${faNumber(data.user.streak)} روز`}/>
+        <div className="relative mt-11 max-w-[92%]">
+          <p className="home-hero-label text-right text-[8px] font-black tracking-[.16em]" dir="ltr">MATCHDAY / FOOTBALL CLUB</p>
+          <h1 className="mt-3 text-[2rem] font-black leading-[1.34] tracking-tight text-white">فوتبال را زندگی کن؛<br/><span className="home-hero-title-accent">نتیجه را تو بساز.</span></h1>
+          <p className="mt-4 max-w-[270px] text-[10px] font-medium leading-6 text-slate-400">پیش‌بینی کن، رقابت کن و باشگاه خودت را بساز.</p>
         </div>
       </header>
 
