@@ -23,10 +23,15 @@ import { BrandMark } from '@/components/BrandMark';
 import { ClubCrest } from '@/components/ClubCrest';
 import { MatchCard } from '@/components/MatchCard';
 import { SponsorCard } from '@/components/SponsorCard';
-import { Card, EmptyState, ErrorState, PageSkeleton, SectionTitle } from '@/components/ui';
+import { Card, ErrorState, PageSkeleton, SectionTitle } from '@/components/ui';
 import { api } from '@/lib/api';
 import { cn, faNumber, remaining, tehranDate } from '@/lib/utils';
 import type { HomeData, Match } from '@/types/api';
+
+const demoManchesterDerby = {
+  cityLogo: 'https://upload.wikimedia.org/wikipedia/en/e/eb/Manchester_City_FC_badge.svg',
+  unitedLogo: 'https://upload.wikimedia.org/wikipedia/en/7/7a/Manchester_United_FC_crest.svg'
+};
 
 const quickActions = [
   { to: '/matches', label: 'پیش‌بینی', icon: Target, tone: 'home-action-cyan' },
@@ -98,6 +103,63 @@ function FeaturedMatch({ match }: { match: Match }) {
             <span className="flex items-center gap-1 text-white">ثبت پیش‌بینی <ChevronLeft size={15}/></span>
           </div>
         )}
+      </article>
+    </Link>
+  );
+}
+
+function DemoFeaturedMatch() {
+  return (
+    <Link to="/matches" className="block" aria-label="پیش‌بینی دربی منچستر">
+      <article className="demo-featured-match group relative isolate overflow-hidden transition active:scale-[.99]">
+        <div className="demo-match-atmosphere absolute inset-0" aria-hidden="true"/>
+
+        <div className="relative flex items-center justify-between gap-3 px-3.5 pt-3.5">
+          <div className="demo-match-brand flex shrink-0 items-center gap-2" dir="ltr">
+            <strong>FFN</strong>
+            <span>FOOTBALL FUCK NEWS</span>
+          </div>
+          <span className="demo-derby-chip flex min-w-0 items-center gap-1.5 whitespace-nowrap px-2.5 py-1.5 text-[9px] font-extrabold">
+            <Trophy size={12} strokeWidth={2.5}/>
+            دربی منچستر
+          </span>
+        </div>
+
+        <div className="relative mt-2 text-center">
+          <span className="demo-match-kicker block text-[6px] font-black tracking-[.28em]" dir="ltr">MANCHESTER DERBY</span>
+          <h3 className="mt-0.5 text-[17px] font-black tracking-tight text-white">نبرد برای شهر منچستر</h3>
+        </div>
+
+        <div className="relative mt-2 grid grid-cols-[1fr_54px_1fr] items-center gap-1.5 px-2.5" dir="ltr">
+          <div className="demo-team flex min-w-0 flex-col items-center text-center" dir="rtl">
+            <span className="demo-crest-stage demo-crest-city grid h-[76px] w-[76px] place-items-center">
+              <ClubCrest name="منچستر سیتی" logo={demoManchesterDerby.cityLogo} className="h-[66px] w-[66px]"/>
+            </span>
+            <strong className="mt-1.5 whitespace-nowrap text-[11px] font-black text-white">منچستر سیتی</strong>
+          </div>
+
+          <div className="demo-kickoff flex flex-col items-center text-center" dir="rtl">
+            <span className="demo-tonight-pill px-2 py-1 text-[9px] font-black">امشب</span>
+            <strong className="mt-1 text-[20px] font-black leading-none" dir="ltr">۲۳:۳۰</strong>
+            <span className="demo-vs mt-1.5 text-[8px] font-black tracking-[.2em]" dir="ltr">VS</span>
+          </div>
+
+          <div className="demo-team flex min-w-0 flex-col items-center text-center" dir="rtl">
+            <span className="demo-crest-stage demo-crest-united grid h-[76px] w-[76px] place-items-center">
+              <ClubCrest name="منچستر یونایتد" logo={demoManchesterDerby.unitedLogo} className="h-[66px] w-[66px]"/>
+            </span>
+            <strong className="mt-1.5 whitespace-nowrap text-[11px] font-black text-white">منچستر یونایتد</strong>
+          </div>
+        </div>
+
+        <div className="demo-match-footer relative mx-3 mb-3 mt-3 flex min-h-11 items-center justify-between gap-2 px-3">
+          <span className="text-[8px] font-bold text-slate-400">لیگ برتر انگلیس</span>
+          <span className="demo-predict-cta flex min-h-9 shrink-0 items-center gap-2 px-4 text-[11px] font-black text-[#080b1b]">
+            <Target size={15} strokeWidth={2.6}/>
+            پیش‌بینی کن
+            <ArrowLeft size={14} strokeWidth={2.6}/>
+          </span>
+        </div>
       </article>
     </Link>
   );
@@ -205,7 +267,7 @@ export function HomePage() {
               {data.matches.slice(1, 3).map((match) => <MatchCard key={match._id} match={match}/>)}
             </div>
           ) : (
-            <EmptyState title="بازی مهمی ثبت نشده" description="به‌محض انتشار برنامه جدید، اینجا نمایش داده می‌شود."/>
+            <DemoFeaturedMatch/>
           )}
         </section>
 
