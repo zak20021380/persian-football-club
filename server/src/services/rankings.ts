@@ -70,11 +70,30 @@ export interface RankingClubPlayer {
   nationality?: string;
   club?: string;
   marketValue?: number;
+  overall?: number;
+  shirtNumber?: number;
+  contractStatus?: string;
+  contractEndsAt?: string;
   fantasyPoints: number;
   gameweekPoints: number;
   hasPlayed: boolean;
   availability: 'available'|'injured'|'suspended'|'unavailable';
   statusNote?: string;
+  inStartingLineup: boolean;
+  transfer: {
+    ownedByCurrentUser: boolean;
+    listingStatus: 'active'|'negotiable'|'not-listed'|'expired'|'sold'|'paused';
+    askingPrice?: number;
+    offerAmount?: number;
+    listingExpiresAt?: string;
+    activeOfferCount: number;
+    hasActiveOfferFromCurrentUser: boolean;
+    currentUserBalance: number;
+    canBuy: boolean;
+    buyDisabledReason?: string;
+    canSwap: boolean;
+    swapDisabledReason?: string;
+  };
 }
 
 export interface RankingClubDetails {
@@ -298,10 +317,11 @@ export async function rankingClubDetails(userId: Types.ObjectId, period: Ranking
   const user = await User.findById(userId).select('clubName favoriteTeam membershipConfirmed').lean() as unknown as RankingUser|null;
   if (!user || (!user.membershipConfirmed && String(userId) !== String(currentUserId))) return null;
 
-  const [squad, roster, logos] = await Promise.all([
+  const [squad, roster, logos, currentUser] = await Promise.all([
     Squad.findOne({ userId }).lean(),
     ClubPlayer.find({ ownerId: userId }).lean(),
-    rankingClubLogos([user])
+    rankingClubLogos([user]),
+    User.findById(currentUserId).select('coinBalance').lean()
   ]);
   const fantasyIdByClubPlayer = await fantasyLinks(roster);
   const fantasyIds = [...new Set(fantasyIdByClubPlayer.values())];
@@ -309,7 +329,8 @@ export async function rankingClubDetails(userId: Types.ObjectId, period: Ranking
   const currentWeekStart = rankingPeriodWindow('week').start!;
   const currentWeekEnd = new Date();
   const currentWeekBoundary = new Date(currentWeekStart.getTime() + 7 * 24 * 60 * 60 * 1000);
-  const [selectedPoints, currentWeekPoints, fantasyMetadata, playedMatches, transferSummary] = await Promise.all([
+  const now = new Date();
+  const [selectedPoints, currentWeekPoints, fantasyMetadata, playedMatches, transferSummary, activeOffers] = await Promise.all([
     fantasyPointsForRange(fantasyIds, window.start, window.end),
     fantasyPointsForRange(fantasyIds, currentWeekStart, currentWeekEnd),
     FantasyPlayer.find({ _id: { $in: fantasyIds.map(id => new Types.ObjectId(id)) } }).select('_id realTeamId active').lean(),
@@ -317,7 +338,12 @@ export async function rankingClubDetails(userId: Types.ObjectId, period: Ranking
     TransferOffer.aggregate<{ _id: null; count: number; cost: number }>([
       { $match: { buyerId: userId, status: 'accepted' } },
       { $group: { _id: null, count: { $sum: 1 }, cost: { $sum: '$amount' } } }
-    ])
+    ]),
+    TransferOffer.find({
+      playerId: { $in: roster.map(player => player._id) },
+      status: 'active',
+      expiresAt: { $gt: now }
+    }).select('playerId buyerId').lean()
   ]);
   const fantasyMetaById = new Map(fantasyMetadata.map(player => [String(player._id), player]));
   const playedTeamIds = new Set(playedMatches.flatMap(match => [String(match.homeTeamId), String(match.awayTeamId)]));
@@ -325,12 +351,31 @@ export async function rankingClubDetails(userId: Types.ObjectId, period: Ranking
   const captainId = squad?.captainId ? String(squad.captainId) : undefined;
   const viceCaptainId = squad?.viceCaptainId ? String(squad.viceCaptainId) : undefined;
   const byId = new Map(roster.map(player => [String(player._id), player]));
+  const starterIdSet = new Set(starterIds.filter(Boolean).map(String));
+  const offersByPlayer = new Map<string, typeof activeOffers>();
+  activeOffers.forEach(offer => {
+    const playerId = String(offer.playerId);
+    offersByPlayer.set(playerId, [...(offersByPlayer.get(playerId) ?? []), offer]);
+  });
+  const currentUserBalance = currentUser?.coinBalance ?? 0;
   const presentPlayer = (id: unknown): RankingClubPlayer|null => {
     const player = id ? byId.get(String(id)) : undefined;
     if (!player) return null;
     const fantasyId = fantasyIdByClubPlayer.get(String(player._id));
     const metadata = fantasyId ? fantasyMetaById.get(fantasyId) : undefined;
     const availability = playerAvailability(player.contractStatus, metadata?.active);
+    const playerOffers = offersByPlayer.get(String(player._id)) ?? [];
+    const ownedByCurrentUser = String(player.ownerId) === String(currentUserId);
+    const hasActiveOfferFromCurrentUser = playerOffers.some(offer => String(offer.buyerId) === String(currentUserId));
+    const transfer = playerTransferActionability({
+      ownedByCurrentUser,
+      hasActiveOfferFromCurrentUser,
+      currentUserBalance,
+      activeOfferCount: playerOffers.length,
+      listing: player.transferListing,
+      marketValue: player.marketValue,
+      now
+    });
     return {
       _id: String(player._id),
       name: player.name,
@@ -339,11 +384,17 @@ export async function rankingClubDetails(userId: Types.ObjectId, period: Ranking
       nationality: player.nationality,
       club: player.club,
       marketValue: player.marketValue,
+      overall: player.overall,
+      shirtNumber: player.shirtNumber,
+      contractStatus: player.contractStatus,
+      contractEndsAt: player.contractEndsAt?.toISOString(),
       fantasyPoints: fantasyId ? selectedPoints.get(fantasyId) ?? 0 : 0,
       gameweekPoints: fantasyId ? currentWeekPoints.get(fantasyId) ?? 0 : 0,
       hasPlayed: Boolean(metadata && playedTeamIds.has(String(metadata.realTeamId))),
       availability: availability.status,
-      statusNote: availability.note
+      statusNote: availability.note,
+      inStartingLineup: starterIdSet.has(String(player._id)),
+      transfer
     };
   };
   const starters = Array.from({ length: 11 }, (_, index) => presentPlayer(starterIds[index]));
@@ -424,6 +475,110 @@ function playerAvailability(contractStatus: string|undefined, active: boolean|un
   if (/suspend|ban|محروم/.test(normalized)) return { status: 'suspended', note: contractStatus };
   if (/unavailable|inactive|غیرفعال|در دسترس نیست/.test(normalized)) return { status: 'unavailable', note: contractStatus };
   return { status: 'available' };
+}
+
+interface PlayerTransferActionabilityInput {
+  ownedByCurrentUser: boolean;
+  hasActiveOfferFromCurrentUser: boolean;
+  currentUserBalance: number;
+  activeOfferCount: number;
+  marketValue?: number;
+  now: Date;
+  listing?: {
+    isListed: boolean;
+    askingPrice?: number;
+    status?: 'active'|'negotiable'|'paused'|'sold'|'expired';
+    expiresAt?: Date;
+  };
+}
+
+function playerTransferActionability(input: PlayerTransferActionabilityInput): RankingClubPlayer['transfer'] {
+  const { listing } = input;
+  const listingExpired = Boolean(listing?.expiresAt && listing.expiresAt.getTime() <= input.now.getTime());
+  const explicitStatus = listing?.status;
+  const listingStatus: RankingClubPlayer['transfer']['listingStatus'] = listingExpired
+    ? 'expired'
+    : !listing?.isListed
+      ? explicitStatus && ['expired', 'sold', 'paused'].includes(explicitStatus) ? explicitStatus : 'not-listed'
+      : explicitStatus ?? 'active';
+  const offerAmountValue = listing?.askingPrice ?? input.marketValue;
+  const offerAmount = offerAmountValue && offerAmountValue > 0 ? Math.ceil(offerAmountValue) : undefined;
+  const common = {
+    ownedByCurrentUser: input.ownedByCurrentUser,
+    listingStatus,
+    askingPrice: listing?.askingPrice,
+    offerAmount,
+    listingExpiresAt: listing?.expiresAt?.toISOString(),
+    activeOfferCount: input.activeOfferCount,
+    hasActiveOfferFromCurrentUser: input.hasActiveOfferFromCurrentUser,
+    currentUserBalance: input.currentUserBalance
+  };
+
+  if (input.ownedByCurrentUser) return {
+    ...common,
+    canBuy: false,
+    buyDisabledReason: 'این بازیکن متعلق به باشگاه شماست.',
+    canSwap: false,
+    swapDisabledReason: 'برای بازیکن خودتان نمی‌توانید پیشنهاد ثبت کنید.'
+  };
+  if (input.hasActiveOfferFromCurrentUser) return {
+    ...common,
+    canBuy: false,
+    buyDisabledReason: 'برای این بازیکن یک پیشنهاد فعال دارید.',
+    canSwap: false,
+    swapDisabledReason: 'برای این بازیکن یک پیشنهاد فعال دارید.'
+  };
+  if (listingStatus === 'expired') return {
+    ...common,
+    canBuy: false,
+    buyDisabledReason: 'مهلت آگهی این بازیکن تمام شده است.',
+    canSwap: false,
+    swapDisabledReason: 'مهلت آگهی این بازیکن تمام شده است.'
+  };
+  if (listingStatus === 'sold') return {
+    ...common,
+    canBuy: false,
+    buyDisabledReason: 'این بازیکن فروخته شده است.',
+    canSwap: false,
+    swapDisabledReason: 'این بازیکن فروخته شده است.'
+  };
+  if (listingStatus === 'paused') return {
+    ...common,
+    canBuy: false,
+    buyDisabledReason: 'آگهی این بازیکن موقتاً متوقف شده است.',
+    canSwap: false,
+    swapDisabledReason: 'آگهی این بازیکن موقتاً متوقف شده است.'
+  };
+  if (listingStatus === 'not-listed') return {
+    ...common,
+    canBuy: false,
+    buyDisabledReason: 'بازیکن برای فروش قرار نگرفته است.',
+    canSwap: false,
+    swapDisabledReason: 'بازیکن قابل مذاکره نیست.'
+  };
+  if (!offerAmount) return {
+    ...common,
+    canBuy: false,
+    buyDisabledReason: 'قیمت پایه بازیکن ثبت نشده است.',
+    canSwap: false,
+    swapDisabledReason: 'قیمت پایه بازیکن ثبت نشده است.'
+  };
+
+  const insufficientBalance = input.currentUserBalance < offerAmount;
+  if (listingStatus === 'negotiable') return {
+    ...common,
+    canBuy: false,
+    buyDisabledReason: 'این بازیکن فقط با پیشنهاد قابل مذاکره است.',
+    canSwap: !insufficientBalance,
+    swapDisabledReason: insufficientBalance ? 'موجودی شما برای ثبت این پیشنهاد کافی نیست.' : undefined
+  };
+  return {
+    ...common,
+    canBuy: !insufficientBalance,
+    buyDisabledReason: insufficientBalance ? 'موجودی شما برای این خرید کافی نیست.' : undefined,
+    canSwap: false,
+    swapDisabledReason: 'این آگهی با قیمت ثابت ثبت شده است.'
+  };
 }
 
 function scoreMap(values: Array<{ _id: Types.ObjectId; score: number }>): Map<string, number> {

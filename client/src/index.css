@@ -210,7 +210,22 @@ button { touch-action: manipulation; }
 .public-bench::before { content:''; position:absolute; inset:-7px 18% auto; height:7px; border:1px solid rgba(101,236,225,.12); border-bottom:0; border-radius:9px 9px 0 0; }
 .public-bench-player { background:linear-gradient(145deg,rgba(255,255,255,.035),rgba(255,255,255,.012)); transition:transform .16s ease,border-color .16s ease; }
 .public-bench-player:active { transform:scale(.96); border-color:rgba(73,228,242,.2); }
-.public-player-modal { background:radial-gradient(circle at 8% 0,rgba(239,100,200,.11),transparent 28%),radial-gradient(circle at 90% 5%,rgba(73,228,242,.08),transparent 25%),linear-gradient(180deg,#171028,#071523); box-shadow:0 -24px 70px rgba(0,0,0,.52); animation:ranking-preview-in .28s cubic-bezier(.22,1,.36,1) both; }
+.public-player-modal { background:radial-gradient(circle at 8% 0,rgba(239,100,200,.11),transparent 26%),radial-gradient(circle at 90% 4%,rgba(73,228,242,.09),transparent 24%),linear-gradient(180deg,#171028,#071523 42%,#06121f); box-shadow:0 -24px 70px rgba(0,0,0,.58); animation:ranking-preview-in .28s cubic-bezier(.22,1,.36,1) both; }
+.public-player-modal-head { background:linear-gradient(180deg,rgba(255,255,255,.025),transparent); box-shadow:0 8px 24px rgba(0,0,0,.12); }
+.public-player-hero { background:radial-gradient(circle at 92% 0,rgba(73,228,242,.11),transparent 35%),radial-gradient(circle at 5% 100%,rgba(239,100,200,.1),transparent 38%),linear-gradient(145deg,rgba(32,12,51,.92),rgba(7,24,40,.96)); box-shadow:inset 0 1px rgba(255,255,255,.035),0 12px 25px rgba(0,0,0,.16); }
+.public-player-hero-glow { opacity:.14; background:linear-gradient(118deg,transparent 0 29%,rgba(255,255,255,.24) 29.3% 30%,transparent 30.3% 74%,rgba(73,228,242,.25) 74.3% 75%,transparent 75.3%); }
+.public-player-photo { box-shadow:inset 0 1px rgba(255,255,255,.07),0 12px 25px rgba(0,0,0,.3),0 0 24px rgba(73,228,242,.055); }
+.public-player-info { background:linear-gradient(145deg,rgba(255,255,255,.03),rgba(255,255,255,.012)); box-shadow:inset 0 1px rgba(255,255,255,.018); }
+.public-contract-card { background:linear-gradient(145deg,rgba(25,13,42,.66),rgba(8,22,37,.88)); box-shadow:inset 0 1px rgba(255,255,255,.025); }
+.public-contract-card.is-alert { border-color:rgba(251,191,36,.19); background:radial-gradient(circle at 92% 0,rgba(251,191,36,.1),transparent 40%),linear-gradient(145deg,rgba(48,24,31,.76),rgba(12,22,36,.92)); }
+.public-player-value { background:radial-gradient(circle at 10% 0,rgba(251,191,36,.07),transparent 42%),linear-gradient(145deg,rgba(35,20,35,.72),rgba(8,22,37,.9)); box-shadow:inset 0 1px rgba(255,255,255,.022); }
+.public-player-stat { border:1px solid rgba(255,255,255,.05); background:linear-gradient(145deg,rgba(255,255,255,.033),rgba(255,255,255,.012)); }
+.public-player-actions { background:linear-gradient(180deg,rgba(7,16,29,.92),#07111f 30%); box-shadow:0 -14px 30px rgba(0,0,0,.26); -webkit-backdrop-filter:blur(16px); backdrop-filter:blur(16px); }
+.public-player-action-button { position:relative; overflow:hidden; box-shadow:inset 0 1px rgba(255,255,255,.15),0 8px 18px rgba(0,0,0,.18); }
+.public-player-action-button.is-buy { border-color:rgba(99,236,214,.22); background:linear-gradient(115deg,#47dec8,#4ce5ef); color:#05141f; }
+.public-player-action-button.is-swap { border-color:rgba(239,100,200,.24); background:linear-gradient(115deg,#a940b5,#e75bb7); color:white; }
+.public-player-action-button.is-disabled { cursor:not-allowed; border-color:rgba(148,163,184,.14); color:rgba(203,213,225,.58); background:repeating-linear-gradient(135deg,rgba(148,163,184,.055) 0 7px,rgba(30,41,59,.08) 7px 14px),linear-gradient(145deg,#152033,#0c1727); box-shadow:inset 0 1px rgba(255,255,255,.025); }
+.public-player-action-button.is-success { border-color:rgba(110,231,183,.2); color:#a7f3d0; background:linear-gradient(145deg,rgba(16,185,129,.16),rgba(6,78,59,.18)); }
 @media (min-width:375px) {
   .ranking-squad-identity .fantasy-user-crest { width:58px; height:58px; font-size:14px; }
   .public-fantasy-pitch { height:480px; }

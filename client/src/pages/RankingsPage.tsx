@@ -1,23 +1,34 @@
 import { useMemo, useState, type ReactNode } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import toast from 'react-hot-toast';
 import {
   AlertTriangle,
   ArrowDown,
   ArrowLeft,
   ArrowUp,
+  BadgeDollarSign,
   Ban,
   BrainCircuit,
+  Building2,
+  CalendarClock,
   CalendarDays,
+  CheckCircle2,
   ChevronLeft,
+  Clock3,
+  HandCoins,
+  Hash,
+  LoaderCircle,
   LockKeyhole,
   Minus,
   ShieldCheck,
   Shirt,
+  ShoppingCart,
   Sparkles,
   Target,
   Trophy,
   UserRound,
-  Users
+  Users,
+  WalletCards
 } from 'lucide-react';
 import { BrandMark } from '@/components/BrandMark';
 import { ClubCrest } from '@/components/ClubCrest';
@@ -92,11 +103,30 @@ interface RankingClubPlayer {
   nationality?: string;
   club?: string;
   marketValue?: number;
+  overall?: number;
+  shirtNumber?: number;
+  contractStatus?: string;
+  contractEndsAt?: string;
   fantasyPoints: number;
   gameweekPoints: number;
   hasPlayed: boolean;
   availability: 'available'|'injured'|'suspended'|'unavailable';
   statusNote?: string;
+  inStartingLineup: boolean;
+  transfer: {
+    ownedByCurrentUser: boolean;
+    listingStatus: 'active'|'negotiable'|'not-listed'|'expired'|'sold'|'paused';
+    askingPrice?: number;
+    offerAmount?: number;
+    listingExpiresAt?: string;
+    activeOfferCount: number;
+    hasActiveOfferFromCurrentUser: boolean;
+    currentUserBalance: number;
+    canBuy: boolean;
+    buyDisabledReason?: string;
+    canSwap: boolean;
+    swapDisabledReason?: string;
+  };
 }
 
 interface RankingClubDetails {
@@ -476,26 +506,117 @@ function BenchPlayer({ player, order, onClick }: { player: RankingClubPlayer; or
 
 function PublicPlayerDetails({ selection, onClose }: { selection: SelectedPublicPlayer; onClose: () => void }) {
   const { player, role } = selection;
+  const queryClient = useQueryClient();
+  const [successfulAction, setSuccessfulAction] = useState<'buy'|'swap'|null>(null);
   const status = availabilityMeta(player.availability);
   const StatusIcon = status.icon;
+  const contract = contractPresentation(player.contractEndsAt);
+  const listing = transferStatusMeta(player.transfer.listingStatus);
+  const actionMutation = useMutation({
+    mutationFn: async (kind: 'buy'|'swap') => {
+      if (player._id.startsWith('demo-')) {
+        await new Promise(resolve => window.setTimeout(resolve, 450));
+        return { demo: true, kind };
+      }
+      const amount = player.transfer.offerAmount;
+      if (!amount) throw new Error('قیمت پایه بازیکن ثبت نشده است');
+      return (await api.post('/club/offers', {
+        playerId: player._id,
+        amount,
+        expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
+        clientRequestId: crypto.randomUUID(),
+        note: kind === 'buy' ? 'پیشنهاد خرید از نمای عمومی تیم' : 'پیشنهاد مذاکره از نمای عمومی تیم'
+      })).data;
+    },
+    onSuccess: async (_data, kind) => {
+      setSuccessfulAction(kind);
+      toast.success(kind === 'buy' ? 'پیشنهاد خرید با موفقیت ارسال شد' : 'پیشنهاد معاوضه با موفقیت ارسال شد');
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ['rankingClubDetails'] }),
+        queryClient.invalidateQueries({ queryKey: ['transferMarket'] }),
+        queryClient.invalidateQueries({ queryKey: ['tradeOffers'] })
+      ]);
+    },
+    onError: error => toast.error((error as Error).message || 'ارسال پیشنهاد انجام نشد')
+  });
+  const actionLocked = actionMutation.isPending || successfulAction !== null;
   return (
-    <div className="absolute inset-0 z-50 flex items-end bg-[#02040c]/80 px-2 backdrop-blur-sm" onClick={onClose} role="presentation">
-      <section className="public-player-modal safe-bottom relative w-full rounded-t-[1.5rem] border border-b-0 border-cyan-200/[.13] p-3.5" onClick={event => event.stopPropagation()} role="dialog" aria-modal="true" aria-label={`جزئیات ${player.name}`}>
-        <button type="button" onClick={onClose} className="absolute left-3 top-3 grid h-9 w-9 place-items-center rounded-full bg-white/[.055] text-slate-300" aria-label="بستن جزئیات"><ArrowLeft size={14}/></button>
-        <div className="flex items-center gap-3" dir="ltr"><span className="grid h-16 w-16 shrink-0 place-items-center overflow-hidden rounded-2xl border border-white/[.1] bg-white/[.045]">{player.photoUrl ? <img src={player.photoUrl} alt="" className="h-full w-full object-cover"/> : <UserRound size={25} className="text-cyan-200"/>}</span><span className="min-w-0"><small className="text-[5.5px] font-black tracking-[.16em] text-cyan-300">READ-ONLY PLAYER</small><h3 className="mt-1 truncate text-[13px] font-black text-white">{player.name}</h3><p className="mt-1 truncate text-[6.5px] text-slate-500">{player.club || 'باشگاه ثبت نشده'}</p><span className={cn('mt-1.5 inline-flex items-center gap-1 rounded-full px-2 py-1 text-[6px] font-black', status.className)}><StatusIcon size={8}/>{status.label}</span></span></div>
-        <div className="mt-3 grid grid-cols-4 gap-1"><PlayerMetric label="جایگاه" value={role}/><PlayerMetric label="پست" value={player.position}/><PlayerMetric label="امتیاز هفته" value={faNumber(player.gameweekPoints)}/><PlayerMetric label="امتیاز بازه" value={faNumber(player.fantasyPoints)}/></div>
-        <div className="mt-2 grid grid-cols-2 gap-1.5"><PlayerInfoLine label="ارزش" value={player.marketValue === undefined ? 'ثبت نشده' : `${faNumber(player.marketValue)} سکه`}/><PlayerInfoLine label="ملیت" value={player.nationality || 'ثبت نشده'}/></div>
-        {player.statusNote && <p className="mt-2 rounded-xl border border-amber-300/[.1] bg-amber-300/[.045] px-2.5 py-2 text-[6.5px] leading-4 text-amber-100/75">{player.statusNote}</p>}
-        <button type="button" onClick={onClose} className="mt-3 min-h-10 w-full rounded-xl bg-white/[.065] text-[8px] font-black text-white">بستن</button>
+    <div className="absolute inset-0 z-50 flex items-end bg-[#01030a]/85 backdrop-blur-md" onClick={() => { if (!actionMutation.isPending) onClose(); }} role="presentation">
+      <section className="public-player-modal safe-bottom relative flex max-h-[calc(100dvh-10px)] min-h-0 w-full flex-col overflow-hidden rounded-t-[1.65rem] border border-b-0 border-cyan-200/[.13] min-[520px]:mx-auto min-[520px]:max-w-xl" onClick={event => event.stopPropagation()} role="dialog" aria-modal="true" aria-label={`جزئیات ${player.name}`}>
+        <header className="public-player-modal-head relative flex h-11 shrink-0 items-center justify-center border-b border-white/[.055] px-3">
+          <span className="h-1 w-10 rounded-full bg-white/20"/>
+          <span className="absolute right-3 text-[6px] font-black tracking-[.14em] text-cyan-300" dir="ltr">PLAYER PROFILE</span>
+          <button type="button" disabled={actionMutation.isPending} onClick={onClose} className="absolute left-2 grid h-9 w-9 place-items-center rounded-full border border-white/[.055] bg-white/[.04] text-slate-300 transition active:scale-90 disabled:cursor-wait" aria-label="بستن جزئیات"><ArrowLeft size={14}/></button>
+        </header>
+
+        <div className="momentum-scroll min-h-0 flex-1 overflow-y-auto overscroll-contain px-3 pb-3 pt-2.5">
+          <section className="public-player-hero relative overflow-hidden rounded-[1.25rem] border border-white/[.075] p-3">
+            <div className="public-player-hero-glow pointer-events-none absolute inset-0"/>
+            <div className="relative flex min-w-0 items-center gap-3">
+              <span className="public-player-photo relative grid h-[76px] w-[70px] shrink-0 place-items-center overflow-hidden rounded-[1.15rem] border border-cyan-100/[.15] bg-[#111a34]">
+                {player.photoUrl ? <img src={player.photoUrl} alt={`تصویر ${player.name}`} className="h-full w-full object-cover"/> : <UserRound size={29} className="text-cyan-200"/>}
+                <i className="absolute bottom-1 right-1 grid h-5 min-w-5 place-items-center rounded-md border border-white/10 bg-[#07111f]/90 px-1 text-[7px] font-black not-italic text-white">#{player.shirtNumber ? faNumber(player.shirtNumber) : '—'}</i>
+              </span>
+              <div className="min-w-0 flex-1">
+                <span className="flex min-w-0 items-center gap-1.5"><strong className="truncate text-[14px] font-black text-white min-[375px]:text-[16px]" dir="auto">{player.name}</strong><span className="shrink-0 rounded-md bg-cyan-300/[.1] px-1.5 py-1 text-[6px] font-black text-cyan-200" dir="ltr">{player.position}</span></span>
+                <p className="mt-1.5 flex min-w-0 items-center gap-1.5 truncate text-[7px] text-slate-400"><Building2 size={10} className="shrink-0 text-fuchsia-300"/>{player.club || 'باشگاه ثبت نشده'}<span className="text-white/15">•</span><span>{positionLabel(player.position)}</span></p>
+                <p className="mt-1 flex items-center gap-1.5 text-[6.5px] text-slate-500"><Hash size={9}/><span>شماره پیراهن {player.shirtNumber ? faNumber(player.shirtNumber) : 'ثبت نشده'}</span></p>
+              </div>
+            </div>
+            <div className="relative mt-2.5 flex flex-wrap gap-1.5" aria-label="وضعیت بازیکن">
+              <PlayerStatusChip icon={<StatusIcon size={8}/>} label={status.label} className={status.className}/>
+              <PlayerStatusChip icon={<BadgeDollarSign size={8}/>} label={listing.label} className={listing.className}/>
+              {player.inStartingLineup && <PlayerStatusChip icon={<Shirt size={8}/>} label="در ترکیب" className="border-cyan-300/20 bg-cyan-300/[.08] text-cyan-200"/>}
+              {player.transfer.activeOfferCount > 0 && <PlayerStatusChip icon={<HandCoins size={8}/>} label={`${faNumber(player.transfer.activeOfferCount)} پیشنهاد دارد`} className="border-fuchsia-300/20 bg-fuchsia-300/[.08] text-fuchsia-200"/>}
+            </div>
+          </section>
+
+          <section className="mt-2 grid grid-cols-2 gap-1.5" aria-label="مشخصات بازیکن">
+            <PlayerModalInfo icon={<Shirt size={12}/>} label="پست و جایگاه" value={`${positionLabel(player.position)} · ${role}`}/>
+            <PlayerModalInfo icon={<Building2 size={12}/>} label="باشگاه" value={player.club || 'ثبت نشده'}/>
+            <PlayerModalInfo icon={<Hash size={12}/>} label="شماره پیراهن" value={player.shirtNumber ? faNumber(player.shirtNumber) : 'ثبت نشده'}/>
+            <PlayerModalInfo icon={<ShieldCheck size={12}/>} label="وضعیت قرارداد" value={player.contractStatus || status.label}/>
+          </section>
+
+          <section className={cn('public-contract-card mt-2 rounded-[1.15rem] border p-2.5', contract.alert ? 'is-alert' : 'border-white/[.065]')} aria-label="اطلاعات قرارداد">
+            <div className="flex items-center gap-2"><span className={cn('grid h-8 w-8 shrink-0 place-items-center rounded-xl', contract.alert ? 'bg-amber-300/[.12] text-amber-200' : 'bg-cyan-300/[.08] text-cyan-200')}><CalendarClock size={15}/></span><span className="min-w-0 flex-1"><small className="block text-[6px] text-slate-500">پایان قرارداد</small><strong className="mt-0.5 block truncate text-[8px] text-slate-200">{contract.date}</strong></span><span className={cn('shrink-0 rounded-lg px-2 py-1.5 text-[6.5px] font-black', contract.alert ? 'bg-amber-300/[.12] text-amber-100' : 'bg-white/[.04] text-slate-400')}><Clock3 size={9} className="ml-1 inline"/>{contract.remaining}</span></div>
+            {contract.alert && <p className="mt-2 flex items-start gap-1.5 border-t border-amber-200/[.09] pt-2 text-[6.5px] leading-4 text-amber-100/80"><AlertTriangle size={10} className="mt-0.5 shrink-0"/>{contract.expired ? 'قرارداد این بازیکن پایان یافته و وضعیت انتقال باید بررسی شود.' : 'قرارداد این بازیکن رو به پایان است.'}</p>}
+          </section>
+
+          <section className="public-player-value mt-2 grid grid-cols-2 gap-1.5 rounded-[1.15rem] border border-amber-200/[.1] p-2.5">
+            <span className="min-w-0"><small className="flex items-center gap-1 text-[6px] text-slate-500"><BadgeDollarSign size={10} className="text-amber-300"/>قیمت / ارزش بازیکن</small><strong className="mt-1 block truncate text-[10px] font-black text-amber-200">{formatPlayerCoins(player.transfer.askingPrice ?? player.marketValue)}</strong></span>
+            <span className="min-w-0 border-r border-white/[.06] pr-2"><small className="flex items-center gap-1 text-[6px] text-slate-500"><WalletCards size={10} className="text-cyan-300"/>موجودی شما</small><strong className="mt-1 block truncate text-[10px] font-black text-cyan-200">{formatPlayerCoins(player.transfer.currentUserBalance)}</strong></span>
+          </section>
+
+          <section className="mt-2 grid grid-cols-4 gap-1" aria-label="آمار مهم بازیکن">
+            <PlayerModalStat label="امتیاز فنی" value={player.overall === undefined ? '—' : faNumber(player.overall)}/>
+            <PlayerModalStat label="امتیاز هفته" value={faNumber(player.gameweekPoints)} tone="cyan"/>
+            <PlayerModalStat label="امتیاز بازه" value={faNumber(player.fantasyPoints)} tone="fuchsia"/>
+            <PlayerModalStat label="وضعیت بازی" value={player.hasPlayed ? 'بازی کرده' : 'باقی‌مانده'} tone={player.hasPlayed ? 'green' : undefined}/>
+          </section>
+
+          {player.statusNote && <p className="mt-2 flex items-start gap-1.5 rounded-xl border border-amber-300/[.11] bg-amber-300/[.045] px-2.5 py-2 text-[6.5px] leading-4 text-amber-100/80"><AlertTriangle size={10} className="mt-0.5 shrink-0"/>{player.statusNote}</p>}
+        </div>
+
+        <footer className="public-player-actions shrink-0 border-t border-white/[.07] p-2.5 pb-[max(10px,var(--safe-bottom))]">
+          {successfulAction && <div className="mb-2 flex items-center justify-center gap-1.5 rounded-xl border border-emerald-300/[.15] bg-emerald-300/[.07] px-2 py-2 text-[7px] font-black text-emerald-200"><CheckCircle2 size={11}/>{successfulAction === 'buy' ? 'پیشنهاد خرید ارسال شد' : 'پیشنهاد معاوضه ارسال شد'}</div>}
+          <div className="grid grid-cols-2 gap-2">
+            <PlayerActionButton label="خرید بازیکن" icon={<ShoppingCart size={13}/>} tone="buy" enabled={player.transfer.canBuy && !actionLocked} loading={actionMutation.isPending && actionMutation.variables === 'buy'} success={successfulAction === 'buy'} reason={successfulAction === 'buy' ? undefined : successfulAction ? 'تا تعیین وضعیت پیشنهاد فعلی غیرفعال است.' : player.transfer.buyDisabledReason} onClick={() => actionMutation.mutate('buy')}/>
+            <PlayerActionButton label="پیشنهاد معاوضه" icon={<HandCoins size={13}/>} tone="swap" enabled={player.transfer.canSwap && !actionLocked} loading={actionMutation.isPending && actionMutation.variables === 'swap'} success={successfulAction === 'swap'} reason={successfulAction === 'swap' ? undefined : successfulAction ? 'تا تعیین وضعیت پیشنهاد فعلی غیرفعال است.' : player.transfer.swapDisabledReason} onClick={() => actionMutation.mutate('swap')}/>
+          </div>
+        </footer>
       </section>
     </div>
   );
 }
 
+function PlayerStatusChip({ icon, label, className }: { icon: ReactNode; label: string; className: string }) { return <span className={cn('inline-flex items-center gap-1 rounded-full border px-2 py-1 text-[6px] font-black', className)}>{icon}{label}</span>; }
+function PlayerModalInfo({ icon, label, value }: { icon: ReactNode; label: string; value: string }) { return <div className="public-player-info flex min-h-11 min-w-0 items-center gap-2 rounded-xl border border-white/[.055] px-2"><span className="grid h-7 w-7 shrink-0 place-items-center rounded-lg bg-white/[.035] text-cyan-300">{icon}</span><span className="min-w-0"><small className="block text-[5.5px] text-slate-600">{label}</small><strong className="mt-0.5 block truncate text-[6.5px] text-slate-300">{value}</strong></span></div>; }
+function PlayerModalStat({ label, value, tone }: { label: string; value: string; tone?: 'cyan'|'fuchsia'|'green' }) { return <div className="public-player-stat min-w-0 rounded-xl px-1 py-2 text-center"><strong className={cn('block truncate text-[7.5px] text-slate-200', tone === 'cyan' && 'text-cyan-200', tone === 'fuchsia' && 'text-fuchsia-200', tone === 'green' && 'text-emerald-200')}>{value}</strong><small className="mt-1 block truncate text-[5px] text-slate-600">{label}</small></div>; }
+function PlayerActionButton({ label, icon, tone, enabled, loading, success, reason, onClick }: { label: string; icon: ReactNode; tone: 'buy'|'swap'; enabled: boolean; loading: boolean; success: boolean; reason?: string; onClick: () => void }) { return <div className="min-w-0"><button type="button" disabled={!enabled || loading || success} onClick={onClick} className={cn('public-player-action-button flex min-h-11 w-full items-center justify-center gap-1.5 rounded-xl border text-[7.5px] font-black transition active:scale-[.98]', tone === 'buy' ? 'is-buy' : 'is-swap', (!enabled || success) && 'is-disabled', success && 'is-success')} aria-describedby={!enabled && reason ? `${tone}-disabled-reason` : undefined}>{loading ? <LoaderCircle size={13} className="animate-spin"/> : success ? <CheckCircle2 size={13}/> : icon}{loading ? 'در حال ارسال…' : success ? 'ارسال شد' : label}</button>{!enabled && reason && <p id={`${tone}-disabled-reason`} className="mt-1.5 min-h-6 px-1 text-center text-[5.5px] leading-3 text-rose-200/75">{reason}</p>}</div>; }
+
 function IdentityMetric({ label, value, tone, dir }: { label: string; value: string; tone?: 'cyan'|'fuchsia'|'amber'; dir?: 'ltr'|'rtl' }) { return <div className="ranking-identity-metric min-w-0 rounded-lg px-1.5 py-2 text-center"><small className="block truncate text-[5px] text-slate-600">{label}</small><strong className={cn('mt-1 block truncate text-[7.5px] text-slate-200', tone === 'cyan' && 'text-cyan-200', tone === 'fuchsia' && 'text-fuchsia-200', tone === 'amber' && 'text-amber-200')} dir={dir}>{value}</strong></div>; }
 function OverviewMetric({ label, value, tone }: { label: string; value: number|string; tone?: string }) { return <div className="min-w-0 text-center"><strong className={cn('block truncate text-[8px] text-slate-200', tone)}>{typeof value === 'number' ? faNumber(value) : value}</strong><small className="mt-0.5 block truncate text-[5px] text-slate-600">{label}</small></div>; }
-function PlayerMetric({ label, value }: { label: string; value: string }) { return <div className="min-w-0 rounded-lg bg-white/[.035] p-2 text-center"><small className="block truncate text-[5px] text-slate-600">{label}</small><strong className="mt-1 block truncate text-[7px] text-slate-200" dir="ltr">{value}</strong></div>; }
-function PlayerInfoLine({ label, value }: { label: string; value: string }) { return <div className="flex min-h-9 min-w-0 items-center justify-between gap-2 rounded-lg border border-white/[.05] px-2"><small className="text-[5.5px] text-slate-600">{label}</small><strong className="truncate text-[6.5px] text-slate-300">{value}</strong></div>; }
 
 function SectionHeader({ eyebrow, title, subtitle, badge, badgeTone }: { eyebrow: string; title: string; subtitle: string; badge?: string; badgeTone?: 'live'|'demo' }) {
   return <div className="flex items-end justify-between gap-2"><div className="min-w-0"><span className="text-[6px] font-black tracking-[.16em] text-cyan-300" dir="ltr">{eyebrow}</span><h2 className="mt-0.5 text-[14px] font-black">{title}</h2><p className="mt-1 truncate text-[7px] text-slate-600">{subtitle}</p></div>{badge && <span className={cn('ranking-source-badge shrink-0', badgeTone === 'live' ? 'is-live' : 'is-demo')} dir="ltr">{badge}</span>}</div>;
@@ -538,34 +659,75 @@ function demoFantasyEntries(filter: FantasyFilter): FantasyEntry[] {
 
 function demoClubDetails(entry: FantasyEntry): RankingClubDetails {
   const seed = demoFantasySeeds.find(item => item.userId === entry.userId) ?? demoFantasySeeds[0];
-  const gameweekScores = [5, 6, 7, 5, 6, 8, 9, 7, 12, 10, 8];
-  const players = seed.players.map((name, index): RankingClubPlayer => ({
-    _id: `${seed.userId}-${index}`,
-    name,
-    position: index === 0 ? 'GK' : index < 5 ? 'DEF' : index < 8 ? 'MID' : 'FWD',
-    club: ['Arsenal', 'Liverpool', 'Manchester City', 'Chelsea'][index % 4],
-    nationality: ['England', 'Spain', 'Brazil', 'France', 'Portugal'][index % 5],
-    marketValue: 7_500 - index * 280,
-    fantasyPoints: gameweekScores[index] * 4,
-    gameweekPoints: gameweekScores[index],
-    hasPlayed: index < 7,
-    availability: index === 3 ? 'injured' : index === 9 ? 'suspended' : 'available',
-    statusNote: index === 3 ? 'مصدومیت جزئی؛ وضعیت حضور در بازی بعدی نامشخص است.' : index === 9 ? 'یک جلسه محرومیت' : undefined
-  }));
-  const substituteNames = ['Jordan Pickford', 'Ben White', 'Bruno Fernandes', 'Ollie Watkins'];
-  const substitutes = substituteNames.map((name, index): RankingClubPlayer => ({
-    _id: `${seed.userId}-sub-${index}`,
-    name,
-    position: index === 0 ? 'GK' : index === 1 ? 'DEF' : index === 2 ? 'MID' : 'FWD',
-    club: ['Everton', 'Arsenal', 'Manchester United', 'Aston Villa'][index],
-    nationality: 'England',
-    marketValue: 4_200 - index * 350,
-    fantasyPoints: [4, 5, 6, 7][index] * 4,
-    gameweekPoints: [4, 5, 6, 7][index],
-    hasPlayed: index < 2,
-    availability: 'available'
-  }));
   const now = Date.now();
+  const gameweekScores = [5, 6, 7, 5, 6, 8, 9, 7, 12, 10, 8];
+  const currentBalance = 9_000;
+  const demoTransfer = (index: number, marketValue: number): RankingClubPlayer['transfer'] => {
+    const owned = seed.isCurrent;
+    const mode = index % 4;
+    const listingStatus = mode === 0 || mode === 3 ? 'active' : mode === 1 ? 'negotiable' : 'not-listed';
+    const hasOffer = mode === 3;
+    const offerAmount = marketValue + 450;
+    const ownedReason = 'این بازیکن متعلق به باشگاه شماست.';
+    return {
+      ownedByCurrentUser: owned,
+      listingStatus,
+      askingPrice: listingStatus === 'not-listed' ? undefined : offerAmount,
+      offerAmount: listingStatus === 'not-listed' ? undefined : offerAmount,
+      listingExpiresAt: listingStatus === 'not-listed' ? undefined : new Date(now + 36 * 60 * 60 * 1000).toISOString(),
+      activeOfferCount: hasOffer ? 2 : mode === 0 ? 1 : 0,
+      hasActiveOfferFromCurrentUser: hasOffer,
+      currentUserBalance: currentBalance,
+      canBuy: !owned && listingStatus === 'active' && !hasOffer && currentBalance >= offerAmount,
+      buyDisabledReason: owned ? ownedReason : hasOffer ? 'برای این بازیکن یک پیشنهاد فعال دارید.' : listingStatus === 'negotiable' ? 'این بازیکن فقط با پیشنهاد قابل مذاکره است.' : listingStatus === 'not-listed' ? 'بازیکن برای فروش قرار نگرفته است.' : currentBalance < offerAmount ? 'موجودی شما برای این خرید کافی نیست.' : undefined,
+      canSwap: !owned && listingStatus === 'negotiable' && !hasOffer && currentBalance >= offerAmount,
+      swapDisabledReason: owned ? 'برای بازیکن خودتان نمی‌توانید پیشنهاد ثبت کنید.' : hasOffer ? 'برای این بازیکن یک پیشنهاد فعال دارید.' : listingStatus === 'active' ? 'این آگهی با قیمت ثابت ثبت شده است.' : listingStatus === 'not-listed' ? 'بازیکن قابل مذاکره نیست.' : currentBalance < offerAmount ? 'موجودی شما برای ثبت این پیشنهاد کافی نیست.' : undefined
+    };
+  };
+  const players = seed.players.map((name, index): RankingClubPlayer => {
+    const marketValue = 7_500 - index * 280;
+    return {
+      _id: `${seed.userId}-${index}`,
+      name,
+      position: index === 0 ? 'GK' : index < 5 ? 'DEF' : index < 8 ? 'MID' : 'FWD',
+      club: ['Arsenal', 'Liverpool', 'Manchester City', 'Chelsea'][index % 4],
+      nationality: ['England', 'Spain', 'Brazil', 'France', 'Portugal'][index % 5],
+      marketValue,
+      overall: 88 - (index % 7),
+      shirtNumber: [1, 2, 4, 5, 3, 6, 8, 10, 11, 9, 7][index],
+      contractStatus: index === 3 ? 'مصدوم' : index === 9 ? 'محروم' : 'فعال',
+      contractEndsAt: new Date(now + (index === 0 ? 18 : index === 4 ? -3 : 90 + index * 19) * 24 * 60 * 60 * 1000).toISOString(),
+      fantasyPoints: gameweekScores[index] * 4,
+      gameweekPoints: gameweekScores[index],
+      hasPlayed: index < 7,
+      availability: index === 3 ? 'injured' : index === 9 ? 'suspended' : 'available',
+      statusNote: index === 3 ? 'مصدومیت جزئی؛ وضعیت حضور در بازی بعدی نامشخص است.' : index === 9 ? 'یک جلسه محرومیت' : undefined,
+      inStartingLineup: true,
+      transfer: demoTransfer(index, marketValue)
+    };
+  });
+  const substituteNames = ['Jordan Pickford', 'Ben White', 'Bruno Fernandes', 'Ollie Watkins'];
+  const substitutes = substituteNames.map((name, index): RankingClubPlayer => {
+    const marketValue = 4_200 - index * 350;
+    return {
+      _id: `${seed.userId}-sub-${index}`,
+      name,
+      position: index === 0 ? 'GK' : index === 1 ? 'DEF' : index === 2 ? 'MID' : 'FWD',
+      club: ['Everton', 'Arsenal', 'Manchester United', 'Aston Villa'][index],
+      nationality: 'England',
+      marketValue,
+      overall: 79 + index,
+      shirtNumber: [13, 15, 18, 20][index],
+      contractStatus: 'فعال',
+      contractEndsAt: new Date(now + (150 + index * 30) * 24 * 60 * 60 * 1000).toISOString(),
+      fantasyPoints: [4, 5, 6, 7][index] * 4,
+      gameweekPoints: [4, 5, 6, 7][index],
+      hasPlayed: index < 2,
+      availability: 'available',
+      inStartingLineup: false,
+      transfer: demoTransfer(index + 11, marketValue)
+    };
+  });
   return {
     userId: seed.userId,
     formation: seed.formation,
@@ -595,6 +757,39 @@ function availabilityMeta(status: RankingClubPlayer['availability']): { label: s
   if (status === 'suspended') return { label: 'محروم', className: 'bg-amber-300 text-slate-950', icon: Ban };
   if (status === 'unavailable') return { label: 'غیرفعال', className: 'bg-slate-400 text-slate-950', icon: Ban };
   return { label: 'آماده', className: 'bg-emerald-300/15 text-emerald-200', icon: ShieldCheck };
+}
+
+function transferStatusMeta(status: RankingClubPlayer['transfer']['listingStatus']): { label: string; className: string } {
+  if (status === 'active') return { label: 'قابل فروش', className: 'border-emerald-300/20 bg-emerald-300/[.08] text-emerald-200' };
+  if (status === 'negotiable') return { label: 'قابل معاوضه', className: 'border-amber-300/20 bg-amber-300/[.08] text-amber-200' };
+  if (status === 'sold') return { label: 'فروخته شده', className: 'border-slate-300/15 bg-slate-300/[.07] text-slate-300' };
+  if (status === 'expired') return { label: 'آگهی منقضی', className: 'border-rose-300/20 bg-rose-300/[.08] text-rose-200' };
+  if (status === 'paused') return { label: 'انتقال متوقف', className: 'border-slate-300/15 bg-slate-300/[.06] text-slate-400' };
+  return { label: 'غیرقابل انتقال', className: 'border-slate-300/15 bg-slate-300/[.06] text-slate-400' };
+}
+
+function contractPresentation(value?: string): { date: string; remaining: string; alert: boolean; expired: boolean } {
+  if (!value) return { date: 'ثبت نشده', remaining: 'نامشخص', alert: false, expired: false };
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return { date: 'ثبت نشده', remaining: 'نامشخص', alert: false, expired: false };
+  const days = Math.ceil((date.getTime() - Date.now()) / (24 * 60 * 60 * 1000));
+  const expired = days <= 0;
+  const remaining = expired ? 'پایان یافته' : days < 60 ? `${faNumber(days)} روز` : `${faNumber(Math.floor(days / 30))} ماه`;
+  return {
+    date: new Intl.DateTimeFormat('fa-IR', { day: 'numeric', month: 'long', year: 'numeric', timeZone: 'Asia/Tehran' }).format(date),
+    remaining,
+    alert: days <= 30,
+    expired
+  };
+}
+
+function positionLabel(position: string): string {
+  const labels: Record<string, string> = { GK: 'دروازه‌بان', RB: 'دفاع راست', CB: 'مدافع میانی', LB: 'دفاع چپ', DM: 'هافبک دفاعی', CM: 'هافبک میانی', AM: 'هافبک هجومی', RW: 'وینگر راست', LW: 'وینگر چپ', ST: 'مهاجم', DEF: 'مدافع', MID: 'هافبک', FWD: 'مهاجم' };
+  return labels[position] ?? position;
+}
+
+function formatPlayerCoins(value?: number): string {
+  return value === undefined ? 'ثبت نشده' : `${faNumber(value)} سکه`;
 }
 
 function shortPlayerName(name: string): string {

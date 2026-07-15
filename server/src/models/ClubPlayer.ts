@@ -20,7 +20,9 @@ export interface IClubPlayer {
   nationality?: string;
   club?: string;
   marketValue?: number;
+  shirtNumber?: number;
   contractStatus?: string;
+  contractEndsAt?: Date;
   transferListing?: IPlayerTransferListing;
   createdAt: Date;
   updatedAt: Date;
@@ -44,7 +46,9 @@ const schema = new Schema<IClubPlayer>({
   nationality: { type: String, trim: true, maxlength: 60 },
   club: { type: String, trim: true, maxlength: 80 },
   marketValue: { type: Number, min: 0 },
+  shirtNumber: { type: Number, min: 1, max: 99, validate: Number.isInteger },
   contractStatus: { type: String, trim: true, maxlength: 80 },
+  contractEndsAt: { type: Date },
   transferListing: { type: listingSchema }
 }, { timestamps: true });
 
