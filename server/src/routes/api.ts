@@ -19,6 +19,7 @@ import { createSessionToken } from '../services/session.js';
 import { validateTelegramInitData, type TelegramInitUser } from '../services/telegramAuth.js';
 import { recoverTelegramUser } from '../services/userRecovery.js';
 import { presentMatch } from '../services/matchPresentation.js';
+import { clubValueRankings, performanceRankings } from '../services/rankings.js';
 import { AppError } from '../utils/errors.js';
 import { asyncHandler } from '../utils/asyncHandler.js';
 import funRouter from './fun.js';
@@ -276,6 +277,14 @@ router.post('/competitions/:id/submit', verifyLiveMembership, asyncHandler(async
 router.get('/rankings', asyncHandler(async (req, res) => {
   const type = String(req.query.type ?? 'weekly');
   const current = req.authUser!;
+  const modernType = z.enum(['fantasy','predictions','quiz','friends']).safeParse(type);
+  if (modernType.success) {
+    const period = z.enum(['week','month','season']).parse(req.query.period ?? 'week');
+    res.json(await performanceRankings(modernType.data, period, current._id)); return;
+  }
+  if (type === 'club-value') {
+    res.json(await clubValueRankings(current._id)); return;
+  }
   if (type === 'predictors') {
     const leaders = await User.find({ membershipConfirmed: true }).sort({ correctPredictions: -1, exactPredictions: -1 }).limit(50).select('displayName clubName favoriteTeam correctPredictions exactPredictions').lean();
     const rank = await User.countDocuments({ correctPredictions: { $gt: current.correctPredictions } }).then((n) => n + 1);

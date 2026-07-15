@@ -19,6 +19,7 @@ export interface ISquad {
   userId: Types.ObjectId;
   formation: SquadFormation;
   starterIds: Array<Types.ObjectId|null>;
+  captainId?: Types.ObjectId;
   substituteIds: Types.ObjectId[];
   customPositions: ISquadPosition[];
   savedFormations: ISavedFormation[];
@@ -54,6 +55,7 @@ const schema = new Schema<ISquad>({
     default: () => Array.from({ length: 11 }, () => null),
     validate: { validator: (value: unknown[]) => value.length === 11, message: 'ترکیب اصلی باید دقیقاً ۱۱ جایگاه داشته باشد' }
   },
+  captainId: { type: Schema.Types.ObjectId, ref: 'ClubPlayer' },
   substituteIds: [{ type: Schema.Types.ObjectId, ref: 'ClubPlayer' }],
   customPositions: {
     type: [positionSchema],

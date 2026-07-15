@@ -25,7 +25,7 @@ export type SquadFormation = BuiltInSquadFormation|'custom';
 export type TransferOfferStatus = 'active'|'accepted'|'rejected'|'cancelled'|'countered'|'expired';
 export interface PlayerTransferOffer { _id: Id; amount: number; createdAt: string; expiresAt?: string; status: TransferOfferStatus; }
 export interface PlayerTransferListing { isListed: boolean; askingPrice?: number; status?: 'active'|'negotiable'|'paused'|'sold'|'expired'; expiresAt?: string; }
-export interface ClubPlayer { _id: Id; name: string; position: 'GK'|'RB'|'CB'|'LB'|'DM'|'CM'|'AM'|'RW'|'LW'|'ST'; overall: number; photoUrl?: string; nationality?: string; club?: string; marketValue?: number; contractStatus?: string; transferListing?: PlayerTransferListing; transferOffers?: PlayerTransferOffer[]; }
+export interface ClubPlayer { _id: Id; fantasyPlayerId?: Id; name: string; position: 'GK'|'RB'|'CB'|'LB'|'DM'|'CM'|'AM'|'RW'|'LW'|'ST'; overall: number; photoUrl?: string; nationality?: string; club?: string; marketValue?: number; contractStatus?: string; transferListing?: PlayerTransferListing; transferOffers?: PlayerTransferOffer[]; }
 export interface ClubPlayersData { players: ClubPlayer[]; }
 export interface TradeOfferView { _id: Id; direction: 'received'|'sent'; kind: 'buy'|'sell'; status: TransferOfferStatus; amount: number; createdAt: string; expiresAt: string; note?: string; parentOfferId?: Id; player: Pick<ClubPlayer, '_id'|'name'|'position'|'photoUrl'|'nationality'|'club'|'marketValue'|'contractStatus'>; counterparty: { _id: Id; name: string; username?: string; photoUrl?: string }; listingAskingPrice?: number; }
 export interface TradeOffersData { received: TradeOfferView[]; sent: TradeOfferView[]; transferFeePercent: number; }
