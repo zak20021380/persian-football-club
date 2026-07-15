@@ -212,8 +212,7 @@ function TransferStatus({ status }: { status: HomeData['transferStatus'] }) {
   return <Card className="p-3"><div className="mb-2.5 flex items-center justify-between"><h2 className="text-[10px] font-black">وضعیت نقل‌وانتقالات</h2><Link to="/club/transactions" className="flex items-center gap-1 text-[8px] font-bold text-slate-500">جزئیات<ArrowLeft size={12}/></Link></div><div className="grid grid-cols-3 gap-1">{items.map(({ label, value, icon: Icon, tone }) => <div key={label} className="min-w-0 rounded-xl bg-white/[.025] px-2 py-2.5 text-center"><Icon size={14} className={cn('mx-auto', tone)}/><strong className="mt-1.5 block text-xs">{faNumber(value)}</strong><span className="mt-1 block truncate text-[7px] text-slate-500">{label}</span></div>)}</div></Card>;
 }
 
-function CompactCompetition({ competition }: { competition: HomeData['activeCompetition'] }) {
-  if (!competition) return <Link to="/competition" className="flex min-h-[78px] items-center gap-3 rounded-[1.35rem] bg-white/[.025] p-3.5"><span className="grid h-10 w-10 shrink-0 place-items-center rounded-2xl bg-white/[.04] text-slate-500"><Trophy size={18}/></span><div className="min-w-0 flex-1"><h2 className="text-xs font-black">رقابت فعالی نیست</h2><p className="mt-1 text-[8px] text-slate-500">مرکز رقابت را بررسی کن</p></div><ArrowLeft size={16} className="text-slate-600"/></Link>;
+function CompactCompetition({ competition }: { competition: NonNullable<HomeData['activeCompetition']> }) {
   return <Link to={`/competitions/${competition._id}`} className="home-cup-card flex min-h-[92px] items-center gap-3 overflow-hidden rounded-[1.4rem] bg-gradient-to-l from-emerald-400/[.08] to-white/[.02] p-3.5 transition active:scale-[.99]">
     <span className="grid h-12 w-12 shrink-0 place-items-center rounded-2xl bg-emerald-400/[.11] text-emerald-300"><Trophy size={21}/></span>
     <div className="min-w-0 flex-1"><div className="flex items-center gap-2"><span className="text-[8px] font-black text-emerald-300">رقابت فعال</span><span className="text-[7px] text-slate-600">{remaining(competition.endsAt)}</span></div><h2 className="mt-1 truncate text-xs font-black">{competition.title}</h2><p className="mt-1 text-[8px] text-slate-500">رتبه شما: <span className="font-bold text-slate-300">{competition.rank ? `#${faNumber(competition.rank)}` : 'بدون رتبه'}</span></p></div>
@@ -299,10 +298,12 @@ export function HomePage() {
 
         <TransferStatus status={data.transferStatus}/>
 
-        <section>
-          <div className="mb-3 flex items-center justify-between"><h2 className="text-sm font-black">رقابت من</h2><Link to="/competition" className="flex items-center gap-1 text-[9px] font-bold text-emerald-300">همه رقابت‌ها<ArrowLeft size={13}/></Link></div>
-          <CompactCompetition competition={data.activeCompetition}/>
-        </section>
+        {data.activeCompetition && (
+          <section>
+            <div className="mb-3 flex items-center justify-between"><h2 className="text-sm font-black">رقابت من</h2><Link to="/competition" className="flex items-center gap-1 text-[9px] font-bold text-emerald-300">همه رقابت‌ها<ArrowLeft size={13}/></Link></div>
+            <CompactCompetition competition={data.activeCompetition}/>
+          </section>
+        )}
 
         {data.sponsor && <section><SponsorCard sponsor={data.sponsor}/></section>}
       </div>

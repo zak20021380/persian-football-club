@@ -131,12 +131,17 @@ router.get('/home', asyncHandler(async (req, res) => {
     prediction: homePredictionMap.get(String(match._id)) ?? null,
     predictionOpen: isPredictionOpen({ status: match.status, predictionDeadline: new Date(match.predictionDeadline), kickoffAt: new Date(match.kickoffAt) })
   }));
-  const featuredCompetition = competitions[0];
   let activeCompetition: Record<string, unknown> | null = null;
+  const latestActiveEntry = competitions.length
+    ? await CompetitionEntry.findOne({ userId: user._id, competitionId: { $in: competitions.map((competition) => competition._id) } }).sort({ completedAt: -1 }).lean()
+    : null;
+  const featuredCompetition = latestActiveEntry
+    ? competitions.find((competition) => String(competition._id) === String(latestActiveEntry.competitionId))
+    : null;
   if (featuredCompetition) {
     const entry = await CompetitionEntry.findOne({ userId: user._id, competitionId: featuredCompetition._id }).sort({ score: -1, durationMs: 1 }).lean();
     const rank = entry ? await CompetitionEntry.countDocuments({ competitionId: featuredCompetition._id, $or: [{ score: { $gt: entry.score } }, { score: entry.score, durationMs: { $lt: entry.durationMs } }] }).then((count) => count + 1) : null;
-    activeCompetition = { ...featuredCompetition, rank, attempted: Boolean(entry) };
+    activeCompetition = { ...featuredCompetition, rank, attempted: true };
   }
   res.json({
     user: { firstName: displayNameFor(user.toObject(), req.telegramUser), points: user.points, coinBalance: user.coinBalance ?? 0, weeklyRank, streak: user.streak },
