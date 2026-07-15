@@ -38,7 +38,7 @@ function QuickActions({ predictionsCount }: { predictionsCount: number }) {
   return (
     <div className="home-quick-actions grid grid-cols-3 gap-1.5 p-1.5">
       {quickActions.map(({ to, label, icon: Icon, tone }, index) => (
-        <Link key={to} to={to} className="home-quick-action group relative flex min-h-[78px] flex-col items-center justify-center gap-2 overflow-hidden px-2 transition active:scale-[.97]">
+        <Link key={to} to={to} className="home-quick-action group relative flex min-h-[72px] flex-col items-center justify-center gap-1.5 overflow-hidden px-2 transition active:scale-[.97]">
           <span className="absolute right-2 top-1.5 text-[7px] font-black tracking-[.18em] text-white/20" dir="ltr">0{index + 1}</span>
           <span className={cn('grid h-9 w-9 place-items-center transition group-active:scale-95', tone)}><Icon size={18} strokeWidth={2.3}/></span>
           <span className="text-[10px] font-extrabold text-slate-200">{label}</span>
@@ -168,7 +168,7 @@ export function HomePage() {
 
   return (
     <main className="home-page pb-5">
-      <header className="home-hero safe-top relative overflow-hidden px-4 pb-11 pt-3">
+      <header className="home-hero safe-top relative overflow-hidden px-4 pb-8 pt-3">
         <div className="home-hero-grid absolute inset-0"/>
         <div className="home-broadcast-angle absolute inset-0"/>
 
@@ -184,16 +184,16 @@ export function HomePage() {
           </div>
         </div>
 
-        <div className="relative mt-11 max-w-[92%]">
+        <div className="relative mt-7 max-w-[92%]">
           <p className="home-hero-label text-right text-[8px] font-black tracking-[.16em]" dir="ltr">MATCHDAY / FOOTBALL CLUB</p>
-          <h1 className="mt-3 text-[2rem] font-black leading-[1.34] tracking-tight text-white">فوتبال را زندگی کن؛<br/><span className="home-hero-title-accent">نتیجه را تو بساز.</span></h1>
-          <p className="mt-4 max-w-[270px] text-[10px] font-medium leading-6 text-slate-400">پیش‌بینی کن، رقابت کن و باشگاه خودت را بساز.</p>
+          <h1 className="mt-2 text-[2rem] font-black leading-[1.3] tracking-tight text-white">فوتبال را زندگی کن؛<br/><span className="home-hero-title-accent">نتیجه را تو بساز.</span></h1>
+          <p className="mt-3 max-w-[270px] text-[10px] font-medium leading-5 text-slate-400">پیش‌بینی کن، رقابت کن و باشگاه خودت را بساز.</p>
         </div>
       </header>
 
-      <div className="relative -mt-5 px-4"><QuickActions predictionsCount={data.predictionsCount}/></div>
+      <div className="relative -mt-6 px-4"><QuickActions predictionsCount={data.predictionsCount}/></div>
 
-      <div className="mt-7 space-y-8 px-4">
+      <div className="mt-5 space-y-8 px-4">
         <section>
           <div className="mb-3 flex items-end justify-between">
             <div><span className="text-[7px] font-black tracking-[.18em] text-fuchsia-300" dir="ltr">MAIN EVENT</span><h2 className="mt-1 text-base font-black tracking-tight">بازی‌های مهم</h2></div>
