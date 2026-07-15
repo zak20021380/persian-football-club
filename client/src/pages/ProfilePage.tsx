@@ -1,25 +1,31 @@
 import { useState, type CSSProperties, type ReactNode } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
+  ArrowLeft,
   Award,
   Check,
+  Coins,
   Copy,
   Flame,
+  Gem,
   Laugh,
   Medal,
   Pencil,
   Rocket,
   Share2,
   ShieldCheck,
+  Shirt,
   Sparkles,
   Target,
   Trophy,
   UserPlus,
-  Users
+  Users,
+  UsersRound
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { Link } from 'react-router-dom';
 import { BrandMark } from '@/components/BrandMark';
+import { ClubCrest } from '@/components/ClubCrest';
 import { WalletShortcut } from '@/components/WalletShortcut';
 import { Card, ErrorState, LoadingButton, PageSkeleton } from '@/components/ui';
 import { useBootstrap } from '@/hooks/useBootstrap';
@@ -32,6 +38,52 @@ interface ReferralData {
   successful: number;
   earnedPoints: number;
   referrals: unknown[];
+}
+
+interface ProfileRankingEntry {
+  userId: string;
+  clubName: string;
+  ownerName: string;
+  score: number;
+  rank: number;
+  formation?: string;
+  playerCount: number;
+  logoUrl?: string;
+}
+
+interface ProfileRankingData {
+  current: ProfileRankingEntry;
+}
+
+interface ProfileClubPlayer {
+  _id: string;
+  name: string;
+}
+
+interface ProfileClubDetails {
+  logoUrl?: string;
+  formation?: string;
+  starters: Array<ProfileClubPlayer|null>;
+  substitutes: ProfileClubPlayer[];
+  captainId?: string;
+  totalSquadValue: number;
+  totalFantasyPoints: number;
+  recentWeeks: Array<{ startsAt: string; points: number }>;
+}
+
+interface ProfileClubView {
+  name: string;
+  logoUrl?: string;
+  managerName: string;
+  formation?: string;
+  rank?: number;
+  fantasyPoints?: number;
+  squadValue?: number;
+  coinBalance: number;
+  captainName?: string;
+  form: number[];
+  playerCount: number;
+  demo?: boolean;
 }
 
 const badgeIcons: Record<string, typeof Award> = { rocket: Rocket, target: Target, users: Users, flame: Flame };
@@ -84,11 +136,96 @@ function BadgeCard({ badge }: { badge: Badge }) {
   );
 }
 
+function MyClubSection({ club, loading, onEdit }: { club: ProfileClubView|null; loading: boolean; onEdit: () => void }) {
+  if (loading) return <div className="profile-club-card broadcast-skeleton h-[246px] rounded-[1.45rem]" aria-label="در حال دریافت اطلاعات باشگاه"/>;
+  if (!club) return (
+    <section className="profile-club-empty profile-animate relative isolate overflow-hidden rounded-[1.45rem] border border-dashed border-emerald-300/[.16] px-5 py-6 text-center">
+      <ShieldCheck size={104} strokeWidth={1} className="absolute -left-7 -top-7 -rotate-12 text-emerald-300/[.045]"/>
+      <span className="relative mx-auto grid h-14 w-14 place-items-center rounded-[1.15rem] border border-emerald-300/[.12] bg-emerald-300/[.08] text-emerald-300"><Shirt size={24}/></span>
+      <p className="relative mt-3 text-[7px] font-black tracking-[.17em] text-cyan-300" dir="ltr">CREATE YOUR FANTASY CLUB</p>
+      <h2 className="relative mt-1 text-sm font-black">باشگاه فانتزی هنوز ساخته نشده</h2>
+      <p className="relative mx-auto mt-1 max-w-[250px] text-[8px] leading-4 text-slate-500">نام باشگاهت را انتخاب کن، بازیکن بگیر و اولین ترکیب را بچین.</p>
+      <Link to="/club" className="relative mt-4 inline-flex min-h-10 items-center justify-center gap-2 rounded-xl bg-gradient-to-l from-emerald-300 to-cyan-300 px-6 text-[9px] font-black text-ink-950 shadow-[0_10px_24px_rgba(52,211,153,.12)]">ساخت باشگاه<ArrowLeft size={14}/></Link>
+    </section>
+  );
+
+  return (
+    <section className="profile-club-card profile-animate relative isolate overflow-hidden rounded-[1.45rem] border border-cyan-200/[.12] p-3.5">
+      <div className="profile-club-grid absolute inset-0"/>
+      <div className="relative flex items-center gap-3">
+        <div className="profile-club-crest grid h-[70px] w-[70px] shrink-0 place-items-center rounded-[1.35rem] border border-white/[.08] bg-white/[.045]"><ClubCrest name={club.name} logo={club.logoUrl} className="h-[58px] w-[58px] !overflow-visible !rounded-none"/></div>
+        <div className="min-w-0 flex-1">
+          <div className="flex items-center gap-1.5"><span className="text-[7px] font-black tracking-[.16em] text-cyan-300" dir="ltr">MY FANTASY CLUB</span>{club.demo && <span className="rounded-full border border-fuchsia-300/[.16] bg-fuchsia-300/[.08] px-1.5 py-0.5 text-[5px] font-black text-fuchsia-200" dir="ltr">DEMO</span>}</div>
+          <h2 className="mt-1 truncate text-[14px] font-black leading-6 tracking-[-.02em] text-white min-[360px]:text-[16px]" dir="ltr">{club.name}</h2>
+          <p className="mt-0.5 truncate text-[7.5px] text-slate-500">مدیر / مالک: <strong className="text-slate-300">{club.managerName}</strong></p>
+        </div>
+        <span className="profile-club-rank grid h-12 w-12 shrink-0 place-items-center rounded-xl text-center"><span><small className="block text-[5px] font-black tracking-[.1em] text-amber-300" dir="ltr">RANK</small><strong className="mt-0.5 block text-[13px] text-white">{club.rank === undefined ? '—' : `#${faNumber(club.rank)}`}</strong></span></span>
+      </div>
+
+      <div className="relative mt-3 grid grid-cols-4 gap-1.5">
+        <ClubMetric icon={<Trophy size={12}/>} label="امتیاز فانتزی" value={club.fantasyPoints === undefined ? '—' : faNumber(club.fantasyPoints)} tone="text-cyan-300"/>
+        <ClubMetric icon={<Gem size={12}/>} label="ارزش تیم" value={club.squadValue === undefined ? '—' : faNumber(club.squadValue)} tone="text-violet-300"/>
+        <ClubMetric icon={<Coins size={12}/>} label="موجودی سکه" value={faNumber(club.coinBalance)} tone="text-amber-300"/>
+        <ClubMetric icon={<UsersRound size={12}/>} label="بازیکنان" value={faNumber(club.playerCount)} tone="text-emerald-300"/>
+      </div>
+
+      <div className="relative mt-2 grid grid-cols-[.8fr_1.2fr_1.45fr] divide-x divide-x-reverse divide-white/[.055] rounded-xl border border-white/[.055] bg-white/[.025] px-1 py-2.5 text-center">
+        <ClubInfo label="آرایش" value={club.formation || '—'} dir="ltr"/>
+        <ClubInfo label="کاپیتان" value={club.captainName || 'ثبت نشده'} dir="ltr"/>
+        <ClubForm values={club.form}/>
+      </div>
+
+      <div className="relative mt-3 grid grid-cols-[1fr_auto] gap-2">
+        <Link to="/club" className="flex min-h-10 items-center justify-center gap-2 rounded-xl bg-gradient-to-l from-emerald-300 to-cyan-300 px-3 text-[9px] font-black text-ink-950 shadow-[0_9px_22px_rgba(52,211,153,.1)] transition active:scale-[.98]">مشاهده باشگاه<ArrowLeft size={14}/></Link>
+        <button type="button" onClick={onEdit} className="flex min-h-10 items-center justify-center gap-1.5 rounded-xl border border-white/[.075] bg-white/[.045] px-3 text-[8px] font-bold text-slate-300 transition active:scale-[.97] active:bg-white/[.08]"><Pencil size={12}/>ویرایش نام</button>
+      </div>
+    </section>
+  );
+}
+
+function ClubMetric({ icon, label, value, tone }: { icon: ReactNode; label: string; value: string; tone: string }) {
+  return <div className="profile-club-metric min-w-0 rounded-xl border border-white/[.055] px-1 py-2 text-center"><span className={cn('mx-auto grid h-6 w-6 place-items-center rounded-lg bg-white/[.035]', tone)}>{icon}</span><strong className="mt-1 block truncate text-[8px] text-white">{value}</strong><span className="mt-0.5 block truncate text-[5.5px] text-slate-600">{label}</span></div>;
+}
+
+function ClubInfo({ label, value, dir }: { label: string; value: string; dir?: 'ltr'|'rtl' }) {
+  return <div className="min-w-0 px-1"><span className="block text-[5.5px] text-slate-600">{label}</span><strong className="mt-1 block truncate text-[7px] text-slate-200" dir={dir}>{value}</strong></div>;
+}
+
+function ClubForm({ values }: { values: number[] }) {
+  if (!values.length) return <div className="min-w-0 px-1"><span className="block text-[5.5px] text-slate-600">فرم هفتگی</span><strong className="mt-1 block text-[7px] text-slate-600">ثبت نشده</strong></div>;
+  const recent = values.slice(-5);
+  const max = Math.max(...recent.map(value => Math.abs(value)), 1);
+  return <div className="min-w-0 px-1"><span className="block text-[5.5px] text-slate-600">فرم هفتگی</span><span className="mt-1 flex h-4 items-end justify-center gap-[3px]" dir="ltr">{recent.map((value, index) => <i key={`${value}-${index}`} title={`${value}`} className={cn('block w-1 rounded-t-full not-italic', index === recent.length - 1 ? 'bg-emerald-300' : 'bg-cyan-300/45')} style={{ height: `${Math.max(4, Math.round(Math.abs(value) / max * 16))}px` }}/>)}</span></div>;
+}
+
+const developmentClub: Omit<ProfileClubView, 'managerName'|'coinBalance'> = {
+  name: 'Manchester City',
+  logoUrl: 'https://media.api-sports.io/football/teams/50.png',
+  formation: '4-3-3',
+  rank: 1,
+  fantasyPoints: 864,
+  squadValue: 17_450,
+  captainName: 'Erling Haaland',
+  form: [61, 74, 68, 82, 79],
+  playerCount: 16,
+  demo: true
+};
+
 export function ProfilePage() {
   const bootstrap = useBootstrap();
   const queryClient = useQueryClient();
   const profile = useQuery({ queryKey: ['profile'], queryFn: async () => (await api.get<User>('/profile')).data });
   const referrals = useQuery({ queryKey: ['referrals'], queryFn: async () => (await api.get<ReferralData>('/referrals')).data });
+  const fantasyRanking = useQuery({
+    queryKey: ['rankings', 'fantasy', 'season'],
+    queryFn: async () => (await api.get<ProfileRankingData>('/rankings', { params: { type: 'fantasy', period: 'season' } })).data,
+    enabled: Boolean(profile.data?._id)
+  });
+  const clubDetails = useQuery({
+    queryKey: ['rankingClubDetails', profile.data?._id, 'season'],
+    queryFn: async () => (await api.get<ProfileClubDetails>(`/rankings/${profile.data!._id}`, { params: { period: 'season' } })).data,
+    enabled: Boolean(profile.data?._id)
+  });
   const [editing, setEditing] = useState(false);
   const [displayName, setDisplayName] = useState('');
   const [clubName, setClubName] = useState('');
@@ -111,6 +248,29 @@ export function ProfilePage() {
   if (profile.error || !profile.data) return <div className="p-4"><ErrorState message={(profile.error as Error)?.message || 'پروفایل دریافت نشد'}/></div>;
 
   const user = profile.data;
+  const details = clubDetails.data;
+  const ranking = fantasyRanking.data?.current;
+  const starterCount = details?.starters.filter(Boolean).length ?? 0;
+  const rosterCount = starterCount + (details?.substitutes.length ?? 0);
+  const hasBackendClub = Boolean(user.clubName || rosterCount > 0);
+  const captain = details?.captainId
+    ? [...details.starters.filter((player): player is ProfileClubPlayer => Boolean(player)), ...(details.substitutes ?? [])].find(player => player._id === details.captainId)
+    : undefined;
+  const backendClub: ProfileClubView|null = hasBackendClub ? {
+    name: user.clubName || ranking?.clubName || user.favoriteTeam || 'باشگاه من',
+    logoUrl: details?.logoUrl || ranking?.logoUrl,
+    managerName: user.displayName || user.firstName,
+    formation: details?.formation || ranking?.formation,
+    rank: ranking?.rank,
+    fantasyPoints: ranking?.score ?? details?.totalFantasyPoints,
+    squadValue: details?.totalSquadValue,
+    coinBalance: user.coinBalance,
+    captainName: captain?.name,
+    form: details?.recentWeeks.map(week => week.points) ?? [],
+    playerCount: rosterCount || ranking?.playerCount || 0
+  } : null;
+  const club = backendClub ?? (bootstrap.data?.developmentMock ? { ...developmentClub, managerName: user.displayName || user.firstName, coinBalance: user.coinBalance } : null);
+  const clubLoading = bootstrap.isLoading || fantasyRanking.isLoading || clubDetails.isLoading;
   const copy = async (showToast = true) => {
     if (!referrals.data?.link) return;
     await navigator.clipboard.writeText(referrals.data.link);
@@ -152,7 +312,11 @@ export function ProfilePage() {
         </div>
       </header>
 
-      <div className="profile-animate relative -mt-6 grid grid-cols-3 gap-2 px-4" style={{ animationDelay: '70ms' }}>
+      <div className="relative -mt-6 px-4">
+        <MyClubSection club={club} loading={clubLoading} onEdit={openEditor}/>
+      </div>
+
+      <div className="profile-animate relative mt-3 grid grid-cols-3 gap-2 px-4" style={{ animationDelay: '70ms' }}>
         <ProfileStat icon={<Trophy size={13}/>} label="امتیاز کل" value={faNumber(user.points)} tone="text-amber-300"/>
         <ProfileStat icon={<Medal size={13}/>} label="رتبه هفته" value={`#${faNumber(user.weeklyRank ?? 0)}`} tone="text-emerald-300"/>
         <ProfileStat icon={<Flame size={13}/>} label="استریک" value={`${faNumber(user.streak)} روز`} tone="text-orange-300"/>

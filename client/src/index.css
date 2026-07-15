@@ -160,6 +160,15 @@ button { touch-action: manipulation; }
 .profile-animate { animation: profile-rise .58s cubic-bezier(.22,1,.36,1) both; }
 .profile-hero-glow { animation: profile-glow 5s ease-in-out infinite alternate; }
 .profile-accuracy-ring { background: conic-gradient(#34d399 var(--accuracy),rgba(255,255,255,.055) 0); box-shadow: 0 0 30px rgba(52,211,153,.09); }
+.profile-club-card { background:radial-gradient(circle at 13% 0,rgba(239,100,200,.105),transparent 30%),radial-gradient(circle at 90% 12%,rgba(73,228,242,.085),transparent 28%),linear-gradient(138deg,rgba(31,9,49,.98),rgba(8,24,41,.99)); box-shadow:inset 0 1px rgba(255,255,255,.055),0 18px 38px rgba(1,2,13,.3); }
+.profile-club-card::before { content:''; position:absolute; z-index:-1; inset:0 auto 0 0; width:3px; background:linear-gradient(to bottom,var(--cyan),var(--magenta) 52%,var(--mint)); opacity:.75; }
+.profile-club-grid { z-index:-1; opacity:.13; background-image:linear-gradient(rgba(102,237,234,.16) 1px,transparent 1px),linear-gradient(90deg,rgba(102,237,234,.16) 1px,transparent 1px); background-size:22px 22px; -webkit-mask-image:linear-gradient(115deg,#000,transparent 78%); mask-image:linear-gradient(115deg,#000,transparent 78%); }
+.profile-club-crest { box-shadow:inset 0 1px rgba(255,255,255,.06),0 12px 24px rgba(0,0,0,.25); }
+.profile-club-crest .club-crest { filter:drop-shadow(0 7px 9px rgba(0,0,0,.38)); }
+.profile-club-crest .club-crest::after { display:none; }
+.profile-club-rank { border:1px solid rgba(248,207,105,.16); background:linear-gradient(145deg,rgba(248,207,105,.1),rgba(248,207,105,.025)); box-shadow:inset 0 1px rgba(255,255,255,.035); }
+.profile-club-metric { background:linear-gradient(145deg,rgba(255,255,255,.038),rgba(255,255,255,.018)); box-shadow:inset 0 1px rgba(255,255,255,.025); }
+.profile-club-empty { background:radial-gradient(circle at 50% 0,rgba(52,211,153,.08),transparent 34%),linear-gradient(145deg,rgba(26,10,44,.76),rgba(7,20,36,.92)); box-shadow:inset 0 1px rgba(255,255,255,.03),0 16px 34px rgba(1,2,13,.2); }
 .referral-card { transition: transform .35s cubic-bezier(.22,1,.36,1),border-color .35s ease; }
 .referral-card:active { transform: scale(.99); border-color: rgba(125,211,252,.28); }
 .fun-hero { background: radial-gradient(circle at 12% 24%,rgba(240,79,199,.12),transparent 30%),linear-gradient(145deg,#340640,#170724 52%,#071827); }

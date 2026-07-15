@@ -83,6 +83,7 @@ router.get('/bootstrap', asyncHandler(async (req, res) => {
     joinUrl: env.CHANNEL_JOIN_URL,
     botUsername: env.BOT_USERNAME,
     isAdmin: adminIds.has(user.telegramId),
+    developmentMock: env.NODE_ENV === 'development' && user.telegramId === env.DEV_MOCK_TELEGRAM_ID,
     timezone: env.TIMEZONE
   });
 }));
