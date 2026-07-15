@@ -19,7 +19,7 @@ import { createSessionToken } from '../services/session.js';
 import { validateTelegramInitData, type TelegramInitUser } from '../services/telegramAuth.js';
 import { recoverTelegramUser } from '../services/userRecovery.js';
 import { presentMatch } from '../services/matchPresentation.js';
-import { clubValueRankings, performanceRankings } from '../services/rankings.js';
+import { clubValueRankings, performanceRankings, rankingClubDetails } from '../services/rankings.js';
 import { AppError } from '../utils/errors.js';
 import { asyncHandler } from '../utils/asyncHandler.js';
 import funRouter from './fun.js';
@@ -272,6 +272,14 @@ router.post('/competitions/:id/submit', verifyLiveMembership, asyncHandler(async
   await User.updateOne({ _id: req.authUser!._id }, { $inc: { points: result.score, weeklyPoints: result.score }, $push: { activity: { $each: [{ type: 'competition', title: competition.title, points: result.score, at: now }], $slice: -50 } } });
   const rank = await CompetitionEntry.countDocuments({ competitionId: competition._id, $or: [{ score: { $gt: result.score } }, { score: result.score, durationMs: { $lt: input.durationMs } }] }).then((n) => n + 1);
   res.status(201).json({ entry, rank, feedback: result.details });
+}));
+
+router.get('/rankings/:userId', asyncHandler(async (req, res) => {
+  const userId = z.string().refine(mongoose.isValidObjectId, 'شناسه باشگاه نامعتبر است').parse(req.params.userId);
+  const period = z.enum(['week','month','season']).parse(req.query.period ?? 'week');
+  const details = await rankingClubDetails(new mongoose.Types.ObjectId(userId), period, req.authUser!._id);
+  if (!details) throw new AppError(404, 'اطلاعات این باشگاه پیدا نشد', 'RANKING_CLUB_NOT_FOUND');
+  res.json(details);
 }));
 
 router.get('/rankings', asyncHandler(async (req, res) => {

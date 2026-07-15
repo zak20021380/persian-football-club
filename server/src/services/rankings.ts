@@ -1,4 +1,4 @@
-import { type Types } from 'mongoose';
+import { Types } from 'mongoose';
 import {
   ClubPlayer,
   FantasyPlayer,
@@ -8,6 +8,7 @@ import {
   QuizAttempt,
   Referral,
   Squad,
+  Team,
   User
 } from '../models/index.js';
 import { env } from '../config/env.js';
@@ -27,6 +28,7 @@ interface RankingUser {
   displayName?: string;
   clubName?: string;
   favoriteTeam?: string;
+  membershipConfirmed?: boolean;
   coinBalance: number;
   createdAt: Date;
 }
@@ -46,6 +48,8 @@ export interface RankingEntry {
   isCurrent: boolean;
   formation?: string;
   playerCount: number;
+  logoUrl?: string;
+  form: number[];
 }
 
 export interface RankingResponse {
@@ -54,6 +58,31 @@ export interface RankingResponse {
   metric: 'points'|'value';
   leaders: RankingEntry[];
   current: RankingEntry;
+}
+
+export interface RankingClubPlayer {
+  _id: string;
+  name: string;
+  position: string;
+  photoUrl?: string;
+  nationality?: string;
+  club?: string;
+  marketValue?: number;
+  fantasyPoints: number;
+}
+
+export interface RankingClubDetails {
+  userId: string;
+  logoUrl?: string;
+  formation?: string;
+  starters: Array<RankingClubPlayer|null>;
+  substitutes: RankingClubPlayer[];
+  captainId?: string;
+  viceCaptainId?: string;
+  customPositions: Array<{ role: string; x: number; y: number }>;
+  totalSquadValue: number;
+  totalFantasyPoints: number;
+  recentWeeks: Array<{ startsAt: string; points: number }>;
 }
 
 export function lineupFantasyTotal(players: Array<{ id: string; points: number }>, captainId?: string): number {
@@ -89,12 +118,13 @@ export function rankingPeriodWindow(period: RankingPeriod, now = new Date()): Pe
 export async function performanceRankings(category: RankingCategory, period: RankingPeriod, currentUserId: Types.ObjectId): Promise<RankingResponse> {
   const users = await rankingUsers(currentUserId);
   const window = rankingPeriodWindow(period);
-  const [scores, previousScores, squadMeta] = await Promise.all([
+  const [scores, previousScores, squadMeta, logos] = await Promise.all([
     metricScores(category, window.start, window.end),
     window.previousStart && window.previousEnd ? metricScores(category, window.previousStart, window.previousEnd) : Promise.resolve(new Map<string, number>()),
-    squadMetadata(users.map(user => user._id))
+    squadMetadata(users.map(user => user._id)),
+    rankingClubLogos(users)
   ]);
-  return rankedResponse(category, period, 'points', users, scores, previousScores, squadMeta, currentUserId);
+  return rankedResponse(category, period, 'points', users, scores, previousScores, squadMeta, logos, currentUserId);
 }
 
 export async function clubValueRankings(currentUserId: Types.ObjectId): Promise<RankingResponse> {
@@ -104,12 +134,12 @@ export async function clubValueRankings(currentUserId: Types.ObjectId): Promise<
   ]);
   const scores = new Map(values.map(item => [String(item._id), item.total]));
   users.forEach(user => scores.set(String(user._id), (scores.get(String(user._id)) ?? 0) + user.coinBalance));
-  const meta = await squadMetadata(users.map(user => user._id));
+  const [meta, logos] = await Promise.all([squadMetadata(users.map(user => user._id)), rankingClubLogos(users)]);
   values.forEach(item => {
     const key = String(item._id);
     meta.set(key, { ...meta.get(key), playerCount: item.playerCount });
   });
-  return rankedResponse('club-value', 'season', 'value', users, scores, new Map(), meta, currentUserId);
+  return rankedResponse('club-value', 'season', 'value', users, scores, new Map(), meta, logos, currentUserId);
 }
 
 async function metricScores(category: RankingCategory, start: Date|undefined, end: Date): Promise<Map<string, number>> {
@@ -177,8 +207,23 @@ async function fantasyScores(start: Date|undefined, end: Date): Promise<Map<stri
 
 async function rankingUsers(currentUserId: Types.ObjectId): Promise<RankingUser[]> {
   return User.find({ $or: [{ membershipConfirmed: true }, { _id: currentUserId }] })
-    .select('displayName clubName favoriteTeam coinBalance createdAt')
+    .select('displayName clubName favoriteTeam membershipConfirmed coinBalance createdAt')
     .lean() as unknown as Promise<RankingUser[]>;
+}
+
+async function rankingClubLogos(users: RankingUser[]): Promise<Map<string, string>> {
+  if (!users.length) return new Map();
+  const teams = await Team.find({ active: true, logoUrl: { $exists: true, $ne: '' } }).select('name shortName logoUrl').lean();
+  const result = new Map<string, string>();
+  users.forEach(user => {
+    const candidates = [user.favoriteTeam, user.clubName].filter(Boolean).map(value => normalizedTeamName(value!));
+    const match = teams.find(team => {
+      const names = [team.name, team.shortName].map(normalizedTeamName);
+      return candidates.some(candidate => names.some(name => candidate === name || candidate.includes(name) || name.includes(candidate)));
+    });
+    if (match?.logoUrl) result.set(String(user._id), match.logoUrl);
+  });
+  return result;
 }
 
 async function squadMetadata(userIds: Types.ObjectId[]): Promise<Map<string, SquadMeta>> {
@@ -197,6 +242,7 @@ function rankedResponse(
   scores: Map<string, number>,
   previousScores: Map<string, number>,
   squadMeta: Map<string, SquadMeta>,
+  logos: Map<string, string>,
   currentUserId: Types.ObjectId
 ): RankingResponse {
   const sorted = [...users].sort((a, b) => (scores.get(String(b._id)) ?? 0) - (scores.get(String(a._id)) ?? 0) || a.createdAt.getTime() - b.createdAt.getTime());
@@ -215,13 +261,106 @@ function rankedResponse(
       rankChange: previousScores.size ? (previousRanks.get(key) ?? index + 1) - (index + 1) : 0,
       isCurrent: key === String(currentUserId),
       formation: meta?.formation,
-      playerCount: meta?.playerCount ?? 0
+      playerCount: meta?.playerCount ?? 0,
+      logoUrl: logos.get(key),
+      form: previousScores.size ? [previousScores.get(key) ?? 0, scores.get(key) ?? 0] : [scores.get(key) ?? 0]
     };
   });
   const current = entries.find(entry => entry.isCurrent) ?? {
-    userId: String(currentUserId), clubName: 'باشگاه من', ownerName: 'بازیکن باشگاه', score: 0, rank: entries.length + 1, rankChange: 0, isCurrent: true, playerCount: 0
+    userId: String(currentUserId), clubName: 'باشگاه من', ownerName: 'بازیکن باشگاه', score: 0, rank: entries.length + 1, rankChange: 0, isCurrent: true, playerCount: 0, form: [0]
   };
   return { type, period, metric, leaders: entries.filter(entry => entry.score > 0).slice(0, 50), current };
+}
+
+export async function rankingClubDetails(userId: Types.ObjectId, period: RankingPeriod, currentUserId: Types.ObjectId): Promise<RankingClubDetails|null> {
+  const user = await User.findById(userId).select('clubName favoriteTeam membershipConfirmed').lean() as unknown as RankingUser|null;
+  if (!user || (!user.membershipConfirmed && String(userId) !== String(currentUserId))) return null;
+
+  const [squad, roster, logos] = await Promise.all([
+    Squad.findOne({ userId }).lean(),
+    ClubPlayer.find({ ownerId: userId }).lean(),
+    rankingClubLogos([user])
+  ]);
+  const fantasyIdByClubPlayer = await fantasyLinks(roster);
+  const fantasyIds = [...new Set(fantasyIdByClubPlayer.values())];
+  const window = rankingPeriodWindow(period);
+  const selectedPoints = await fantasyPointsForRange(fantasyIds, window.start, window.end);
+  const starterIds = squad?.starterIds ?? [];
+  const captainId = squad?.captainId ? String(squad.captainId) : undefined;
+  const byId = new Map(roster.map(player => [String(player._id), player]));
+  const presentPlayer = (id: unknown): RankingClubPlayer|null => {
+    const player = id ? byId.get(String(id)) : undefined;
+    if (!player) return null;
+    const fantasyId = fantasyIdByClubPlayer.get(String(player._id));
+    return {
+      _id: String(player._id),
+      name: player.name,
+      position: player.position,
+      photoUrl: player.photoUrl,
+      nationality: player.nationality,
+      club: player.club,
+      marketValue: player.marketValue,
+      fantasyPoints: fantasyId ? selectedPoints.get(fantasyId) ?? 0 : 0
+    };
+  };
+  const starters = Array.from({ length: 11 }, (_, index) => presentPlayer(starterIds[index]));
+  const substitutes = (squad?.substituteIds ?? []).map(presentPlayer).filter((player): player is RankingClubPlayer => Boolean(player));
+  const selectedLineup = starters.filter((player): player is RankingClubPlayer => Boolean(player));
+  const totalFantasyPoints = lineupFantasyTotal(selectedLineup.map(player => ({ id: player._id, points: player.fantasyPoints })), captainId);
+
+  const currentWeekStart = rankingPeriodWindow('week').start!;
+  const recentWeeks = await Promise.all([4, 3, 2, 1, 0].map(async offset => {
+    const startsAt = new Date(currentWeekStart.getTime() - offset * 7 * 24 * 60 * 60 * 1000);
+    const endsAt = offset === 0 ? new Date() : new Date(startsAt.getTime() + 7 * 24 * 60 * 60 * 1000);
+    const points = await fantasyPointsForRange(fantasyIds, startsAt, endsAt);
+    const lineup = selectedLineup.map(player => {
+      const fantasyId = fantasyIdByClubPlayer.get(player._id);
+      return { id: player._id, points: fantasyId ? points.get(fantasyId) ?? 0 : 0 };
+    });
+    return { startsAt: startsAt.toISOString(), points: lineupFantasyTotal(lineup, captainId) };
+  }));
+
+  return {
+    userId: String(userId),
+    logoUrl: logos.get(String(userId)),
+    formation: squad?.formation,
+    starters,
+    substitutes,
+    captainId,
+    customPositions: squad?.customPositions ?? [],
+    totalSquadValue: roster.reduce((total, player) => total + (player.marketValue ?? 0), 0),
+    totalFantasyPoints,
+    recentWeeks
+  };
+}
+
+async function fantasyLinks(players: Array<{ _id: unknown; fantasyPlayerId?: unknown; name: string }>): Promise<Map<string, string>> {
+  const directIds = players.map(player => player.fantasyPlayerId).filter(Boolean) as Types.ObjectId[];
+  const names = [...new Set(players.filter(player => !player.fantasyPlayerId).map(player => player.name))];
+  if (!directIds.length && !names.length) return new Map();
+  const fantasyPlayers = await FantasyPlayer.find({
+    $or: [
+      ...(directIds.length ? [{ _id: { $in: directIds } }] : []),
+      ...(names.length ? [{ name: { $in: names } }] : [])
+    ]
+  }).select('name').lean();
+  const byName = new Map(fantasyPlayers.map(player => [normalizedName(player.name), String(player._id)]));
+  return new Map(players.flatMap(player => {
+    const fantasyId = player.fantasyPlayerId ? String(player.fantasyPlayerId) : byName.get(normalizedName(player.name));
+    return fantasyId ? [[String(player._id), fantasyId] as const] : [];
+  }));
+}
+
+async function fantasyPointsForRange(fantasyIds: string[], start: Date|undefined, end: Date): Promise<Map<string, number>> {
+  if (!fantasyIds.length) return new Map();
+  const kickoffAt = start ? { $gte: start, $lt: end } : { $lt: end };
+  const matches = await ImportantMatch.find({ status: 'finished', kickoffAt }).select('_id').lean();
+  if (!matches.length) return new Map();
+  const values = await PlayerMatchStat.aggregate<{ _id: Types.ObjectId; score: number }>([
+    { $match: { matchId: { $in: matches.map(match => match._id) }, playerId: { $in: fantasyIds.map(id => new Types.ObjectId(id)) } } },
+    { $group: { _id: '$playerId', score: { $sum: '$fantasyPoints' } } }
+  ]);
+  return scoreMap(values);
 }
 
 function scoreMap(values: Array<{ _id: Types.ObjectId; score: number }>): Map<string, number> {
@@ -230,6 +369,10 @@ function scoreMap(values: Array<{ _id: Types.ObjectId; score: number }>): Map<st
 
 function normalizedName(value: string): string {
   return value.trim().toLocaleLowerCase('fa').replace(/[\s\u200c\u200f]+/g, ' ');
+}
+
+function normalizedTeamName(value: string): string {
+  return value.trim().toLocaleLowerCase('en-US').replace(/\b(football club|fc|club)\b/g, '').replace(/[^\p{L}\p{N}]+/gu, '');
 }
 
 function zonedParts(date: Date): { year: number; month: number; day: number; hour: number; minute: number; second: number } {
