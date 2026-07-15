@@ -62,6 +62,14 @@ PAYMENT_PROVIDER=test
 DAILY_COIN_REWARD=25
 ```
 
+### Local environment file
+
+The repository-root `.env` is the only local environment file used by the API.
+Do not create `server/.env`. The server resolves the root file independently of
+the current working directory, so both `npm run dev` from the repository root and
+`npm run dev` from `server/` use the same configuration. Variables supplied by the
+deployment environment take precedence over the local file.
+
 توضیح متغیرها:
 
 | متغیر | مقدار |

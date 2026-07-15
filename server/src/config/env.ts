@@ -1,10 +1,34 @@
-import 'dotenv/config';
+import { config } from 'dotenv';
 import { z } from 'zod';
+
+// Keep one local environment source for every entry point. Resolving from this
+// module works in both src/config (tsx) and dist/config (node), independent of cwd.
+config({ path: new URL('../../../.env', import.meta.url), override: false, quiet: true });
+
+type MongoTarget = 'missing' | 'localhost' | 'atlas' | 'other';
+
+function mongoTarget(value: string | undefined): MongoTarget {
+  if (!value?.trim()) return 'missing';
+  try {
+    const uri = new URL(value);
+    const hostname = uri.hostname.toLowerCase();
+    if (['localhost', '127.0.0.1', '::1', '0.0.0.0'].includes(hostname)) return 'localhost';
+    if (uri.protocol === 'mongodb+srv:' && hostname.endsWith('.mongodb.net')) return 'atlas';
+  } catch {
+    // Validation below reports malformed values without echoing them.
+  }
+  return 'other';
+}
+
+const mongodbTarget = mongoTarget(process.env.MONGODB_URI);
+if (process.env.NODE_ENV !== 'test') {
+  console.info(`[env] MONGODB_URI loaded=${mongodbTarget !== 'missing'} target=${mongodbTarget}`);
+}
 
 const schema = z.object({
   BOT_TOKEN: z.string().min(1).default('development-token'),
   BOT_USERNAME: z.string().min(1).default('football_club_bot'),
-  MONGODB_URI: z.string().min(1).default('mongodb://127.0.0.1:27017/persian-football-club'),
+  MONGODB_URI: z.string().trim().min(1, 'MONGODB_URI is required'),
   CHANNEL_ID: z.string().min(1).default('-1000000000000'),
   CHANNEL_USERNAME: z.string().default(''),
   CHANNEL_JOIN_URL: z.string().url().default('https://t.me/example'),
@@ -32,6 +56,9 @@ const schema = z.object({
 });
 
 const parsed = schema.superRefine((value, context) => {
+  if (!/^mongodb(?:\+srv)?:\/\//i.test(value.MONGODB_URI)) {
+    context.addIssue({ code: 'custom', path: ['MONGODB_URI'], message: 'MONGODB_URI must use the mongodb:// or mongodb+srv:// scheme' });
+  }
   if (value.NODE_ENV === 'production' && value.BOT_TOKEN === 'development-token') {
     context.addIssue({ code: 'custom', path: ['BOT_TOKEN'], message: 'BOT_TOKEN must be configured in production' });
   }
