@@ -417,14 +417,14 @@ export function TradeOffersPage() {
 
   if (offersQuery.isLoading) {
     return <>
-      <PageHeader title="پیشنهادهای خریدوفروش" subtitle="باشگاه من" back backTo="/club"/>
+      <PageHeader title="پیشنهادهای خریدوفروش" subtitle="میز مذاکره باشگاه" back backTo="/club" tone="violet" eyebrow="TRANSFER DESK / OFFERS"/>
       <PageSkeleton/>
     </>;
   }
 
   if (offersQuery.error || !offersQuery.data) {
     return <>
-      <PageHeader title="پیشنهادهای خریدوفروش" subtitle="باشگاه من" back backTo="/club"/>
+      <PageHeader title="پیشنهادهای خریدوفروش" subtitle="میز مذاکره باشگاه" back backTo="/club" tone="violet" eyebrow="TRANSFER DESK / OFFERS"/>
       <main className="p-4">
         <ErrorState message={(offersQuery.error as Error)?.message || 'پیشنهادها دریافت نشدند'} onRetry={() => offersQuery.refetch()}/>
       </main>
@@ -432,7 +432,7 @@ export function TradeOffersPage() {
   }
 
   return <>
-    <PageHeader title="پیشنهادهای خریدوفروش" subtitle="باشگاه من" back backTo="/club"/>
+    <PageHeader title="پیشنهادهای خریدوفروش" subtitle="میز مذاکره باشگاه" back backTo="/club" tone="violet" eyebrow="TRANSFER DESK / OFFERS"/>
     <main className="space-y-3 px-3 pb-6 pt-3 sm:px-4">
       <HeroSummary hasRealData={hasRealData} demoMode={demoMode} receivedCount={counts.received.all} sentCount={counts.sent.all} activeReceived={counts.received.active} activeSent={counts.sent.active}/>
 

@@ -85,18 +85,18 @@ export function TransferMarketPage() {
     onError: error => toast.error((error as Error).message || 'ارسال پیشنهاد انجام نشد'),
   });
 
-  if (marketQuery.isLoading) return <><PageHeader title="بازار نقل‌وانتقالات" subtitle="باشگاه من" back backTo="/club"/><PageSkeleton/></>;
-  if (marketQuery.error || !marketQuery.data) return <><PageHeader title="بازار نقل‌وانتقالات" subtitle="باشگاه من" back backTo="/club"/><main className="p-4"><ErrorState message={(marketQuery.error as Error)?.message || 'بازار دریافت نشد'} onRetry={() => marketQuery.refetch()}/></main></>;
+  if (marketQuery.isLoading) return <><PageHeader title="بازار نقل‌وانتقالات" subtitle="فرصت‌های تازه بازار بازیکنان" back backTo="/club" tone="cyan" eyebrow="TRANSFER DESK / LIVE"/><PageSkeleton/></>;
+  if (marketQuery.error || !marketQuery.data) return <><PageHeader title="بازار نقل‌وانتقالات" subtitle="فرصت‌های تازه بازار بازیکنان" back backTo="/club" tone="cyan" eyebrow="TRANSFER DESK / LIVE"/><main className="p-4"><ErrorState message={(marketQuery.error as Error)?.message || 'بازار دریافت نشد'} onRetry={() => marketQuery.refetch()}/></main></>;
 
   return <>
-    <PageHeader title="بازار نقل‌وانتقالات" subtitle="باشگاه من" back backTo="/club"/>
+    <PageHeader title="بازار نقل‌وانتقالات" subtitle="بازیکن پیدا کن و پیشنهاد امن بفرست" back backTo="/club" tone="cyan" eyebrow="TRANSFER DESK / LIVE"/>
     <main className="space-y-3 px-3 pb-6 pt-3 sm:px-4">
       <section className="relative overflow-hidden rounded-[1.5rem] border border-sky-300/[.1] bg-[linear-gradient(145deg,rgba(11,36,49,.97),rgba(8,20,35,.99))] p-3.5">
         <div className="pointer-events-none absolute -left-8 -top-10 h-28 w-28 rounded-full bg-sky-400/[.08] blur-3xl"/>
         <div className="relative flex items-center gap-3"><span className="grid h-10 w-10 shrink-0 place-items-center rounded-2xl bg-sky-400/[.1] text-sky-300"><UsersRound size={19}/></span><div className="min-w-0 flex-1"><div className="flex flex-wrap items-center gap-1.5"><h1 className="text-xs font-black">بازار بازیکنان</h1>{demoMode && <span className="rounded-full border border-amber-300/20 bg-amber-300/[.09] px-2 py-0.5 text-[6.5px] font-black text-amber-200">نمایش آزمایشی</span>}</div><p className="mt-1 text-[8px] leading-4 text-slate-400">بازیکن مناسب را پیدا کن و پیشنهاد خرید امن بفرست.</p></div><span className="shrink-0 text-left"><span className="block text-[6px] text-slate-500">موجودی</span><strong className="mt-0.5 block text-[9px] text-amber-300">{faNumber(marketQuery.data.userBalance)} سکه</strong></span></div>
       </section>
 
-      <section aria-label="جست‌وجو و فیلتر بازار" className="rounded-[1.35rem] border border-white/[.07] bg-ink-900/90 p-2.5">
+      <section aria-label="جست‌وجو و فیلتر بازار" className="themed-filter rounded-[1.35rem] p-2.5">
         <label className="relative block"><Search size={14} className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-slate-500"/><input type="search" value={query} onChange={event => setQuery(event.target.value)} placeholder="جست‌وجوی بازیکن، باشگاه یا ملیت" className="h-10 w-full rounded-xl border border-white/[.07] bg-ink-950/70 pr-9 pl-3 text-[9px] outline-none placeholder:text-slate-600 focus:border-sky-300/35"/></label>
         <div className="mt-2 grid grid-cols-3 gap-1.5">
           <FilterSelect label="فیلتر پست" value={position} onChange={value => setPosition(value as PositionFilter)} options={[['all','همه پست‌ها'],['GK','دروازه‌بان'],['DEF','مدافع'],['MID','هافبک'],['FWD','مهاجم']]}/>

@@ -391,8 +391,8 @@ export function SquadPage() {
   const selectedPlayer = draft && selectedSlot !== null ? draft.starters[selectedSlot] : null;
   const validationMessage = useMemo(() => draft ? validateDraft(draft) : null, [draft]);
 
-  if (squad.isLoading || !draft) return <><PageHeader title="ترکیب من" subtitle="مدیریت ترکیب اصلی" back backTo="/club"/><PageSkeleton/></>;
-  if (squad.error || !squad.data) return <><PageHeader title="ترکیب من" subtitle="مدیریت ترکیب اصلی" back backTo="/club"/><main className="p-4"><ErrorState message={(squad.error as Error)?.message || 'ترکیب دریافت نشد'} onRetry={() => squad.refetch()}/></main></>;
+  if (squad.isLoading || !draft) return <><PageHeader title="ترکیب من" subtitle="مدیریت ترکیب اصلی" back backTo="/club" tone="mint" eyebrow="TACTICAL BOARD / XI"/><PageSkeleton/></>;
+  if (squad.error || !squad.data) return <><PageHeader title="ترکیب من" subtitle="مدیریت ترکیب اصلی" back backTo="/club" tone="mint" eyebrow="TACTICAL BOARD / XI"/><main className="p-4"><ErrorState message={(squad.error as Error)?.message || 'ترکیب دریافت نشد'} onRetry={() => squad.refetch()}/></main></>;
 
   const chooseFormation = (formation: SquadFormation) => updateDraft(current => ({
     ...current,
@@ -423,8 +423,8 @@ export function SquadPage() {
     saveMutation.mutate(draft);
   };
 
-  return <div className="squad-page min-h-screen overflow-x-hidden bg-ink-950 pb-8">
-    <PageHeader title="ترکیب من" subtitle={`${faNumber(draft.starters.filter(Boolean).length)} بازیکن در ترکیب`} back backTo="/club"/>
+  return <div className="squad-page min-h-screen overflow-x-hidden pb-8">
+    <PageHeader title="ترکیب من" subtitle={`${faNumber(draft.starters.filter(Boolean).length)} بازیکن در ترکیب`} back backTo="/club" tone="mint" eyebrow="TACTICAL BOARD / XI"/>
     <main className="mx-auto max-w-xl px-3 pt-3 sm:px-4">
       <div className="mb-3 flex items-center justify-between rounded-2xl border border-white/[.06] bg-white/[.025] p-2.5">
         <div className="flex min-w-0 items-center gap-2">

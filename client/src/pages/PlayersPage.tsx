@@ -68,11 +68,11 @@ export function PlayersPage() {
     setSearchParams(next, { replace: true });
   };
 
-  if (playersQuery.isLoading) return <><PageHeader title="بازیکنان من" subtitle="مجموعه بازیکنان باشگاه" back backTo="/club"/><PageSkeleton/></>;
-  if (playersQuery.error || !playersQuery.data) return <><PageHeader title="بازیکنان من" subtitle="مجموعه بازیکنان باشگاه" back backTo="/club"/><main className="p-4"><ErrorState message={(playersQuery.error as Error)?.message || 'بازیکنان دریافت نشدند'} onRetry={() => playersQuery.refetch()}/></main></>;
+  if (playersQuery.isLoading) return <><PageHeader title="بازیکنان من" subtitle="مجموعه بازیکنان باشگاه" back backTo="/club" tone="mint" eyebrow="SQUAD LIST / PLAYERS"/><PageSkeleton/></>;
+  if (playersQuery.error || !playersQuery.data) return <><PageHeader title="بازیکنان من" subtitle="مجموعه بازیکنان باشگاه" back backTo="/club" tone="mint" eyebrow="SQUAD LIST / PLAYERS"/><main className="p-4"><ErrorState message={(playersQuery.error as Error)?.message || 'بازیکنان دریافت نشدند'} onRetry={() => playersQuery.refetch()}/></main></>;
 
   return <div className="min-h-screen max-w-full overflow-x-hidden">
-    <PageHeader title="بازیکنان من" subtitle={`${faNumber(players.length)} بازیکن در باشگاه`} back backTo="/club"/>
+    <PageHeader title="بازیکنان من" subtitle={`${faNumber(players.length)} بازیکن در باشگاه`} back backTo="/club" tone="mint" eyebrow="SQUAD LIST / PLAYERS"/>
     <main className="space-y-3 px-3 pb-5 pt-3 sm:px-4">
       <section className="relative overflow-hidden rounded-[1.5rem] border border-emerald-300/[.1] bg-[linear-gradient(145deg,rgba(15,39,48,.96),rgba(10,24,40,.98))] p-3.5">
         <div className="pointer-events-none absolute -left-8 -top-10 h-28 w-28 rounded-full bg-emerald-400/[.08] blur-3xl"/>

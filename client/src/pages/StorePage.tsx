@@ -60,13 +60,13 @@ export function StorePage() {
     onError: error => toast.error((error as Error).message),
   });
 
-  if (store.isLoading) return <><PageHeader title="فروشگاه" subtitle="کیف پول سکه"/><PageSkeleton/></>;
-  if (store.error || !store.data) return <><PageHeader title="فروشگاه" subtitle="کیف پول سکه"/><main className="p-4"><ErrorState message={(store.error as Error)?.message || 'فروشگاه در دسترس نیست'} onRetry={() => store.refetch()}/></main></>;
+  if (store.isLoading) return <><PageHeader title="فروشگاه" subtitle="کیف پول و بسته‌های سکه" tone="amber" eyebrow="CLUB STORE / WALLET"/><PageSkeleton/></>;
+  if (store.error || !store.data) return <><PageHeader title="فروشگاه" subtitle="کیف پول و بسته‌های سکه" tone="amber" eyebrow="CLUB STORE / WALLET"/><main className="p-4"><ErrorState message={(store.error as Error)?.message || 'فروشگاه در دسترس نیست'} onRetry={() => store.refetch()}/></main></>;
 
   const data = store.data;
   const rewardReady = data.dailyReward.claimable || !data.dailyReward.nextClaimAt || new Date(data.dailyReward.nextClaimAt).getTime() <= now;
   return <>
-    <PageHeader title="فروشگاه" subtitle="سکه بیشتر، امکانات بیشتر"/>
+    <PageHeader title="فروشگاه" subtitle="سکه بیشتر، امکانات بیشتر" tone="amber" eyebrow="CLUB STORE / WALLET"/>
     <main className="store-page space-y-5 overflow-x-hidden p-4">
       <Card className="store-wallet relative overflow-hidden border-amber-300/[.18] p-5">
         <div className="pointer-events-none absolute -left-10 -top-16 h-44 w-44 rounded-full bg-amber-300/[.12] blur-3xl"/>
@@ -104,7 +104,7 @@ export function StorePage() {
     </main>
 
     {pendingPurchase && <div className="fixed inset-0 z-[80] flex items-end bg-black/75 p-0 backdrop-blur-sm" onMouseDown={event => { if (event.target === event.currentTarget) setPendingPurchase(null); }}>
-      <div className="safe-bottom w-full rounded-t-[2rem] border-t border-white/10 bg-ink-900 p-4">
+      <div className="broadcast-sheet safe-bottom relative w-full rounded-t-[2rem] p-4">
         <div className="mx-auto max-w-xl">
           <div className="flex items-start justify-between gap-3"><div className="grid h-12 w-12 place-items-center rounded-2xl bg-sky-400/10 text-sky-300"><LockKeyhole size={22}/></div><button type="button" onClick={() => setPendingPurchase(null)} className="grid h-11 w-11 place-items-center rounded-2xl bg-white/[.05]"><X size={18}/></button></div>
           <h2 className="mt-4 text-lg font-black">تأیید پرداخت آزمایشی</h2>

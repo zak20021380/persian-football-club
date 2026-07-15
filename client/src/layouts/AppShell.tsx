@@ -17,10 +17,10 @@ function pathActive(pathname: string, paths: string[]): boolean {
 export function AppShell() {
   const { pathname } = useLocation();
   return (
-    <div className="pitch-grid min-h-screen pb-28">
+    <div className="app-canvas min-h-screen pb-28">
       <div className="mx-auto w-full max-w-xl"><Outlet/></div>
       <nav aria-label="پیمایش اصلی" className="safe-bottom pointer-events-none fixed inset-x-0 bottom-0 z-50 px-2 pb-1">
-        <div className="app-bottom-nav pointer-events-auto mx-auto grid max-w-xl grid-cols-5 gap-1 rounded-[1.5rem] border border-white/10 bg-ink-900/[.98] p-1.5 shadow-[0_-6px_22px_rgba(0,0,0,.28)]">
+        <div className="app-bottom-nav pointer-events-auto mx-auto grid max-w-xl grid-cols-5 gap-1 p-1.5">
           {items.map(({ to, label, icon: Icon, paths, center }) => {
             const active = pathActive(pathname, paths);
             return <Link

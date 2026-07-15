@@ -12,7 +12,7 @@ const competitionEntries = [
 
 export function CompetitionHubPage() {
   return <>
-    <PageHeader title="رقابت" subtitle="همه چالش‌ها در یک زمین"/>
+    <PageHeader title="رقابت" subtitle="پیش‌بینی، کوییز و نبرد برای صدر جدول" tone="cyan" eyebrow="MATCH CENTER / COMPETE"/>
     <main className="space-y-5 p-4">
       <Card className="relative overflow-hidden border-pitch-400/15 bg-gradient-to-l from-pitch-400/[.09] to-transparent p-5">
         <Trophy size={92} strokeWidth={1.2} className="absolute -left-4 -top-5 rotate-12 text-pitch-300/[.09]"/>

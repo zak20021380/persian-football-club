@@ -57,7 +57,7 @@ export function PlayerModalFrame({ label, onClose, children, className, swipeDis
 
   return createPortal(
     <div onPointerDown={event => { if (event.target === event.currentTarget) onClose(); }} className="player-modal-backdrop fixed inset-0 z-[100] flex items-end overflow-hidden bg-black/80" role="dialog" aria-modal="true" aria-label={label}>
-      <div ref={panelRef} className={cn('player-modal-panel relative flex max-h-[min(90dvh,calc(100dvh-8px))] w-full flex-col overflow-hidden rounded-t-[2rem] border-t border-emerald-200/[.12] bg-[linear-gradient(180deg,#0d1c2f_0%,#071321_100%)] shadow-[0_-14px_36px_rgba(0,0,0,.42)]', className)}>
+      <div ref={panelRef} className={cn('player-modal-panel broadcast-sheet relative flex max-h-[min(90dvh,calc(100dvh-8px))] w-full flex-col overflow-hidden rounded-t-[2rem]', className)}>
         <header className="player-modal-top relative flex h-12 shrink-0 items-center justify-center pt-[max(env(safe-area-inset-top,0px),0px)]">
           <div
             onPointerDown={startSwipe}

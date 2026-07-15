@@ -39,7 +39,7 @@ export function MatchesPage() {
       </header>
 
       <div className="relative -mt-6 px-4">
-        <div className="grid grid-cols-4 gap-1.5 rounded-[1.6rem] border border-white/[.08] bg-ink-900/95 p-2 shadow-2xl shadow-black/25 backdrop-blur-xl">
+        <div className="themed-filter grid grid-cols-4 gap-1.5 rounded-[1.35rem] p-2 backdrop-blur-xl">
           {tabs.map(({ value, label, icon: Icon }) => {
             const active = status === value;
             return <button type="button" key={value} aria-pressed={active} onClick={() => setStatus(value)} className={cn('relative flex min-h-[66px] min-w-0 flex-col items-center justify-center gap-1.5 rounded-2xl text-[9px] font-bold transition active:scale-95', active ? value === 'live' ? 'bg-rose-400/[.11] text-rose-300' : 'bg-emerald-400/[.11] text-emerald-300' : 'text-slate-500')}><Icon size={18} strokeWidth={active ? 2.6 : 1.8}/><span className="truncate">{label}</span>{active && <span className={cn('absolute bottom-1 h-0.5 w-4 rounded-full', value === 'live' ? 'bg-rose-300' : 'bg-emerald-300')}/>}</button>;

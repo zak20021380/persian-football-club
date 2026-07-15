@@ -58,7 +58,7 @@ export async function createFunPost(input: { ownerId: ObjectId; caption?: string
 export async function listFunPosts(userId: ObjectId, cursor: string | undefined, limit: number, sort: FunPostSort = 'newest') {
   const baseQuery: Record<string, unknown> = { moderationStatus: 'published' };
   let sortSpec: Record<string, 1 | -1>;
-  let query: Record<string, unknown> = { ...baseQuery };
+  const query: Record<string, unknown> = { ...baseQuery };
 
   if (sort === 'oldest') {
     sortSpec = { _id: 1 };

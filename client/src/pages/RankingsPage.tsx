@@ -40,7 +40,7 @@ function Avatar({ user, className = '' }: { user: User; className?: string }) {
 
 function RankingTabs({ value, onChange }: { value: RankingType; onChange: (value: RankingType) => void }) {
   return (
-    <div className="grid grid-cols-4 gap-1.5 rounded-[1.6rem] border border-white/[.08] bg-ink-900/95 p-2 shadow-2xl shadow-black/25 backdrop-blur-xl">
+    <div className="themed-filter grid grid-cols-4 gap-1.5 rounded-[1.35rem] p-2 backdrop-blur-xl">
       {tabs.map(({ value: tabValue, label, icon: Icon }) => {
         const active = value === tabValue;
         return (
