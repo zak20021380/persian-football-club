@@ -20,6 +20,7 @@ import { validateTelegramInitData, type TelegramInitUser } from '../services/tel
 import { recoverTelegramUser } from '../services/userRecovery.js';
 import { presentMatch } from '../services/matchPresentation.js';
 import { clubValueRankings, performanceRankings, rankingClubDetails } from '../services/rankings.js';
+import { premierLeagueStandings } from '../services/footballApi.js';
 import { AppError } from '../utils/errors.js';
 import { asyncHandler } from '../utils/asyncHandler.js';
 import funRouter from './fun.js';
@@ -280,6 +281,10 @@ router.post('/competitions/:id/submit', verifyLiveMembership, asyncHandler(async
   res.status(201).json({ entry, rank, feedback: result.details });
 }));
 
+router.get('/premier-league/standings', asyncHandler(async (_req, res) => {
+  res.json(await premierLeagueStandings());
+}));
+
 router.get('/rankings/:userId', asyncHandler(async (req, res) => {
   const userId = z.string().refine(mongoose.isValidObjectId, 'شناسه باشگاه نامعتبر است').parse(req.params.userId);
   const period = z.enum(['week','month','season']).parse(req.query.period ?? 'week');
@@ -294,7 +299,9 @@ router.get('/rankings', asyncHandler(async (req, res) => {
   const modernType = z.enum(['fantasy','predictions','quiz','friends']).safeParse(type);
   if (modernType.success) {
     const period = z.enum(['week','month','season']).parse(req.query.period ?? 'week');
-    res.json(await performanceRankings(modernType.data, period, current._id)); return;
+    const requestedScope = z.enum(['all','friends']).parse(req.query.scope ?? 'all');
+    const scope = modernType.data === 'fantasy' ? requestedScope : 'all';
+    res.json(await performanceRankings(modernType.data, period, current._id, scope)); return;
   }
   if (type === 'club-value') {
     res.json(await clubValueRankings(current._id)); return;

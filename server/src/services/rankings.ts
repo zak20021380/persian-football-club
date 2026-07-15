@@ -15,6 +15,7 @@ import { env } from '../config/env.js';
 
 export type RankingCategory = 'fantasy'|'predictions'|'quiz'|'friends';
 export type RankingPeriod = 'week'|'month'|'season';
+export type RankingScope = 'all'|'friends';
 
 interface PeriodWindow {
   start?: Date;
@@ -115,8 +116,8 @@ export function rankingPeriodWindow(period: RankingPeriod, now = new Date()): Pe
   };
 }
 
-export async function performanceRankings(category: RankingCategory, period: RankingPeriod, currentUserId: Types.ObjectId): Promise<RankingResponse> {
-  const users = await rankingUsers(currentUserId);
+export async function performanceRankings(category: RankingCategory, period: RankingPeriod, currentUserId: Types.ObjectId, scope: RankingScope = 'all'): Promise<RankingResponse> {
+  const users = await rankingUsers(currentUserId, scope);
   const window = rankingPeriodWindow(period);
   const [scores, previousScores, squadMeta, logos] = await Promise.all([
     metricScores(category, window.start, window.end),
@@ -205,8 +206,20 @@ async function fantasyScores(start: Date|undefined, end: Date): Promise<Map<stri
   return scores;
 }
 
-async function rankingUsers(currentUserId: Types.ObjectId): Promise<RankingUser[]> {
-  return User.find({ $or: [{ membershipConfirmed: true }, { _id: currentUserId }] })
+async function rankingUsers(currentUserId: Types.ObjectId, scope: RankingScope = 'all'): Promise<RankingUser[]> {
+  let userIds: Types.ObjectId[]|undefined;
+  if (scope === 'friends') {
+    const referrals = await Referral.find({
+      status: 'rewarded',
+      $or: [{ referrerId: currentUserId }, { invitedUserId: currentUserId }]
+    }).select('referrerId invitedUserId').lean();
+    userIds = [...new Set([String(currentUserId), ...referrals.flatMap(item => [String(item.referrerId), String(item.invitedUserId)])])]
+      .map(id => new Types.ObjectId(id));
+  }
+  return User.find({
+    ...(userIds ? { _id: { $in: userIds } } : {}),
+    $or: [{ membershipConfirmed: true }, { _id: currentUserId }]
+  })
     .select('displayName clubName favoriteTeam membershipConfirmed coinBalance createdAt')
     .lean() as unknown as Promise<RankingUser[]>;
 }

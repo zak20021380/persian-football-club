@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useState, type ReactNode } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import {
   ArrowDown,
@@ -6,15 +6,12 @@ import {
   ArrowUp,
   BrainCircuit,
   ChevronLeft,
-  Crown,
-  Gem,
   Minus,
   ShieldCheck,
   Shirt,
   Sparkles,
   Target,
   Trophy,
-  UserRound,
   Users
 } from 'lucide-react';
 import { BrandMark } from '@/components/BrandMark';
@@ -23,13 +20,37 @@ import { PlayerModalFrame } from '@/components/PlayerModalFrame';
 import { WalletShortcut } from '@/components/WalletShortcut';
 import { ErrorState } from '@/components/ui';
 import { api } from '@/lib/api';
-import { formations, type FormationSlot } from '@/lib/formations';
 import { cn, faNumber } from '@/lib/utils';
-import type { BuiltInSquadFormation } from '@/types/api';
 
-type RankingCategory = 'fantasy'|'predictions'|'quiz'|'friends';
+type RankingSystem = 'premier'|'fantasy';
+type FantasyFilter = 'week'|'month'|'season'|'friends';
 type RankingPeriod = 'week'|'month'|'season';
-type RankingMode = 'performance'|'clubValue';
+type AuxiliaryRanking = 'predictions'|'quiz';
+
+interface PremierLeagueStanding {
+  position: number;
+  teamId: number;
+  teamName: string;
+  logoUrl?: string;
+  played: number;
+  won: number;
+  drawn: number;
+  lost: number;
+  goalsFor: number;
+  goalsAgainst: number;
+  goalDifference: number;
+  points: number;
+  form: Array<'W'|'D'|'L'>;
+  note?: string;
+}
+
+interface PremierLeagueData {
+  leagueName: string;
+  season: number;
+  source: 'api'|'development-mock';
+  updatedAt: string;
+  standings: PremierLeagueStanding[];
+}
 
 interface RankingEntry {
   userId: string;
@@ -41,16 +62,19 @@ interface RankingEntry {
   isCurrent: boolean;
   formation?: string;
   playerCount: number;
-  logoUrl?: string;
-  form?: number[];
 }
 
 interface RankingData {
-  type: RankingCategory|'club-value';
+  type: 'fantasy'|'predictions'|'quiz';
   period: RankingPeriod;
-  metric: 'points'|'value';
+  metric: 'points';
   leaders: RankingEntry[];
   current: RankingEntry;
+}
+
+interface FantasyEntry extends RankingEntry {
+  gameweekPoints: number;
+  seasonPoints: number;
 }
 
 interface RankingClubPlayer {
@@ -60,500 +84,333 @@ interface RankingClubPlayer {
   photoUrl?: string;
   nationality?: string;
   club?: string;
-  marketValue?: number;
   fantasyPoints: number;
 }
 
 interface RankingClubDetails {
   userId: string;
-  logoUrl?: string;
   formation?: string;
   starters: Array<RankingClubPlayer|null>;
   substitutes: RankingClubPlayer[];
   captainId?: string;
   viceCaptainId?: string;
-  customPositions: FormationSlot[];
   totalSquadValue: number;
   totalFantasyPoints: number;
   recentWeeks: Array<{ startsAt: string; points: number }>;
 }
 
-interface DemoClubSeed extends RankingEntry {
+interface DemoFantasySeed {
+  userId: string;
+  clubName: string;
+  ownerName: string;
+  weekPoints: number;
+  monthPoints: number;
+  seasonPoints: number;
+  rankChange: number;
+  isCurrent: boolean;
+  formation: string;
   players: string[];
-  substitutes: string[];
-  captainIndex: number;
-  viceCaptainIndex: number;
 }
 
-const categories: Array<{ value: RankingCategory; label: string; eyebrow: string; icon: typeof Trophy }> = [
-  { value: 'fantasy', label: 'فانتزی', eyebrow: 'FANTASY TABLE', icon: ShieldCheck },
-  { value: 'predictions', label: 'پیش‌بینی', eyebrow: 'PREDICTION TABLE', icon: Target },
-  { value: 'quiz', label: 'کوییز', eyebrow: 'QUIZ TABLE', icon: BrainCircuit },
-  { value: 'friends', label: 'دوستان', eyebrow: 'FRIENDS TABLE', icon: Users }
+const fantasyFilters: Array<{ value: FantasyFilter; label: string }> = [
+  { value: 'week', label: 'این هفته' },
+  { value: 'month', label: 'این ماه' },
+  { value: 'season', label: 'کل فصل' },
+  { value: 'friends', label: 'دوستان' }
 ];
 
-const periods: Array<{ value: RankingPeriod; label: string }> = [
-  { value: 'week', label: 'هفته جاری' },
-  { value: 'month', label: 'ماه جاری' },
-  { value: 'season', label: 'کل فصل' }
-];
-
-const demoTeams: DemoClubSeed[] = [
-  {
-    userId: 'demo-man-city', clubName: 'Manchester City', ownerName: 'آرش زمانی', logoUrl: 'https://media.api-sports.io/football/teams/50.png',
-    score: 864, rank: 1, rankChange: 2, isCurrent: false, formation: '4-3-3', playerCount: 11, form: [61, 74, 68, 82, 79], captainIndex: 9, viceCaptainIndex: 6,
-    players: ['Ederson', 'Joško Gvardiol', 'Rúben Dias', 'John Stones', 'Kyle Walker', 'Rodri', 'Phil Foden', 'Kevin De Bruyne', 'Jérémy Doku', 'Erling Haaland', 'Savinho'],
-    substitutes: ['Stefan Ortega', 'Manuel Akanji', 'Bernardo Silva', 'Jack Grealish', 'Omar Marmoush']
-  },
-  {
-    userId: 'demo-man-utd', clubName: 'Manchester United', ownerName: 'امیرحسین رضایی', logoUrl: 'https://media.api-sports.io/football/teams/33.png',
-    score: 839, rank: 2, rankChange: -1, isCurrent: false, formation: '4-2-3-1', playerCount: 11, form: [77, 69, 72, 66, 81], captainIndex: 8, viceCaptainIndex: 6,
-    players: ['André Onana', 'Diogo Dalot', 'Lisandro Martínez', 'Matthijs de Ligt', 'Noussair Mazraoui', 'Casemiro', 'Kobbie Mainoo', 'Alejandro Garnacho', 'Bruno Fernandes', 'Amad Diallo', 'Rasmus Højlund'],
-    substitutes: ['Altay Bayındır', 'Harry Maguire', 'Mason Mount', 'Joshua Zirkzee', 'Luke Shaw']
-  },
-  {
-    userId: 'demo-arsenal', clubName: 'Arsenal', ownerName: 'مهرداد کریمی', logoUrl: 'https://media.api-sports.io/football/teams/42.png',
-    score: 812, rank: 3, rankChange: 3, isCurrent: false, formation: '4-3-3', playerCount: 11, form: [54, 63, 76, 71, 84], captainIndex: 10, viceCaptainIndex: 6,
-    players: ['David Raya', 'Riccardo Calafiori', 'Gabriel Magalhães', 'William Saliba', 'Jurriën Timber', 'Declan Rice', 'Martin Ødegaard', 'Mikel Merino', 'Gabriel Martinelli', 'Kai Havertz', 'Bukayo Saka'],
-    substitutes: ['Neto', 'Ben White', 'Jakub Kiwior', 'Leandro Trossard', 'Gabriel Jesus']
-  },
-  {
-    userId: 'demo-liverpool', clubName: 'Liverpool', ownerName: 'نیما اکبری', logoUrl: 'https://media.api-sports.io/football/teams/40.png',
-    score: 788, rank: 4, rankChange: 0, isCurrent: false, formation: '3-4-3', playerCount: 11, form: [70, 67, 70, 74, 73], captainIndex: 10, viceCaptainIndex: 2,
-    players: ['Alisson', 'Ibrahima Konaté', 'Virgil van Dijk', 'Andrew Robertson', 'Ryan Gravenberch', 'Alexis Mac Allister', 'Dominik Szoboszlai', 'Curtis Jones', 'Luis Díaz', 'Darwin Núñez', 'Mohamed Salah'],
-    substitutes: ['Caoimhín Kelleher', 'Joe Gomez', 'Wataru Endo', 'Cody Gakpo', 'Diogo Jota']
-  },
-  {
-    userId: 'demo-chelsea', clubName: 'Chelsea', ownerName: 'کاربر توسعه', logoUrl: 'https://media.api-sports.io/football/teams/49.png',
-    score: 756, rank: 5, rankChange: 2, isCurrent: true, formation: '4-2-3-1', playerCount: 11, form: [49, 58, 64, 61, 78], captainIndex: 8, viceCaptainIndex: 5,
-    players: ['Robert Sánchez', 'Marc Cucurella', 'Levi Colwill', 'Wesley Fofana', 'Reece James', 'Moisés Caicedo', 'Enzo Fernández', 'Pedro Neto', 'Cole Palmer', 'Noni Madueke', 'Nicolas Jackson'],
-    substitutes: ['Filip Jørgensen', 'Tosin Adarabioyo', 'Roméo Lavia', 'Christopher Nkunku', 'Jadon Sancho']
-  },
-  {
-    userId: 'demo-tottenham', clubName: 'Tottenham Hotspur', ownerName: 'پویا احمدی', logoUrl: 'https://media.api-sports.io/football/teams/47.png',
-    score: 731, rank: 6, rankChange: -2, isCurrent: false, formation: '3-5-2', playerCount: 11, form: [68, 62, 55, 69, 57], captainIndex: 10, viceCaptainIndex: 6,
-    players: ['Guglielmo Vicario', 'Micky van de Ven', 'Cristian Romero', 'Pedro Porro', 'Destiny Udogie', 'Yves Bissouma', 'James Maddison', 'Pape Matar Sarr', 'Dejan Kulusevski', 'Brennan Johnson', 'Son Heung-min'],
-    substitutes: ['Fraser Forster', 'Radu Drăgușin', 'Rodrigo Bentancur', 'Timo Werner', 'Richarlison']
-  },
-  {
-    userId: 'demo-newcastle', clubName: 'Newcastle United', ownerName: 'سارا محمدی', logoUrl: 'https://media.api-sports.io/football/teams/34.png',
-    score: 704, rank: 7, rankChange: 1, isCurrent: false, formation: '4-3-3', playerCount: 11, form: [51, 66, 59, 68, 63], captainIndex: 9, viceCaptainIndex: 6,
-    players: ['Nick Pope', 'Lewis Hall', 'Sven Botman', 'Fabian Schär', 'Kieran Trippier', 'Bruno Guimarães', 'Sandro Tonali', 'Joelinton', 'Anthony Gordon', 'Alexander Isak', 'Harvey Barnes'],
-    substitutes: ['Martin Dúbravka', 'Dan Burn', 'Joe Willock', 'Jacob Murphy', 'Callum Wilson']
-  },
-  {
-    userId: 'demo-aston-villa', clubName: 'Aston Villa', ownerName: 'آوات مرادی', logoUrl: 'https://media.api-sports.io/football/teams/66.png',
-    score: 682, rank: 8, rankChange: -1, isCurrent: false, formation: '4-4-2', playerCount: 11, form: [60, 54, 63, 52, 65], captainIndex: 10, viceCaptainIndex: 6,
-    players: ['Emiliano Martínez', 'Lucas Digne', 'Pau Torres', 'Ezri Konsa', 'Matty Cash', 'John McGinn', 'Youri Tielemans', 'Boubacar Kamara', 'Leon Bailey', 'Morgan Rogers', 'Ollie Watkins'],
-    substitutes: ['Robin Olsen', 'Tyrone Mings', 'Ross Barkley', 'Jacob Ramsey', 'Jhon Durán']
-  }
+const demoFantasySeeds: DemoFantasySeed[] = [
+  { userId: 'demo-azarakhsh', clubName: 'آذرخش پارس', ownerName: 'آرش زمانی', weekPoints: 86, monthPoints: 274, seasonPoints: 1248, rankChange: 2, isCurrent: false, formation: '4-3-3', players: ['David Raya', 'William Saliba', 'Virgil van Dijk', 'Joško Gvardiol', 'Trent Alexander-Arnold', 'Declan Rice', 'Cole Palmer', 'Bukayo Saka', 'Mohamed Salah', 'Erling Haaland', 'Alexander Isak'] },
+  { userId: 'demo-toufan', clubName: 'طوفان کاسپین', ownerName: 'نیما اکبری', weekPoints: 81, monthPoints: 261, seasonPoints: 1206, rankChange: -1, isCurrent: false, formation: '3-4-3', players: ['Alisson', 'Gabriel Magalhães', 'Rúben Dias', 'Pau Torres', 'Bruno Guimarães', 'Phil Foden', 'Martin Ødegaard', 'Son Heung-min', 'Ollie Watkins', 'Darwin Núñez', 'Anthony Gordon'] },
+  { userId: 'demo-sitareh', clubName: 'ستاره‌های البرز', ownerName: 'سارا محمدی', weekPoints: 77, monthPoints: 249, seasonPoints: 1179, rankChange: 3, isCurrent: false, formation: '4-2-3-1', players: ['Ederson', 'Ben White', 'Micky van de Ven', 'Lisandro Martínez', 'Pedro Porro', 'Rodri', 'Alexis Mac Allister', 'Kevin De Bruyne', 'Luis Díaz', 'Cole Palmer', 'Kai Havertz'] },
+  { userId: 'demo-shahin', clubName: 'شاهین آبی', ownerName: 'مهرداد کریمی', weekPoints: 72, monthPoints: 238, seasonPoints: 1141, rankChange: 0, isCurrent: false, formation: '4-4-2', players: ['Emiliano Martínez', 'Marc Cucurella', 'Ibrahima Konaté', 'Cristian Romero', 'Kyle Walker', 'Dominik Szoboszlai', 'Bernardo Silva', 'Bruno Fernandes', 'Gabriel Martinelli', 'Nicolas Jackson', 'Jean-Philippe Mateta'] },
+  { userId: 'demo-laleh', clubName: 'لاله‌های سرخ', ownerName: 'کاربر توسعه', weekPoints: 69, monthPoints: 229, seasonPoints: 1098, rankChange: 1, isCurrent: true, formation: '4-3-3', players: ['Nick Pope', 'Jurrien Timber', 'Levi Colwill', 'John Stones', 'Diogo Dalot', 'Moisés Caicedo', 'James Maddison', 'Eberechi Eze', 'Cody Gakpo', 'Rasmus Højlund', 'Bryan Mbeumo'] },
+  { userId: 'demo-persian', clubName: 'پرشین گالکسی', ownerName: 'پویا احمدی', weekPoints: 64, monthPoints: 215, seasonPoints: 1034, rankChange: -2, isCurrent: false, formation: '3-5-2', players: ['Jordan Pickford', 'Dan Burn', 'Ezri Konsa', 'Nathan Aké', 'Morgan Gibbs-White', 'Youri Tielemans', 'Mikel Merino', 'Dejan Kulusevski', 'Kaoru Mitoma', 'Yoane Wissa', 'Dominic Solanke'] }
 ];
 
 export function RankingsPage() {
-  const [category, setCategory] = useState<RankingCategory>('fantasy');
-  const [period, setPeriod] = useState<RankingPeriod>('week');
-  const [mode, setMode] = useState<RankingMode>('performance');
-  const [preview, setPreview] = useState<RankingEntry|null>(null);
-  const queryType = mode === 'clubValue' ? 'club-value' : category;
-  const query = useQuery({
-    queryKey: ['rankings', queryType, period],
-    queryFn: async () => (await api.get<RankingData>('/rankings', { params: { type: queryType, period } })).data
+  const [system, setSystem] = useState<RankingSystem>('premier');
+  const [filter, setFilter] = useState<FantasyFilter>('week');
+  const [preview, setPreview] = useState<FantasyEntry|null>(null);
+  const [auxiliary, setAuxiliary] = useState<AuxiliaryRanking|null>(null);
+  const selectedPeriod: RankingPeriod = filter === 'friends' ? 'season' : filter;
+  const scope = filter === 'friends' ? 'friends' : 'all';
+
+  const standingsQuery = useQuery({
+    queryKey: ['premierLeagueStandings'],
+    queryFn: async () => (await api.get<PremierLeagueData>('/premier-league/standings')).data,
+    enabled: system === 'premier',
+    staleTime: 5 * 60_000
   });
-  const demoMode = Boolean(query.data && query.data.leaders.length === 0);
-  const leaders = useMemo(() => demoMode ? demoRankings(category, period, mode) : query.data?.leaders ?? [], [category, demoMode, mode, period, query.data?.leaders]);
-  const current = demoMode ? leaders.find(entry => entry.isCurrent) : query.data?.current;
-  const rankedEntries = useMemo(() => {
-    if (!current || leaders.some(entry => entry.userId === current.userId)) return leaders;
-    return [...leaders, current].sort((a, b) => a.rank - b.rank);
-  }, [current, leaders]);
-  const metric: RankingData['metric'] = mode === 'clubValue' ? 'value' : 'points';
-  const activeCategory = categories.find(item => item.value === category)!;
+  const selectedFantasy = useFantasyRanking(selectedPeriod, scope, system === 'fantasy');
+  const weekFantasy = useFantasyRanking('week', scope, system === 'fantasy');
+  const seasonFantasy = useFantasyRanking('season', scope, system === 'fantasy');
+  const fantasyDemo = Boolean(import.meta.env.DEV && selectedFantasy.data && selectedFantasy.data.leaders.length === 0);
+  const fantasyEntries = useMemo(
+    () => fantasyDemo ? demoFantasyEntries(filter) : mergeFantasyRankings(selectedFantasy.data, weekFantasy.data, seasonFantasy.data),
+    [fantasyDemo, filter, seasonFantasy.data, selectedFantasy.data, weekFantasy.data]
+  );
+  const fantasyError = selectedFantasy.error || weekFantasy.error || seasonFantasy.error;
+  const fantasyLoading = selectedFantasy.isLoading || weekFantasy.isLoading || seasonFantasy.isLoading;
+
+  const retryFantasy = () => {
+    void Promise.all([selectedFantasy.refetch(), weekFantasy.refetch(), seasonFantasy.refetch()]);
+  };
 
   return (
     <main className="ranking-page pb-12">
-      <header className="ranking-leaderboard-hero safe-top relative isolate overflow-hidden px-4 pb-11 pt-3">
+      <header className="ranking-leaderboard-hero safe-top relative isolate overflow-hidden px-4 pb-12 pt-3">
         <div className="home-hero-grid absolute inset-0 opacity-30"/>
         <div className="ranking-hero-light absolute inset-0"/>
         <div className="relative flex items-center justify-between">
           <div className="flex items-center gap-2.5">
             <BrandMark className="h-10 w-10 rounded-xl"/>
-            <div className="ranking-ffn-lockup" dir="ltr"><strong>FFN</strong><span>FANTASY LEADERBOARD</span></div>
+            <div className="ranking-ffn-lockup" dir="ltr"><strong>FFN</strong><span>RANKINGS CENTRE</span></div>
           </div>
           <WalletShortcut/>
         </div>
         <div className="relative mt-6 max-w-[330px]">
-          <span className="text-[7px] font-black tracking-[.2em] text-cyan-300" dir="ltr">PREMIER FANTASY RANKINGS</span>
-          <h1 className="mt-1.5 text-[25px] font-black leading-[1.35] tracking-tight">جدول برترین باشگاه‌ها</h1>
-          <p className="mt-2 max-w-[300px] text-[9px] font-medium leading-5 text-slate-400">رتبه‌بندی زنده، فرم اخیر و امتیاز فانتزی تمام باشگاه‌ها در یک جدول دقیق و حرفه‌ای.</p>
-          <div className="ranking-captain-rule mt-2.5 flex w-fit items-center gap-1.5" dir="ltr"><Crown size={12}/><strong>CAPTAIN</strong><span>2×</span></div>
+          <span className="text-[7px] font-black tracking-[.2em] text-cyan-300" dir="ltr">TWO TABLES. TWO IDENTITIES.</span>
+          <h1 className="mt-1.5 text-[24px] font-black leading-[1.4] tracking-tight">مرکز رتبه‌بندی FFN</h1>
+          <p className="mt-2 max-w-[310px] text-[9px] font-medium leading-5 text-slate-400">جدول رسمی لیگ انگلیس و رقابت باشگاه‌های فانتزی کاربران، در دو فضای کاملاً مستقل.</p>
         </div>
       </header>
 
-      <div className="relative -mt-7 px-3.5 min-[390px]:px-4">
-        <ModeSwitch value={mode} onChange={setMode}/>
+      <div className="relative -mt-7 px-3 min-[390px]:px-4">
+        <SystemTabs value={system} onChange={setSystem}/>
       </div>
 
-      <div className="mt-3.5 space-y-3.5 px-3.5 min-[390px]:px-4">
-        {mode === 'performance' && (
-          <>
-            <CategoryTabs value={category} onChange={setCategory}/>
-            <PeriodTabs value={period} onChange={setPeriod}/>
-          </>
-        )}
-
-        {query.isLoading ? (
-          <RankingLoading/>
-        ) : query.error ? (
-          <ErrorState message={(query.error as Error).message} onRetry={() => query.refetch()}/>
-        ) : rankedEntries.length ? (
-          <section className="pb-3">
-            <SectionHead
-              eyebrow={mode === 'clubValue' ? 'CLUB VALUATION' : activeCategory.eyebrow}
-              title={mode === 'clubValue' ? 'باارزش‌ترین باشگاه‌ها' : 'جدول کامل رتبه‌بندی'}
-              count={rankedEntries.length}
-              demo={demoMode}
-            />
-            <div className="ranking-list overflow-hidden rounded-[1.25rem] border border-white/[.075] p-1.5">
-              {rankedEntries.map(entry => (
-                <LeaderRow key={entry.userId} entry={entry} metric={metric} category={category} onPreview={setPreview}/>
-              ))}
-            </div>
-          </section>
+      <div className="mt-4 space-y-5 px-3 min-[390px]:px-4">
+        {system === 'premier' ? (
+          <PremierLeagueTable query={standingsQuery}/>
         ) : (
-          <RankingEmpty mode={mode}/>
+          <FantasyTable
+            filter={filter}
+            onFilter={setFilter}
+            entries={fantasyEntries}
+            demo={fantasyDemo}
+            loading={fantasyLoading}
+            error={fantasyError}
+            onRetry={retryFantasy}
+            onPreview={setPreview}
+          />
         )}
+        <AuxiliaryRankings value={auxiliary} onChange={setAuxiliary}/>
       </div>
 
-      {preview && <ClubDetailsSheet entry={preview} metric={metric} category={category} period={period} onClose={() => setPreview(null)}/>}
+      {preview && <SquadDetailsSheet entry={preview} period={selectedPeriod} demo={fantasyDemo} onClose={() => setPreview(null)}/>}
     </main>
   );
 }
 
-function ModeSwitch({ value, onChange }: { value: RankingMode; onChange: (value: RankingMode) => void }) {
-  return (
-    <div className="ranking-mode-switch grid grid-cols-2 gap-1.5 p-1.5">
-      <button type="button" aria-pressed={value === 'performance'} onClick={() => onChange('performance')} className={cn('flex min-h-11 items-center justify-center gap-2 rounded-[.9rem] text-[9px] font-black transition active:scale-[.98] min-[360px]:text-[10px]', value === 'performance' ? 'ranking-mode-active text-cyan-100' : 'text-slate-500')}><Trophy size={15}/>رتبه‌بندی عملکرد</button>
-      <button type="button" aria-pressed={value === 'clubValue'} onClick={() => onChange('clubValue')} className={cn('flex min-h-11 items-center justify-center gap-2 rounded-[.9rem] text-[9px] font-black transition active:scale-[.98] min-[360px]:text-[10px]', value === 'clubValue' ? 'ranking-mode-active ranking-mode-value text-amber-100' : 'text-slate-500')}><Gem size={15}/>ارزش باشگاه‌ها</button>
-    </div>
-  );
+function useFantasyRanking(period: RankingPeriod, scope: 'all'|'friends', enabled: boolean) {
+  return useQuery({
+    queryKey: ['rankings', 'fantasy', period, scope],
+    queryFn: async () => (await api.get<RankingData>('/rankings', { params: { type: 'fantasy', period, scope } })).data,
+    enabled
+  });
 }
 
-function CategoryTabs({ value, onChange }: { value: RankingCategory; onChange: (value: RankingCategory) => void }) {
+function SystemTabs({ value, onChange }: { value: RankingSystem; onChange: (value: RankingSystem) => void }) {
+  const tabs: Array<{ value: RankingSystem; label: string; caption: string; icon: typeof Trophy }> = [
+    { value: 'premier', label: 'جدول لیگ انگلیس', caption: 'باشگاه‌های واقعی', icon: Trophy },
+    { value: 'fantasy', label: 'رتبه‌بندی فانتزی', caption: 'باشگاه‌های کاربران', icon: ShieldCheck }
+  ];
   return (
-    <div className="ranking-category-tabs grid grid-cols-4 gap-1 p-1.5">
-      {categories.map(({ value: itemValue, label, icon: Icon }) => {
-        const active = value === itemValue;
-        return <button key={itemValue} type="button" aria-pressed={active} onClick={() => onChange(itemValue)} className={cn('relative flex min-h-[54px] flex-col items-center justify-center gap-1.5 rounded-xl text-[8px] font-extrabold transition active:scale-95', active ? 'bg-cyan-300/[.11] text-cyan-200' : 'text-slate-500')}><Icon size={15} strokeWidth={active ? 2.6 : 1.8}/><span>{label}</span>{active && <span className="absolute bottom-0 h-0.5 w-5 rounded-full bg-cyan-300"/>}</button>;
+    <div className="ranking-system-tabs grid grid-cols-2 gap-1.5 p-1.5" role="tablist" aria-label="سیستم رتبه‌بندی">
+      {tabs.map(({ value: tab, label, caption, icon: Icon }) => {
+        const active = value === tab;
+        return (
+          <button key={tab} type="button" role="tab" aria-selected={active} onClick={() => onChange(tab)} className={cn('ranking-system-tab min-w-0 rounded-[.95rem] px-1.5 py-2.5 transition active:scale-[.98]', active && 'is-active')}>
+            <span className="flex items-center justify-center gap-1.5"><Icon size={14}/><strong className="truncate text-[8.5px] min-[360px]:text-[9.5px]">{label}</strong></span>
+            <small className="mt-1 block text-[6px] text-slate-600">{caption}</small>
+          </button>
+        );
       })}
     </div>
   );
 }
 
-function PeriodTabs({ value, onChange }: { value: RankingPeriod; onChange: (value: RankingPeriod) => void }) {
+function PremierLeagueTable({ query }: { query: ReturnType<typeof useQuery<PremierLeagueData, Error>> }) {
+  if (query.isLoading) return <TableLoading label="در حال دریافت جدول رسمی لیگ انگلیس"/>;
+  if (query.error) return <ErrorState message={query.error.message} onRetry={() => query.refetch()}/>;
+  if (!query.data?.standings.length) return <TableEmpty icon={<Trophy size={22}/>} title="جدول لیگ در دسترس نیست" description="هنوز ردیفی از منبع رسمی دریافت نشده است."/>;
+  const { standings, season, source } = query.data;
   return (
-    <div className="flex rounded-xl border border-white/[.07] bg-white/[.025] p-1">
-      {periods.map(item => <button key={item.value} type="button" aria-pressed={value === item.value} onClick={() => onChange(item.value)} className={cn('min-h-9 flex-1 rounded-lg text-[8.5px] font-bold transition min-[360px]:text-[9px]', value === item.value ? 'bg-white/[.085] text-white shadow-[inset_0_1px_rgba(255,255,255,.05)]' : 'text-slate-500')}>{item.label}</button>)}
-    </div>
+    <section aria-labelledby="premier-table-title">
+      <SectionHeader
+        eyebrow="ENGLISH PREMIER LEAGUE"
+        title="جدول لیگ انگلیس"
+        subtitle={`فصل ${formatSeason(season)} · ${faNumber(standings.length)} باشگاه واقعی`}
+        badge={source === 'api' ? 'LIVE API' : 'DEV MOCK'}
+        badgeTone={source === 'api' ? 'live' : 'demo'}
+      />
+      {source === 'development-mock' && <DevelopmentNotice text="API فوتبال در دسترس نیست؛ این جدول نمونه فقط در محیط توسعه نمایش داده می‌شود."/>}
+      <div className="ranking-table-shell mt-2 overflow-hidden rounded-[1.25rem] border border-white/[.075] p-1.5">
+        <div className="px-2 pb-1.5 pt-1 text-[6px] font-bold text-slate-600" id="premier-table-title">رتبه · باشگاه · آمار فصل · فرم ۵ بازی اخیر</div>
+        {standings.map(row => <PremierLeagueRow key={row.teamId} row={row}/>) }
+      </div>
+    </section>
   );
 }
 
-function SectionHead({ eyebrow, title, count, demo }: { eyebrow: string; title: string; count: number; demo: boolean }) {
+function PremierLeagueRow({ row }: { row: PremierLeagueStanding }) {
   return (
-    <div className="mb-2.5 flex items-end justify-between gap-2">
-      <div><span className="text-[7px] font-black tracking-[.17em] text-cyan-300" dir="ltr">{eyebrow}</span><h2 className="mt-0.5 text-[14px] font-black">{title}</h2></div>
-      <div className="flex items-center gap-1.5">{demo && <span className="rounded-full border border-fuchsia-300/[.14] bg-fuchsia-300/[.07] px-1.5 py-1 text-[6px] font-black text-fuchsia-200" dir="ltr">DEMO</span>}<span className="text-[7.5px] font-bold text-slate-500">{faNumber(count)} باشگاه</span></div>
-    </div>
+    <article className={cn('premier-standing-row rounded-[.95rem] px-2 py-2.5', row.position <= 4 && 'is-champions', row.position >= 18 && 'is-relegation')}>
+      <div className="flex min-w-0 items-center gap-2">
+        <span className="ranking-position grid h-7 w-7 shrink-0 place-items-center rounded-lg text-[9px] font-black">{faNumber(row.position)}</span>
+        <ClubCrest name={row.teamName} logo={row.logoUrl} className="h-9 w-9 shrink-0 !overflow-visible !rounded-none"/>
+        <span className="min-w-0 flex-1" dir="ltr"><strong className="block truncate text-left text-[9px] font-black text-slate-100 min-[360px]:text-[10px]">{row.teamName}</strong><small className="mt-0.5 block text-left text-[6px] text-slate-600">{row.goalsFor}:{row.goalsAgainst} GOALS</small></span>
+        <span className="min-w-[34px] text-left"><strong className="block text-[15px] font-black text-cyan-200">{faNumber(row.points)}</strong><small className="block text-[5.5px] font-bold text-slate-600">امتیاز</small></span>
+      </div>
+      <div className="mt-2 grid grid-cols-[repeat(5,minmax(0,1fr))_auto] items-center gap-1 border-t border-white/[.045] pt-2">
+        <MiniStat label="بازی" value={row.played}/><MiniStat label="برد" value={row.won}/><MiniStat label="مساوی" value={row.drawn}/><MiniStat label="باخت" value={row.lost}/><MiniStat label="تفاضل" value={signed(row.goalDifference)}/>
+        <StandingForm values={row.form}/>
+      </div>
+    </article>
   );
 }
 
-function LeaderRow({ entry, metric, category, onPreview }: { entry: RankingEntry; metric: RankingData['metric']; category: RankingCategory; onPreview: (entry: RankingEntry) => void }) {
-  const podiumRank = entry.rank >= 1 && entry.rank <= 3 ? entry.rank : undefined;
+function FantasyTable({ filter, onFilter, entries, demo, loading, error, onRetry, onPreview }: { filter: FantasyFilter; onFilter: (value: FantasyFilter) => void; entries: FantasyEntry[]; demo: boolean; loading: boolean; error: Error|null; onRetry: () => void; onPreview: (entry: FantasyEntry) => void }) {
   return (
-    <button
-      type="button"
-      onClick={() => onPreview(entry)}
-      aria-label={`مشاهده جزئیات ${entry.clubName}`}
-      className={cn(
-        'ranking-leader-row group relative flex min-h-[74px] w-full items-center gap-2 rounded-[.95rem] px-2 py-2 text-right transition active:scale-[.992] active:bg-white/[.045] min-[390px]:gap-2.5 min-[390px]:px-2.5',
-        podiumRank && `ranking-row-top-${podiumRank}`,
-        entry.isCurrent && 'ranking-row-current'
-      )}
-    >
-      <span className={cn('ranking-rank grid h-8 w-8 shrink-0 place-items-center rounded-[.65rem] border text-[10px] font-black', podiumRank && `ranking-rank-${podiumRank}`, entry.isCurrent && 'ranking-rank-current')}>{faNumber(entry.rank)}</span>
-      <span className="ranking-crest-shell grid h-10 w-10 shrink-0 place-items-center rounded-xl"><ClubCrest name={entry.clubName} logo={entry.logoUrl} className="h-9 w-9 !overflow-visible !rounded-none"/></span>
-      <span className="min-w-0 flex-1">
-        <span className="flex min-w-0 items-center gap-1.5"><strong className="truncate text-[10px] font-black text-slate-100 min-[380px]:text-[10.5px]" dir="ltr">{entry.clubName}</strong>{entry.isCurrent && <span className="ranking-you-badge shrink-0">تیم شما</span>}</span>
-        <span className="mt-0.5 block truncate text-[7.5px] text-slate-500">مالک: {entry.ownerName}</span>
-        <span className="mt-1.5 flex items-center gap-2.5"><Movement value={entry.rankChange}/><CurrentForm values={entry.form}/></span>
-      </span>
-      <span className="flex shrink-0 items-center gap-1 min-[390px]:gap-1.5">
-        <Score value={entry.score} metric={metric} category={category}/>
-        <ChevronLeft size={13} className="text-slate-700 transition group-active:-translate-x-0.5 group-active:text-cyan-300"/>
-      </span>
-    </button>
+    <section aria-labelledby="fantasy-table-title">
+      <SectionHeader eyebrow="FFN FANTASY LEAGUE" title="رتبه‌بندی فانتزی" subtitle="باشگاه‌های ساخته‌شده توسط کاربران FFN" badge={demo ? 'DEV MOCK' : undefined} badgeTone="demo"/>
+      {demo && <DevelopmentNotice text="هنوز امتیاز واقعی ثبت نشده؛ باشگاه‌های نمونه فقط در محیط توسعه فعال‌اند."/>}
+      <div className="fantasy-filter-tabs mt-3 grid grid-cols-4 gap-1 p-1" role="tablist" aria-label="بازه رتبه‌بندی فانتزی">
+        {fantasyFilters.map(item => <button key={item.value} type="button" role="tab" aria-selected={filter === item.value} onClick={() => onFilter(item.value)} className={cn('min-h-9 min-w-0 rounded-lg px-0.5 text-[7px] font-black transition min-[360px]:text-[8px]', filter === item.value ? 'bg-cyan-300/[.13] text-cyan-200' : 'text-slate-600')}>{item.label}</button>)}
+      </div>
+      {loading ? <div className="mt-3"><TableLoading label="در حال دریافت رتبه‌بندی فانتزی"/></div> : error ? <div className="mt-3"><ErrorState message={error.message} onRetry={onRetry}/></div> : entries.length ? (
+        <div className="ranking-table-shell mt-3 overflow-hidden rounded-[1.25rem] border border-white/[.075] p-1.5">
+          <div className="flex items-center justify-between px-2 pb-1.5 pt-1 text-[6px] font-bold text-slate-600" id="fantasy-table-title"><span>رتبه · باشگاه فانتزی · مدیر</span><span>هفته / فصل</span></div>
+          {entries.map(entry => <FantasyRow key={entry.userId} entry={entry} onPreview={onPreview} demo={demo}/>) }
+        </div>
+      ) : <div className="mt-3"><TableEmpty icon={<Users size={22}/>} title={filter === 'friends' ? 'دوستی در جدول نیست' : 'هنوز امتیازی ثبت نشده'} description={filter === 'friends' ? 'پس از تأیید دعوت دوستان، باشگاه‌های فانتزی آن‌ها اینجا نمایش داده می‌شود.' : 'با ثبت ترکیب و دریافت امتیاز بازی‌ها، جدول ساخته می‌شود.'}/></div>}
+    </section>
   );
 }
 
-function Score({ value, metric, category, emphasize }: { value: number; metric: RankingData['metric']; category: RankingCategory; emphasize?: boolean }) {
-  const unit = metric === 'value' ? 'سکه' : category === 'friends' ? 'دعوت' : 'امتیاز';
-  return <span className="min-w-[42px] whitespace-nowrap text-left"><strong className={cn('block font-black', emphasize ? 'text-[15px] text-white' : 'text-[10.5px] text-cyan-200')}>{faNumber(value)}</strong><span className="mt-0.5 block text-[6px] font-bold text-slate-500">{unit}</span></span>;
+function FantasyRow({ entry, onPreview, demo }: { entry: FantasyEntry; onPreview: (entry: FantasyEntry) => void; demo: boolean }) {
+  const canOpen = demo || entry.playerCount > 0;
+  const content = (
+    <>
+      <div className="flex min-w-0 items-center gap-2">
+        <span className={cn('ranking-position grid h-7 w-7 shrink-0 place-items-center rounded-lg text-[9px] font-black', entry.rank <= 3 && 'is-podium')}>{faNumber(entry.rank)}</span>
+        <FantasyCrest name={entry.clubName}/>
+        <span className="min-w-0 flex-1"><span className="flex min-w-0 items-center gap-1"><strong className="truncate text-[9px] font-black text-slate-100 min-[360px]:text-[10px]">{entry.clubName}</strong>{entry.isCurrent && <i className="ranking-you-badge shrink-0 not-italic">تیم شما</i>}</span><small className="mt-0.5 block truncate text-[6.5px] text-slate-500">مدیر: {entry.ownerName}</small></span>
+        <Movement value={entry.rankChange}/>
+        {canOpen && <ChevronLeft size={13} className="shrink-0 text-slate-700"/>}
+      </div>
+      <div className="mt-2 grid grid-cols-2 gap-1.5 border-t border-white/[.045] pt-2">
+        <FantasyScore label="امتیاز این هفته" value={entry.gameweekPoints}/><FantasyScore label="مجموع فصل" value={entry.seasonPoints} season/>
+      </div>
+    </>
+  );
+  return canOpen ? <button type="button" onClick={() => onPreview(entry)} aria-label={`مشاهده ترکیب عمومی ${entry.clubName}`} className={cn('fantasy-ranking-row block w-full rounded-[.95rem] px-2 py-2.5 text-right transition active:scale-[.992]', entry.isCurrent && 'is-current')}>{content}</button> : <div className={cn('fantasy-ranking-row rounded-[.95rem] px-2 py-2.5', entry.isCurrent && 'is-current')}>{content}</div>;
 }
 
-function Movement({ value }: { value: number }) {
-  const Icon = value > 0 ? ArrowUp : value < 0 ? ArrowDown : Minus;
-  return <span className={cn('flex items-center gap-0.5 text-[6px] font-black', value > 0 ? 'text-emerald-300' : value < 0 ? 'text-rose-300' : 'text-slate-600')}><Icon size={8} strokeWidth={2.8}/>{value ? faNumber(Math.abs(value)) : 'ثابت'}</span>;
-}
-
-function CurrentForm({ values }: { values?: number[] }) {
-  if (!values?.length) return <span className="text-[6px] font-bold text-slate-600">فرم —</span>;
-  const recent = values.slice(-5);
-  const max = Math.max(...recent.map(Math.abs), 1);
+function AuxiliaryRankings({ value, onChange }: { value: AuxiliaryRanking|null; onChange: (value: AuxiliaryRanking|null) => void }) {
+  const query = useQuery({
+    queryKey: ['rankings', value, 'season'],
+    queryFn: async () => (await api.get<RankingData>('/rankings', { params: { type: value, period: 'season' } })).data,
+    enabled: Boolean(value)
+  });
   return (
-    <span className="flex items-center gap-1" aria-label={`فرم اخیر: ${recent.join('، ')}`}>
-      <span className="text-[6px] font-bold text-slate-600">فرم</span>
-      <span className="flex h-3 items-end gap-[2px]" dir="ltr">{recent.map((value, index) => <i key={`${value}-${index}`} className={cn('block w-[3px] rounded-full', index === recent.length - 1 ? 'bg-cyan-300' : 'bg-slate-600')} style={{ height: `${Math.max(3, Math.round(Math.abs(value) / max * 12))}px` }}/>)}</span>
-    </span>
+    <aside className="auxiliary-rankings rounded-[1.25rem] border border-white/[.065] p-3" aria-label="رتبه‌بندی‌های پیش‌بینی و کوییز">
+      <div><span className="text-[6px] font-black tracking-[.16em] text-fuchsia-300" dir="ltr">SEPARATE LEADERBOARDS</span><h2 className="mt-0.5 text-[11px] font-black">رتبه‌بندی‌های دیگر</h2><p className="mt-1 text-[7px] leading-4 text-slate-600">امتیاز پیش‌بینی و کوییز مستقل از لیگ و فانتزی محاسبه می‌شود.</p></div>
+      <div className="mt-2.5 grid grid-cols-2 gap-2">
+        <AuxButton icon={<Target size={14}/>} label="پیش‌بینی" active={value === 'predictions'} onClick={() => onChange(value === 'predictions' ? null : 'predictions')}/>
+        <AuxButton icon={<BrainCircuit size={14}/>} label="کوییز" active={value === 'quiz'} onClick={() => onChange(value === 'quiz' ? null : 'quiz')}/>
+      </div>
+      {value && <div className="mt-2.5 border-t border-white/[.055] pt-2.5">{query.isLoading ? <div className="broadcast-skeleton h-20 rounded-xl"/> : query.error ? <ErrorState message={(query.error as Error).message} onRetry={() => query.refetch()}/> : query.data?.leaders.length ? <div className="space-y-1">{query.data.leaders.slice(0, 5).map(entry => <div key={entry.userId} className="flex min-h-9 items-center gap-2 rounded-lg bg-white/[.025] px-2"><span className="text-[8px] font-black text-fuchsia-200">{faNumber(entry.rank)}</span><span className="min-w-0 flex-1 truncate text-[7.5px] font-bold">{entry.ownerName}</span><strong className="text-[8px] text-cyan-200">{faNumber(entry.score)}</strong></div>)}</div> : <p className="py-4 text-center text-[8px] text-slate-600">هنوز امتیازی در این جدول ثبت نشده است.</p>}</div>}
+    </aside>
   );
 }
 
-function RankingLoading() {
-  return <div className="space-y-2" aria-label="در حال دریافت جدول رتبه‌بندی"><div className="broadcast-skeleton h-8 rounded-xl"/><div className="space-y-1 rounded-[1.25rem] border border-white/[.05] p-1.5">{[0,1,2,3,4,5].map(item => <div key={item} className="broadcast-skeleton h-[72px] rounded-xl"/>)}</div></div>;
-}
-
-function RankingEmpty({ mode }: { mode: RankingMode }) {
-  return <section className="ranking-empty-state rounded-[1.5rem] border border-dashed border-white/[.1] px-5 py-10 text-center"><span className="mx-auto grid h-14 w-14 place-items-center rounded-2xl bg-cyan-300/[.09] text-cyan-300">{mode === 'clubValue' ? <Gem size={23}/> : <Trophy size={23}/>}</span><h2 className="mt-4 text-sm font-black">هنوز تیمی وارد جدول نشده</h2><p className="mt-1.5 text-[9px] leading-5 text-slate-500">با ثبت ترکیب فعال و کسب اولین امتیاز، رتبه‌ها اینجا نمایش داده می‌شوند.</p></section>;
-}
-
-function ClubDetailsSheet({ entry, metric, category, period, onClose }: { entry: RankingEntry; metric: RankingData['metric']; category: RankingCategory; period: RankingPeriod; onClose: () => void }) {
-  const [selectedPlayer, setSelectedPlayer] = useState<RankingClubPlayer|null>(null);
-  const isDemo = entry.userId.startsWith('demo-');
-  const detailQuery = useQuery({
+function SquadDetailsSheet({ entry, period, demo, onClose }: { entry: FantasyEntry; period: RankingPeriod; demo: boolean; onClose: () => void }) {
+  const isDemo = demo && entry.userId.startsWith('demo-');
+  const query = useQuery({
     queryKey: ['rankingClubDetails', entry.userId, period],
     queryFn: async () => (await api.get<RankingClubDetails>(`/rankings/${entry.userId}`, { params: { period } })).data,
     enabled: !isDemo,
     retry: 1
   });
-  const details = useMemo(() => isDemo ? demoClubDetails(entry) : detailQuery.data, [detailQuery.data, entry, isDemo]);
-
+  const details = isDemo ? demoClubDetails(entry) : query.data;
   return (
-    <PlayerModalFrame label={`جزئیات باشگاه ${entry.clubName}`} onClose={onClose} className="ranking-detail-sheet !h-[100dvh] !max-h-[100dvh] !rounded-none min-[520px]:!h-[96dvh] min-[520px]:!max-h-[96dvh] min-[520px]:!rounded-t-[2rem]">
-      <div className="momentum-scroll min-h-0 flex-1 overflow-y-auto overscroll-contain px-3 pb-[max(20px,var(--safe-bottom))] min-[390px]:px-4">
-        <ClubDetailHero entry={entry} details={details} metric={metric} category={category}/>
-
-        {detailQuery.isLoading && !isDemo ? (
-          <DetailLoading/>
-        ) : detailQuery.error && !details ? (
-          <div className="mt-3"><ErrorState message={(detailQuery.error as Error).message} onRetry={() => detailQuery.refetch()}/></div>
-        ) : details ? (
-          <>
-            <DetailSummary entry={entry} details={details}/>
-            <Captaincy details={details}/>
-            <LineupPitch details={details} onPlayer={setSelectedPlayer}/>
-            <Bench players={details.substitutes} onPlayer={setSelectedPlayer}/>
-            <RecentPerformance weeks={details.recentWeeks}/>
-          </>
-        ) : (
-          <MissingLineup/>
-        )}
-
-        <button type="button" onClick={onClose} className="mt-4 flex min-h-11 w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-l from-cyan-300 to-emerald-300 text-[10px] font-black text-[#07111f]">بازگشت به جدول<ArrowLeft size={14}/></button>
+    <PlayerModalFrame label={`ترکیب عمومی ${entry.clubName}`} onClose={onClose} className="ranking-detail-sheet !h-[96dvh] !max-h-[96dvh] min-[520px]:!rounded-t-[2rem]">
+      <div className="momentum-scroll min-h-0 flex-1 overflow-y-auto px-3 pb-[max(20px,var(--safe-bottom))] min-[390px]:px-4">
+        <section className="ranking-squad-hero relative isolate overflow-hidden rounded-[1.35rem] border border-cyan-200/[.1] p-4 text-center">
+          <div className="home-hero-grid absolute inset-0 opacity-20"/>
+          <FantasyCrest name={entry.clubName} large/>
+          <div className="relative mt-2"><span className="text-[6px] font-black tracking-[.18em] text-cyan-300" dir="ltr">PUBLIC FANTASY SQUAD</span><h2 className="mt-1 text-[17px] font-black">{entry.clubName}</h2><p className="mt-1 text-[7.5px] text-slate-500">مدیر: {entry.ownerName}</p></div>
+          <div className="relative mt-3 grid grid-cols-3 gap-1.5"><SummaryStat label="رتبه" value={`#${faNumber(entry.rank)}`}/><SummaryStat label="هفته" value={faNumber(entry.gameweekPoints)}/><SummaryStat label="فصل" value={faNumber(entry.seasonPoints)}/></div>
+        </section>
+        {query.isLoading && !isDemo ? <DetailLoading/> : query.error ? <div className="mt-3"><ErrorState message={(query.error as Error).message} onRetry={() => query.refetch()}/></div> : details ? <SquadContent details={details}/> : <TableEmpty icon={<Shirt size={22}/>} title="ترکیب عمومی در دسترس نیست" description="این مدیر هنوز ترکیب خود را کامل نکرده است."/>}
+        <button type="button" onClick={onClose} className="mt-4 flex min-h-11 w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-l from-cyan-300 to-emerald-300 text-[9px] font-black text-[#07111f]">بازگشت به جدول<ArrowLeft size={14}/></button>
       </div>
-      {selectedPlayer && <PlayerDetails player={selectedPlayer} onClose={() => setSelectedPlayer(null)}/>}
     </PlayerModalFrame>
   );
 }
 
-function ClubDetailHero({ entry, details, metric, category }: { entry: RankingEntry; details?: RankingClubDetails; metric: RankingData['metric']; category: RankingCategory }) {
+function SquadContent({ details }: { details: RankingClubDetails }) {
+  const starters = details.starters.filter((player): player is RankingClubPlayer => Boolean(player));
   return (
-    <section className="ranking-detail-hero relative isolate overflow-hidden rounded-[1.4rem] border border-cyan-200/[.1] px-3.5 pb-4 pt-2 text-center">
-      <div className="ranking-detail-hero-grid absolute inset-0"/>
-      <div className="relative mx-auto grid h-[88px] w-[88px] place-items-center rounded-[1.7rem] border border-white/[.08] bg-white/[.045] shadow-[0_18px_34px_rgba(0,0,0,.28)]"><ClubCrest name={entry.clubName} logo={details?.logoUrl || entry.logoUrl} className="h-[72px] w-[72px] !overflow-visible !rounded-none"/></div>
-      <div className="relative mt-2"><span className="text-[6px] font-black tracking-[.2em] text-cyan-300" dir="ltr">CLUB PERFORMANCE CENTRE</span><h2 className="mt-1 text-[18px] font-black leading-6" dir="ltr">{entry.clubName}</h2><p className="mt-1 text-[8px] text-slate-400">مدیر / مالک: <strong className="text-slate-200">{entry.ownerName}</strong></p></div>
-      <div className="relative mt-3 flex items-center justify-center gap-5"><span><small className="block text-[6px] text-slate-500">رتبه</small><strong className="mt-0.5 block text-sm text-amber-300">#{faNumber(entry.rank)}</strong></span><span className="h-7 w-px bg-white/[.08]"/><Score value={entry.score} metric={metric} category={category} emphasize/></div>
-    </section>
-  );
-}
-
-function DetailSummary({ entry, details }: { entry: RankingEntry; details: RankingClubDetails }) {
-  const completePlayers = details.starters.filter(Boolean).length;
-  return (
-    <section className="mt-3 grid grid-cols-3 gap-1.5">
-      <SummaryCard icon={<ShieldCheck size={14}/>} label="آرایش منتخب" value={details.formation || entry.formation || 'ثبت نشده'} dir="ltr"/>
-      <SummaryCard icon={<Sparkles size={14}/>} label="امتیاز فانتزی" value={faNumber(details.totalFantasyPoints)}/>
-      <SummaryCard icon={<Gem size={14}/>} label="ارزش کل تیم" value={details.totalSquadValue ? `${faNumber(details.totalSquadValue)} سکه` : 'ثبت نشده'}/>
-      {completePlayers < 11 && <div className="col-span-3 rounded-xl border border-amber-300/[.12] bg-amber-300/[.055] px-3 py-2 text-[7.5px] leading-4 text-amber-100">اطلاعات ترکیب کامل نیست؛ {faNumber(completePlayers)} بازیکن اصلی در دسترس است.</div>}
-    </section>
-  );
-}
-
-function SummaryCard({ icon, label, value, dir }: { icon: React.ReactNode; label: string; value: string; dir?: 'ltr'|'rtl' }) {
-  return <div className="ranking-detail-stat min-w-0 rounded-xl border border-white/[.06] p-2 text-center"><span className="mx-auto grid h-7 w-7 place-items-center rounded-lg bg-cyan-300/[.08] text-cyan-300">{icon}</span><span className="mt-1.5 block truncate text-[6px] text-slate-500">{label}</span><strong className="mt-0.5 block truncate text-[8px] text-slate-100" dir={dir}>{value}</strong></div>;
-}
-
-function Captaincy({ details }: { details: RankingClubDetails }) {
-  const players = [...details.starters.filter((player): player is RankingClubPlayer => Boolean(player)), ...details.substitutes];
-  const captain = players.find(player => player._id === details.captainId);
-  const viceCaptain = players.find(player => player._id === details.viceCaptainId);
-  return (
-    <section className="mt-3 grid grid-cols-2 gap-1.5">
-      <CaptainCard type="C" label="کاپیتان" player={captain}/>
-      <CaptainCard type="V" label="نایب‌کاپیتان" player={viceCaptain}/>
-    </section>
-  );
-}
-
-function CaptainCard({ type, label, player }: { type: 'C'|'V'; label: string; player?: RankingClubPlayer }) {
-  return <div className="flex min-h-12 items-center gap-2 rounded-xl border border-white/[.065] bg-white/[.025] px-2.5"><span className={cn('grid h-7 w-7 shrink-0 place-items-center rounded-full text-[9px] font-black', type === 'C' ? 'bg-amber-300 text-[#171006]' : 'bg-slate-300 text-slate-900')}>{type}</span><span className="min-w-0"><small className="block text-[6px] text-slate-500">{label}</small><strong className={cn('mt-0.5 block truncate text-[7.5px]', !player && 'text-slate-600')} dir="ltr">{player?.name || 'ثبت نشده'}</strong></span></div>;
-}
-
-function LineupPitch({ details, onPlayer }: { details: RankingClubDetails; onPlayer: (player: RankingClubPlayer) => void }) {
-  const hasLineup = details.starters.some(Boolean);
-  const positions = lineupPositions(details);
-  return (
-    <section className="mt-4">
-      <SectionTitle eyebrow="STARTING XI" title="ترکیب اصلی" trailing={details.formation || '—'}/>
-      {hasLineup ? (
-        <div className="ranking-detail-pitch relative mt-2 overflow-hidden rounded-[1.25rem] border border-emerald-100/[.16]" dir="ltr">
-          <PitchMarkings/>
-          {details.starters.map((player, index) => {
-            const position = positions[index] ?? formations['4-3-3'][index];
-            if (!player) return <span key={`empty-${index}`} style={{ left: `${position.x}%`, top: `${position.y}%` }} className="ranking-empty-slot absolute grid h-7 w-7 -translate-x-1/2 -translate-y-1/2 place-items-center rounded-full border border-dashed border-white/20 text-[6px] text-white/30">{position.role}</span>;
-            return <PitchPlayer key={player._id} player={player} position={position} captain={player._id === details.captainId} viceCaptain={player._id === details.viceCaptainId} onClick={() => onPlayer(player)}/>;
-          })}
-        </div>
-      ) : <MissingLineup compact/>}
-    </section>
-  );
-}
-
-function PitchMarkings() {
-  return <div className="pointer-events-none absolute inset-2 rounded-[.95rem] border border-white/[.17]"><span className="absolute left-0 right-0 top-1/2 border-t border-white/[.15]"/><span className="absolute left-1/2 top-1/2 h-20 w-20 -translate-x-1/2 -translate-y-1/2 rounded-full border border-white/[.15]"/><span className="absolute left-1/2 top-1/2 h-1.5 w-1.5 -translate-x-1/2 -translate-y-1/2 rounded-full bg-white/[.2]"/><span className="absolute left-1/2 top-0 h-[17%] w-[45%] -translate-x-1/2 border border-t-0 border-white/[.15]"/><span className="absolute bottom-0 left-1/2 h-[17%] w-[45%] -translate-x-1/2 border border-b-0 border-white/[.15]"/></div>;
-}
-
-function PitchPlayer({ player, position, captain, viceCaptain, onClick }: { player: RankingClubPlayer; position: FormationSlot; captain: boolean; viceCaptain: boolean; onClick: () => void }) {
-  return (
-    <button type="button" onClick={onClick} aria-label={`جزئیات ${player.name}`} style={{ left: `${position.x}%`, top: `${position.y}%` }} className="ranking-pitch-player absolute flex w-[54px] -translate-x-1/2 -translate-y-1/2 flex-col items-center text-center min-[390px]:w-[60px]">
-      <span className="relative grid h-8 w-8 place-items-center overflow-hidden rounded-full border border-white/20 bg-[#101a38] shadow-[0_7px_14px_rgba(0,0,0,.35)] min-[390px]:h-9 min-[390px]:w-9">{player.photoUrl ? <img src={player.photoUrl} alt="" className="h-full w-full object-cover"/> : <Shirt size={15} className="text-cyan-200"/>}{(captain || viceCaptain) && <i className={cn('absolute -right-1 -top-1 grid h-4 w-4 place-items-center rounded-full text-[6px] font-black not-italic', captain ? 'bg-amber-300 text-[#171006]' : 'bg-slate-200 text-slate-900')}>{captain ? 'C' : 'V'}</i>}</span>
-      <strong className="mt-0.5 block w-full truncate rounded bg-[#071426]/80 px-1 py-0.5 text-[6px] font-black text-white min-[390px]:text-[6.5px]">{player.name}</strong>
-      <span className="mt-px rounded-full bg-black/35 px-1 text-[5.5px] font-bold text-cyan-100">{position.role} · {faNumber(player.fantasyPoints)}</span>
-    </button>
-  );
-}
-
-function Bench({ players, onPlayer }: { players: RankingClubPlayer[]; onPlayer: (player: RankingClubPlayer) => void }) {
-  return (
-    <section className="mt-4">
-      <SectionTitle eyebrow="SUBSTITUTES" title="نیمکت ذخیره" trailing={`${faNumber(players.length)} بازیکن`}/>
-      {players.length ? <div className="momentum-scroll mt-2 flex gap-2 overflow-x-auto pb-1 scrollbar-none" dir="ltr">{players.map(player => <button key={player._id} type="button" onClick={() => onPlayer(player)} className="ranking-bench-player flex min-h-[72px] w-[112px] shrink-0 items-center gap-2 rounded-xl border border-white/[.065] px-2 text-left transition active:scale-[.98] active:border-cyan-300/20"><span className="grid h-9 w-9 shrink-0 place-items-center overflow-hidden rounded-full border border-white/[.1] bg-white/[.05]">{player.photoUrl ? <img src={player.photoUrl} alt="" className="h-full w-full object-cover"/> : <Shirt size={15} className="text-slate-400"/>}</span><span className="min-w-0"><strong className="block truncate text-[7px] text-slate-100">{player.name}</strong><small className="mt-1 block text-[6px] text-slate-500">{player.position} · {faNumber(player.fantasyPoints)} امتیاز</small></span></button>)}</div> : <div className="mt-2 rounded-xl border border-dashed border-white/[.07] px-3 py-5 text-center text-[8px] text-slate-600">بازیکن ذخیره‌ای ثبت نشده است.</div>}
-    </section>
-  );
-}
-
-function RecentPerformance({ weeks }: { weeks: RankingClubDetails['recentWeeks'] }) {
-  const max = Math.max(...weeks.map(week => Math.abs(week.points)), 1);
-  return (
-    <section className="mt-4">
-      <SectionTitle eyebrow="LAST 5 GAMEWEEKS" title="عملکرد هفته‌های اخیر" trailing={weeks.length ? `${faNumber(weeks[weeks.length - 1].points)} امتیاز` : '—'}/>
-      {weeks.length ? <div className="ranking-form-chart mt-2 flex h-[112px] items-end justify-between gap-2 rounded-[1.1rem] border border-white/[.06] px-3 pb-2.5 pt-4" dir="ltr">{weeks.map((week, index) => <div key={week.startsAt} className="flex h-full min-w-0 flex-1 flex-col items-center justify-end"><span className="mb-1 text-[6px] font-black text-slate-300">{faNumber(week.points)}</span><i className={cn('block w-full max-w-7 rounded-t-md bg-gradient-to-t not-italic', index === weeks.length - 1 ? 'from-cyan-500 to-emerald-300' : 'from-fuchsia-900/70 to-fuchsia-400/70')} style={{ height: `${Math.max(8, Math.round(Math.abs(week.points) / max * 62))}px` }}/><small className="mt-1.5 truncate text-[5.5px] text-slate-600">{formatWeek(week.startsAt)}</small></div>)}</div> : <div className="mt-2 rounded-xl border border-dashed border-white/[.07] px-3 py-6 text-center text-[8px] text-slate-600">هنوز عملکرد هفتگی ثبت نشده است.</div>}
-    </section>
-  );
-}
-
-function SectionTitle({ eyebrow, title, trailing }: { eyebrow: string; title: string; trailing: string }) {
-  return <div className="flex items-end justify-between gap-3"><div><span className="text-[6px] font-black tracking-[.16em] text-fuchsia-300" dir="ltr">{eyebrow}</span><h3 className="mt-0.5 text-[11px] font-black">{title}</h3></div><span className="rounded-full bg-white/[.04] px-2 py-1 text-[6.5px] font-bold text-slate-500" dir="ltr">{trailing}</span></div>;
-}
-
-function MissingLineup({ compact = false }: { compact?: boolean }) {
-  return <div className={cn('ranking-missing-lineup mt-2 rounded-[1.15rem] border border-dashed border-cyan-200/[.1] px-5 text-center', compact ? 'py-10' : 'py-14')}><span className="mx-auto grid h-11 w-11 place-items-center rounded-xl bg-cyan-300/[.07] text-cyan-300"><Users size={18}/></span><h3 className="mt-3 text-[10px] font-black">ترکیب در دسترس نیست</h3><p className="mx-auto mt-1 max-w-[240px] text-[7.5px] leading-4 text-slate-600">این باشگاه هنوز ترکیب خود را کامل نکرده یا اطلاعات بازیکنان برای نمایش عمومی ثبت نشده است.</p></div>;
-}
-
-function DetailLoading() {
-  return <div className="mt-3 space-y-2"><div className="grid grid-cols-3 gap-1.5">{[0,1,2].map(item => <div key={item} className="broadcast-skeleton h-20 rounded-xl"/>)}</div><div className="broadcast-skeleton h-[410px] rounded-[1.25rem]"/><div className="broadcast-skeleton h-24 rounded-xl"/></div>;
-}
-
-function PlayerDetails({ player, onClose }: { player: RankingClubPlayer; onClose: () => void }) {
-  return (
-    <div className="absolute inset-0 z-40 flex items-end bg-[#02040c]/75 px-2 backdrop-blur-sm" onClick={onClose} role="presentation">
-      <section className="ranking-player-card safe-bottom relative w-full rounded-t-[1.6rem] border border-b-0 border-cyan-200/[.12] p-4" onClick={event => event.stopPropagation()} role="dialog" aria-modal="true" aria-label={`جزئیات ${player.name}`}>
-        <button type="button" onClick={onClose} className="absolute left-4 top-4 grid h-9 w-9 place-items-center rounded-xl bg-white/[.05] text-slate-400" aria-label="بازگشت"><ArrowLeft size={15}/></button>
-        <div className="flex items-center gap-3" dir="ltr"><span className="grid h-16 w-16 shrink-0 place-items-center overflow-hidden rounded-2xl border border-white/[.1] bg-white/[.045]">{player.photoUrl ? <img src={player.photoUrl} alt="" className="h-full w-full object-cover"/> : <UserRound size={26} className="text-cyan-300"/>}</span><span className="min-w-0"><small className="text-[6px] font-black tracking-[.16em] text-cyan-300">PLAYER PROFILE</small><h3 className="mt-1 truncate text-sm font-black text-white">{player.name}</h3><p className="mt-1 text-[7px] text-slate-500">{player.club || 'باشگاه ثبت نشده'}</p></span></div>
-        <div className="mt-4 grid grid-cols-3 gap-1.5"><PlayerInfo label="پست" value={positionLabel(player.position)}/><PlayerInfo label="امتیاز فانتزی" value={faNumber(player.fantasyPoints)}/><PlayerInfo label="ارزش" value={player.marketValue === undefined ? '—' : `${faNumber(player.marketValue)} سکه`}/></div>
-        <div className="mt-2 flex min-h-10 items-center justify-between rounded-xl border border-white/[.06] bg-white/[.025] px-3 text-[7.5px]"><span className="text-slate-500">ملیت</span><strong className="text-slate-200">{player.nationality || 'ثبت نشده'}</strong></div>
-        <button type="button" onClick={onClose} className="mt-3 min-h-10 w-full rounded-xl bg-white/[.065] text-[9px] font-black text-white">بستن جزئیات بازیکن</button>
-      </section>
+    <div className="mt-3 space-y-3">
+      <div className="grid grid-cols-2 gap-2"><SummaryStat label="آرایش" value={details.formation || 'ثبت نشده'}/><SummaryStat label="امتیاز بازه" value={faNumber(details.totalFantasyPoints)}/></div>
+      <section><SquadSectionHead title="ترکیب اصلی" count={starters.length}/>{starters.length ? <div className="mt-2 grid grid-cols-2 gap-1.5">{starters.map(player => <SquadPlayer key={player._id} player={player} captain={player._id === details.captainId} vice={player._id === details.viceCaptainId}/>)}</div> : <p className="rounded-xl border border-dashed border-white/[.07] py-7 text-center text-[8px] text-slate-600">بازیکن اصلی ثبت نشده است.</p>}</section>
+      <section><SquadSectionHead title="نیمکت" count={details.substitutes.length}/>{details.substitutes.length ? <div className="mt-2 grid grid-cols-2 gap-1.5">{details.substitutes.map(player => <SquadPlayer key={player._id} player={player}/>)}</div> : <p className="rounded-xl border border-dashed border-white/[.07] py-5 text-center text-[8px] text-slate-600">بازیکن ذخیره‌ای ثبت نشده است.</p>}</section>
     </div>
   );
 }
 
-function PlayerInfo({ label, value }: { label: string; value: string }) {
-  return <div className="min-w-0 rounded-xl border border-white/[.06] bg-white/[.025] p-2 text-center"><small className="block text-[6px] text-slate-500">{label}</small><strong className="mt-1 block truncate text-[7.5px] text-slate-100">{value}</strong></div>;
+function SquadPlayer({ player, captain, vice }: { player: RankingClubPlayer; captain?: boolean; vice?: boolean }) {
+  return <div className="flex min-h-12 min-w-0 items-center gap-2 rounded-xl border border-white/[.06] bg-white/[.025] px-2"><span className="relative grid h-8 w-8 shrink-0 place-items-center overflow-hidden rounded-full border border-white/[.09] bg-white/[.045]">{player.photoUrl ? <img src={player.photoUrl} alt="" className="h-full w-full object-cover"/> : <Shirt size={13} className="text-cyan-200"/>}{(captain || vice) && <i className="absolute left-0 top-0 grid h-3.5 w-3.5 place-items-center rounded-full bg-amber-300 text-[5px] font-black not-italic text-slate-950">{captain ? 'C' : 'V'}</i>}</span><span className="min-w-0 flex-1" dir="ltr"><strong className="block truncate text-left text-[6.5px] text-slate-200">{player.name}</strong><small className="mt-0.5 block text-left text-[5.5px] text-slate-600">{player.position} · {faNumber(player.fantasyPoints)} PTS</small></span></div>;
 }
 
-function lineupPositions(details: RankingClubDetails): FormationSlot[] {
-  if (details.formation === 'custom' && details.customPositions.length === 11) return details.customPositions;
-  if (details.formation && details.formation in formations) return formations[details.formation as BuiltInSquadFormation];
-  return formations['4-3-3'];
+function SectionHeader({ eyebrow, title, subtitle, badge, badgeTone }: { eyebrow: string; title: string; subtitle: string; badge?: string; badgeTone?: 'live'|'demo' }) {
+  return <div className="flex items-end justify-between gap-2"><div className="min-w-0"><span className="text-[6px] font-black tracking-[.16em] text-cyan-300" dir="ltr">{eyebrow}</span><h2 className="mt-0.5 text-[14px] font-black">{title}</h2><p className="mt-1 truncate text-[7px] text-slate-600">{subtitle}</p></div>{badge && <span className={cn('ranking-source-badge shrink-0', badgeTone === 'live' ? 'is-live' : 'is-demo')} dir="ltr">{badge}</span>}</div>;
 }
 
-function demoRankings(category: RankingCategory, period: RankingPeriod, mode: RankingMode): RankingEntry[] {
-  const periodFactor = period === 'week' ? 1 : period === 'month' ? 3.4 : 9.7;
-  const categoryFactor = category === 'fantasy' ? 1 : category === 'predictions' ? .47 : category === 'quiz' ? .62 : .02;
-  return demoTeams.map((entry, index) => ({
-    ...entry,
-    score: mode === 'clubValue' ? 98_500 - index * 4_730 : Math.max(category === 'friends' ? 1 : 0, Math.round(entry.score * periodFactor * categoryFactor)),
-    form: entry.form?.map(value => Math.max(category === 'friends' ? 1 : 0, Math.round(value * categoryFactor)))
-  }));
+function TableLoading({ label }: { label: string }) {
+  return <div className="space-y-2" aria-label={label}><div className="broadcast-skeleton h-9 rounded-xl"/><div className="space-y-1 rounded-[1.25rem] border border-white/[.05] p-1.5">{[0,1,2,3,4,5].map(item => <div key={item} className="broadcast-skeleton h-[86px] rounded-xl"/>)}</div></div>;
 }
 
-function demoClubDetails(entry: RankingEntry): RankingClubDetails {
-  const seed = demoTeams.find(team => team.userId === entry.userId) ?? demoTeams[0];
-  const formation = seed.formation && seed.formation in formations ? seed.formation as BuiltInSquadFormation : '4-3-3';
-  const slots = formations[formation];
-  const starters = seed.players.map((name, index): RankingClubPlayer => ({
-    _id: `${seed.userId}-player-${index}`,
-    name,
-    position: slots[index]?.role ?? 'MID',
-    club: seed.clubName,
-    nationality: demoNationality(index),
-    marketValue: 1_480 - index * 47,
-    fantasyPoints: [6, 5, 7, 6, 5, 8, 9, 7, 8, 13, 10][index] ?? 5
-  }));
-  const substitutes = seed.substitutes.map((name, index): RankingClubPlayer => ({
-    _id: `${seed.userId}-sub-${index}`,
-    name,
-    position: ['GK', 'DEF', 'MID', 'FWD', 'MID'][index],
-    club: seed.clubName,
-    nationality: demoNationality(index + 3),
-    marketValue: 780 - index * 55,
-    fantasyPoints: [3, 4, 5, 6, 4][index]
-  }));
-  const captainId = starters[seed.captainIndex]?._id;
-  const totalFantasyPoints = starters.reduce((total, player) => total + player.fantasyPoints * (player._id === captainId ? 2 : 1), 0);
-  const now = Date.now();
-  return {
-    userId: entry.userId,
-    logoUrl: entry.logoUrl,
-    formation,
-    starters,
-    substitutes,
-    captainId,
-    viceCaptainId: starters[seed.viceCaptainIndex]?._id,
-    customPositions: [],
-    totalSquadValue: [...starters, ...substitutes].reduce((total, player) => total + (player.marketValue ?? 0), 0),
-    totalFantasyPoints,
-    recentWeeks: (entry.form ?? seed.form ?? []).slice(-5).map((points, index, values) => ({ startsAt: new Date(now - (values.length - 1 - index) * 7 * 24 * 60 * 60 * 1000).toISOString(), points }))
-  };
+function DetailLoading() { return <div className="mt-3 space-y-2"><div className="grid grid-cols-2 gap-2"><div className="broadcast-skeleton h-14 rounded-xl"/><div className="broadcast-skeleton h-14 rounded-xl"/></div><div className="broadcast-skeleton h-64 rounded-[1.25rem]"/></div>; }
+function TableEmpty({ icon, title, description }: { icon: ReactNode; title: string; description: string }) { return <section className="ranking-empty-state mt-3 rounded-[1.4rem] border border-dashed border-white/[.1] px-5 py-9 text-center"><span className="mx-auto grid h-12 w-12 place-items-center rounded-2xl bg-cyan-300/[.08] text-cyan-300">{icon}</span><h2 className="mt-3 text-[11px] font-black">{title}</h2><p className="mx-auto mt-1.5 max-w-[250px] text-[8px] leading-4 text-slate-600">{description}</p></section>; }
+function DevelopmentNotice({ text }: { text: string }) { return <div className="mt-2 flex items-start gap-2 rounded-xl border border-fuchsia-300/[.1] bg-fuchsia-300/[.045] px-2.5 py-2 text-[6.5px] leading-4 text-fuchsia-100/70"><Sparkles size={11} className="mt-0.5 shrink-0 text-fuchsia-300"/><span>{text}</span></div>; }
+function MiniStat({ label, value }: { label: string; value: number|string }) { return <span className="min-w-0 text-center"><strong className="block truncate text-[8px] text-slate-300">{typeof value === 'number' ? faNumber(value) : value}</strong><small className="mt-0.5 block text-[5px] text-slate-600">{label}</small></span>; }
+function StandingForm({ values }: { values: PremierLeagueStanding['form'] }) { return <span className="flex items-center gap-[2px]" dir="ltr" aria-label={`فرم اخیر ${values.join('، ')}`}>{values.length ? values.map((value, index) => <i key={`${value}-${index}`} className={cn('grid h-3.5 w-3.5 place-items-center rounded-full text-[5px] font-black not-italic', value === 'W' ? 'bg-emerald-300/15 text-emerald-300' : value === 'L' ? 'bg-rose-300/15 text-rose-300' : 'bg-slate-300/10 text-slate-400')}>{value}</i>) : <small className="text-[6px] text-slate-600">—</small>}</span>; }
+function FantasyScore({ label, value, season }: { label: string; value: number; season?: boolean }) { return <span className={cn('flex min-h-9 items-center justify-between rounded-lg px-2', season ? 'bg-fuchsia-300/[.055]' : 'bg-cyan-300/[.055]')}><small className="text-[6px] text-slate-500">{label}</small><strong className={cn('text-[10px] font-black', season ? 'text-fuchsia-200' : 'text-cyan-200')}>{faNumber(value)}</strong></span>; }
+function Movement({ value }: { value: number }) { const Icon = value > 0 ? ArrowUp : value < 0 ? ArrowDown : Minus; return <span className={cn('flex shrink-0 items-center gap-0.5 text-[6px] font-black', value > 0 ? 'text-emerald-300' : value < 0 ? 'text-rose-300' : 'text-slate-600')}><Icon size={8}/>{value ? faNumber(Math.abs(value)) : 'ثابت'}</span>; }
+function FantasyCrest({ name, large = false }: { name: string; large?: boolean }) { const initials = name.split(/\s+/).filter(Boolean).slice(0, 2).map(part => part[0]).join(''); return <span className={cn('fantasy-user-crest relative grid shrink-0 place-items-center rounded-xl font-black text-white', large ? 'mx-auto h-16 w-16 text-base' : 'h-9 w-9 text-[9px]')} aria-label={`نشان فانتزی ${name}`}>{initials}<ShieldCheck className="absolute -bottom-1 -left-1 rounded-full bg-[#0a1224] p-0.5 text-cyan-300" size={large ? 17 : 13}/></span>; }
+function SummaryStat({ label, value }: { label: string; value: string }) { return <div className="min-w-0 rounded-xl border border-white/[.06] bg-white/[.025] p-2 text-center"><small className="block text-[6px] text-slate-600">{label}</small><strong className="mt-1 block truncate text-[8px] text-slate-100">{value}</strong></div>; }
+function SquadSectionHead({ title, count }: { title: string; count: number }) { return <div className="flex items-center justify-between"><h3 className="text-[10px] font-black">{title}</h3><span className="rounded-full bg-white/[.04] px-2 py-1 text-[6px] text-slate-600">{faNumber(count)} بازیکن</span></div>; }
+function AuxButton({ icon, label, active, onClick }: { icon: ReactNode; label: string; active: boolean; onClick: () => void }) { return <button type="button" aria-expanded={active} onClick={onClick} className={cn('flex min-h-10 items-center justify-center gap-1.5 rounded-xl border text-[8px] font-black transition', active ? 'border-fuchsia-300/20 bg-fuchsia-300/[.09] text-fuchsia-200' : 'border-white/[.055] bg-white/[.025] text-slate-500')}>{icon}{label}</button>; }
+
+function mergeFantasyRankings(selected?: RankingData, week?: RankingData, season?: RankingData): FantasyEntry[] {
+  if (!selected?.leaders.length) return [];
+  const selectedEntries = entriesWithCurrent(selected);
+  const weekScores = new Map(entriesWithCurrent(week).map(entry => [entry.userId, entry.score]));
+  const seasonScores = new Map(entriesWithCurrent(season).map(entry => [entry.userId, entry.score]));
+  return selectedEntries.map(entry => ({ ...entry, gameweekPoints: weekScores.get(entry.userId) ?? 0, seasonPoints: seasonScores.get(entry.userId) ?? 0 }));
 }
 
-function demoNationality(index: number): string {
-  return ['England', 'Brazil', 'Portugal', 'France', 'Spain', 'Netherlands'][index % 6];
+function entriesWithCurrent(data?: RankingData): RankingEntry[] {
+  if (!data) return [];
+  if (!data.current || data.leaders.some(entry => entry.userId === data.current.userId)) return data.leaders;
+  return [...data.leaders, data.current].sort((a, b) => a.rank - b.rank);
 }
 
-function positionLabel(position: string): string {
-  const labels: Record<string, string> = { GK: 'دروازه‌بان', RB: 'دفاع راست', RWB: 'وینگ‌بک راست', CB: 'دفاع میانی', LB: 'دفاع چپ', LWB: 'وینگ‌بک چپ', DM: 'هافبک دفاعی', CM: 'هافبک میانی', AM: 'هافبک هجومی', RM: 'هافبک راست', LM: 'هافبک چپ', RW: 'وینگر راست', LW: 'وینگر چپ', ST: 'مهاجم', DEF: 'مدافع', MID: 'هافبک', FWD: 'مهاجم' };
-  return labels[position] ?? position;
+function demoFantasyEntries(filter: FantasyFilter): FantasyEntry[] {
+  const seeds = filter === 'friends' ? demoFantasySeeds.slice(0, 5) : demoFantasySeeds;
+  const metric = (seed: DemoFantasySeed) => filter === 'week' ? seed.weekPoints : filter === 'month' ? seed.monthPoints : seed.seasonPoints;
+  return [...seeds].sort((a, b) => metric(b) - metric(a)).map((seed, index) => ({ userId: seed.userId, clubName: seed.clubName, ownerName: seed.ownerName, score: metric(seed), rank: index + 1, rankChange: seed.rankChange, isCurrent: seed.isCurrent, formation: seed.formation, playerCount: 11, gameweekPoints: seed.weekPoints, seasonPoints: seed.seasonPoints }));
 }
 
-function formatWeek(value: string): string {
-  return new Intl.DateTimeFormat('fa-IR', { day: 'numeric', month: 'short' }).format(new Date(value));
+function demoClubDetails(entry: FantasyEntry): RankingClubDetails {
+  const seed = demoFantasySeeds.find(item => item.userId === entry.userId) ?? demoFantasySeeds[0];
+  const players = seed.players.map((name, index): RankingClubPlayer => ({ _id: `${seed.userId}-${index}`, name, position: index === 0 ? 'GK' : index < 5 ? 'DEF' : index < 8 ? 'MID' : 'FWD', fantasyPoints: [5, 6, 7, 5, 6, 8, 9, 7, 12, 10, 8][index] }));
+  return { userId: seed.userId, formation: seed.formation, starters: players, substitutes: [], captainId: players[8]?._id, viceCaptainId: players[6]?._id, totalSquadValue: 0, totalFantasyPoints: entry.score, recentWeeks: [] };
 }
+
+function signed(value: number): string { return value > 0 ? `+${faNumber(value)}` : faNumber(value); }
+function formatSeason(season: number): string { return `${faNumber(season)}–${faNumber((season + 1) % 100).padStart(2, '۰')}`; }

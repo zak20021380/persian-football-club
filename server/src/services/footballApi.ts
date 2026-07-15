@@ -38,6 +38,99 @@ const fixtureStatsSchema = z.object({
   errors: z.union([z.array(z.unknown()), z.record(z.string(), z.unknown())]).optional()
 });
 
+const standingsSchema = z.object({
+  response: z.array(z.object({
+    league: z.object({
+      id: externalId,
+      name: text,
+      season: z.number().int().min(1900).max(2100),
+      standings: z.array(z.array(z.object({
+        rank: z.number().int().positive(),
+        team: z.object({ id: externalId, name: text, logo: externalUrl.nullable().optional() }),
+        points: z.number().int(),
+        goalsDiff: z.number().int(),
+        form: z.string().nullable().optional(),
+        description: z.string().nullable().optional(),
+        all: z.object({
+          played: z.number().int().min(0),
+          win: z.number().int().min(0),
+          draw: z.number().int().min(0),
+          lose: z.number().int().min(0),
+          goals: z.object({ for: z.number().int().min(0), against: z.number().int().min(0) })
+        })
+      })))
+    })
+  })),
+  errors: z.union([z.array(z.unknown()), z.record(z.string(), z.unknown())]).optional()
+});
+
+export interface PremierLeagueStanding {
+  position: number;
+  teamId: number;
+  teamName: string;
+  logoUrl?: string;
+  played: number;
+  won: number;
+  drawn: number;
+  lost: number;
+  goalsFor: number;
+  goalsAgainst: number;
+  goalDifference: number;
+  points: number;
+  form: Array<'W'|'D'|'L'>;
+  note?: string;
+}
+
+export interface PremierLeagueStandingsResponse {
+  leagueName: string;
+  season: number;
+  source: 'api'|'development-mock';
+  updatedAt: string;
+  standings: PremierLeagueStanding[];
+}
+
+let standingsCache: { season: number; expiresAt: number; value: PremierLeagueStandingsResponse }|undefined;
+
+export async function premierLeagueStandings(now = new Date()): Promise<PremierLeagueStandingsResponse> {
+  const season = env.FOOTBALL_API_SEASON ?? premierLeagueSeason(now);
+  if (standingsCache?.season === season && standingsCache.expiresAt > Date.now()) return standingsCache.value;
+  try {
+    const parsed = standingsSchema.safeParse(await footballApiRequest('/standings', { league: 39, season }));
+    if (!parsed.success) throw new AppError(502, 'ساختار جدول لیگ API فوتبال معتبر نیست', 'FOOTBALL_API_RESPONSE_INVALID');
+    if (hasProviderErrors(parsed.data.errors)) throw new AppError(502, 'API فوتبال برای جدول لیگ خطا برگرداند', 'FOOTBALL_API_PROVIDER_ERROR');
+    const league = parsed.data.response[0]?.league;
+    const rows = league?.standings[0] ?? [];
+    if (!league || !rows.length) throw new AppError(502, 'جدول لیگ برتر انگلیس از API دریافت نشد', 'FOOTBALL_API_STANDINGS_EMPTY');
+    const value: PremierLeagueStandingsResponse = {
+      leagueName: league.name,
+      season: league.season,
+      source: 'api',
+      updatedAt: now.toISOString(),
+      standings: rows.map(row => ({
+        position: row.rank,
+        teamId: row.team.id,
+        teamName: row.team.name,
+        logoUrl: row.team.logo ?? undefined,
+        played: row.all.played,
+        won: row.all.win,
+        drawn: row.all.draw,
+        lost: row.all.lose,
+        goalsFor: row.all.goals.for,
+        goalsAgainst: row.all.goals.against,
+        goalDifference: row.goalsDiff,
+        points: row.points,
+        form: parseStandingForm(row.form),
+        note: row.description ?? undefined
+      }))
+    };
+    standingsCache = { season, expiresAt: Date.now() + 5 * 60_000, value };
+    return value;
+  } catch (error) {
+    if (env.NODE_ENV === 'development') return developmentStandings(now);
+    throw error;
+  }
+}
+
 export async function synchronizeFantasyPlayers(requestedBy: Types.ObjectId, input: { leagueId?: number; season?: number }) {
   const leagueId = input.leagueId ?? env.FOOTBALL_API_LEAGUE_ID;
   const season = input.season ?? env.FOOTBALL_API_SEASON;
@@ -176,4 +269,58 @@ function cleanSheetFor(match: { homeTeamId: Types.ObjectId; awayTeamId: Types.Ob
   if (String(teamId) === String(match.homeTeamId)) return match.awayScore === 0;
   if (String(teamId) === String(match.awayTeamId)) return match.homeScore === 0;
   return false;
+}
+
+export function premierLeagueSeason(now: Date): number {
+  return now.getUTCMonth() >= 7 ? now.getUTCFullYear() : now.getUTCFullYear() - 1;
+}
+
+function parseStandingForm(value?: string|null): Array<'W'|'D'|'L'> {
+  return (value?.toUpperCase().match(/[WDL]/g) ?? []).slice(-5) as Array<'W'|'D'|'L'>;
+}
+
+function developmentStandings(now: Date): PremierLeagueStandingsResponse {
+  const rows: Array<[number, string, number, number, number, number, number, number, number, string]> = [
+    [40, 'Liverpool', 25, 9, 4, 86, 41, 84, 45, 'DWWDW'],
+    [42, 'Arsenal', 20, 14, 4, 69, 34, 74, 35, 'WWDWW'],
+    [50, 'Manchester City', 21, 8, 9, 72, 44, 71, 28, 'WWDWW'],
+    [49, 'Chelsea', 20, 9, 9, 64, 43, 69, 21, 'LWWWW'],
+    [34, 'Newcastle', 20, 6, 12, 68, 47, 66, 21, 'WLWLW'],
+    [66, 'Aston Villa', 19, 9, 10, 58, 51, 66, 7, 'WWWWL'],
+    [65, 'Nottingham Forest', 19, 8, 11, 58, 46, 65, 12, 'DWDLW'],
+    [51, 'Brighton', 16, 13, 9, 66, 59, 61, 7, 'WDWWW'],
+    [35, 'Bournemouth', 15, 11, 12, 58, 46, 56, 12, 'LWLWL'],
+    [55, 'Brentford', 16, 8, 14, 66, 57, 56, 9, 'WWLWL'],
+    [36, 'Fulham', 15, 9, 14, 54, 54, 54, 0, 'LWLWL'],
+    [52, 'Crystal Palace', 13, 14, 11, 51, 51, 53, 0, 'LDWWD'],
+    [45, 'Everton', 11, 15, 12, 42, 44, 48, -2, 'DWWWW'],
+    [48, 'West Ham', 11, 10, 17, 46, 62, 43, -16, 'DLLWW'],
+    [33, 'Manchester United', 11, 9, 18, 44, 54, 42, -10, 'DLLWL'],
+    [39, 'Wolverhampton', 12, 6, 20, 54, 69, 42, -15, 'LLLDW'],
+    [47, 'Tottenham', 11, 5, 22, 64, 65, 38, -1, 'DLLLW'],
+    [46, 'Leicester', 6, 7, 25, 33, 80, 25, -47, 'DLLWL'],
+    [57, 'Ipswich', 4, 10, 24, 36, 82, 22, -46, 'DLLLL'],
+    [41, 'Southampton', 2, 6, 30, 26, 86, 12, -60, 'LLLLL']
+  ];
+  return {
+    leagueName: 'Premier League',
+    season: 2024,
+    source: 'development-mock',
+    updatedAt: now.toISOString(),
+    standings: rows.map(([teamId, teamName, won, drawn, lost, goalsFor, goalsAgainst, points, goalDifference, form], index) => ({
+      position: index + 1,
+      teamId,
+      teamName,
+      logoUrl: `https://media.api-sports.io/football/teams/${teamId}.png`,
+      played: won + drawn + lost,
+      won,
+      drawn,
+      lost,
+      goalsFor,
+      goalsAgainst,
+      goalDifference,
+      points,
+      form: parseStandingForm(form)
+    }))
+  };
 }
