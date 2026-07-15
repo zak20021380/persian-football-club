@@ -8,7 +8,6 @@ import {
   Copy,
   Flame,
   Gem,
-  Laugh,
   Medal,
   Pencil,
   Rocket,
@@ -375,8 +374,6 @@ export function ProfilePage() {
             </div>
           </Card>
         </section>
-
-        {bootstrap.data?.isAdmin && <div className="profile-animate grid grid-cols-2 gap-2"><Link to="/admin" className="btn-secondary w-full border-emerald-300/20 px-2 text-[10px] text-emerald-300"><ShieldCheck size={16}/>پنل مدیریت</Link><Link to="/admin/fun" className="btn-secondary w-full border-fuchsia-300/20 px-2 text-[10px] text-fuchsia-300"><Laugh size={16}/>مدیریت فان</Link></div>}
 
         <section className="profile-animate" style={{ animationDelay: '310ms' }}>
           <div className="mb-3"><p className="text-[9px] font-bold text-emerald-300">آخرین رویدادها</p><h2 className="mt-0.5 text-base font-black">فعالیت‌های اخیر</h2></div>

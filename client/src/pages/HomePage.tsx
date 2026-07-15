@@ -8,6 +8,7 @@ import {
   Coins,
   Handshake,
   Inbox,
+  Laugh,
   Play,
   Radio,
   Shield,
@@ -261,6 +262,17 @@ export function HomePage() {
       <div className="relative -mt-6 px-4"><QuickActions predictionsCount={data.predictionsCount}/></div>
 
       <div className="mt-5 space-y-8 px-4">
+        <Link to="/fun" className="home-fun-feature group relative isolate flex min-h-[120px] items-center gap-3 overflow-hidden rounded-[1.45rem] p-4 transition active:scale-[.99]" aria-label="فان فوتبالی؛ مشاهده بخش فان">
+          <span className="home-fun-pattern absolute" aria-hidden="true"/>
+          <span className="home-fun-icon relative grid h-12 w-12 shrink-0 place-items-center rounded-2xl"><Laugh size={23} strokeWidth={2.25}/></span>
+          <span className="relative min-w-0 flex-1">
+            <span className="block text-[6px] font-black tracking-[.16em] text-fuchsia-300" dir="ltr">FFN FUN / FOOTBALL HUMOR</span>
+            <strong className="mt-1 block text-sm font-black tracking-tight text-white">فان فوتبالی</strong>
+            <span className="mt-1 block line-clamp-2 text-[8px] leading-4 text-slate-400">میم‌ها، سوژه‌ها و لحظه‌های بامزه دنیای فوتبال</span>
+            <span className="home-fun-cta mt-2 inline-flex min-h-8 items-center gap-1.5 rounded-xl px-3 text-[8px] font-black">مشاهده فان<ArrowLeft size={13}/></span>
+          </span>
+        </Link>
+
         <section>
           <div className="mb-3 flex items-end justify-between">
             <div><span className="text-[7px] font-black tracking-[.18em] text-fuchsia-300" dir="ltr">MAIN EVENT</span><h2 className="mt-1 text-base font-black tracking-tight">بازی‌های مهم</h2></div>

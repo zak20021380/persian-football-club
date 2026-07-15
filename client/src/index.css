@@ -76,6 +76,13 @@ button { touch-action: manipulation; }
 .home-action-cyan { border-radius: 10px; background: #4be5f3; color: #10051d; box-shadow: 0 8px 20px rgba(49,218,240,.1); }
 .home-action-magenta { border-radius: 10px; background: rgba(230,62,186,.14); color: #f28bd6; }
 .home-action-mint { border-radius: 10px; background: rgba(95,246,207,.13); color: #76f6d6; }
+.home-fun-feature { border:1px solid rgba(235,92,201,.16); background:radial-gradient(circle at 88% 8%,rgba(239,100,200,.13),transparent 29%),radial-gradient(circle at 7% 96%,rgba(73,228,242,.09),transparent 31%),linear-gradient(140deg,rgba(41,10,55,.98),rgba(13,12,39,.98) 52%,rgba(6,25,40,.99)); box-shadow:inset 0 1px rgba(255,255,255,.055),0 17px 36px rgba(1,2,13,.24); }
+.home-fun-feature::before { content:''; position:absolute; z-index:2; inset:0 auto 0 0; width:3px; background:linear-gradient(to bottom,var(--magenta),var(--cyan) 56%,var(--mint)); box-shadow:0 0 15px rgba(239,100,200,.22); opacity:.82; }
+.home-fun-feature::after { content:''; position:absolute; z-index:-1; inset:0; opacity:.08; background:linear-gradient(132deg,transparent 0 48%,var(--cyan) 48.3% 52%,transparent 52.3%),linear-gradient(132deg,transparent 0 57%,var(--magenta) 57.3% 59%,transparent 59.3%); transform:translateX(-32%); }
+.home-fun-pattern { z-index:-1; left:-28px; top:-32px; width:126px; height:126px; border:1px solid rgba(239,100,200,.1); border-radius:50%; background:radial-gradient(circle at 54% 46%,rgba(255,255,255,.11) 0 2px,transparent 2.5px),radial-gradient(circle at 35% 38%,rgba(73,228,242,.18) 0 3px,transparent 3.5px); box-shadow:0 0 0 20px rgba(73,228,242,.014),0 0 0 42px rgba(239,100,200,.01); }
+.home-fun-icon { border:1px solid rgba(239,100,200,.19); background:linear-gradient(145deg,rgba(239,100,200,.17),rgba(73,228,242,.08)); color:#f38bd7; box-shadow:inset 0 1px rgba(255,255,255,.06),0 10px 24px rgba(239,100,200,.08); }
+.home-fun-cta { border:1px solid rgba(105,238,220,.14); background:linear-gradient(105deg,rgba(73,228,242,.13),rgba(114,248,220,.12)); color:#9af1df; box-shadow:inset 0 1px rgba(255,255,255,.035); transition:transform .18s ease,background .18s ease; }
+.group:active .home-fun-cta { transform:translateX(-2px); background:linear-gradient(105deg,rgba(73,228,242,.2),rgba(114,248,220,.18)); }
 .featured-match { position: relative; border-radius: 20px; background-image: linear-gradient(112deg,rgba(31,11,55,.98),rgba(7,22,39,.98) 72%); box-shadow: inset 0 1px rgba(255,255,255,.04),0 16px 38px rgba(2,3,12,.24); }
 .home-featured-stripe { position: absolute; inset: 0 auto 0 0; width: 5px; background: linear-gradient(to bottom,#4de9f1 0 34%,#ef4bc4 34% 58%,#6bf4d3 58%); }
 .home-competition-mark { border-radius: 8px; background: #66f1d1; transform: skewX(-7deg); }
