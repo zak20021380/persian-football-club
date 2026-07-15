@@ -229,7 +229,7 @@ export function HomePage() {
   const firstMatch = data.matches[0];
 
   return (
-    <main className="home-page pb-5">
+    <main className="home-page pb-4">
       <header className="home-hero safe-top relative overflow-hidden px-4 pb-8 pt-3">
         <div className="home-hero-grid absolute inset-0"/>
         <div className="home-broadcast-angle absolute inset-0"/>
@@ -261,7 +261,7 @@ export function HomePage() {
 
       <div className="relative -mt-6 px-4"><QuickActions predictionsCount={data.predictionsCount}/></div>
 
-      <div className="mt-5 space-y-8 px-4">
+      <div className="mt-4 space-y-4 px-4">
         <Link to="/fun" className="home-fun-feature group relative isolate flex min-h-[120px] items-center gap-3 overflow-hidden rounded-[1.45rem] p-4 transition active:scale-[.99]" aria-label="فان فوتبالی؛ مشاهده بخش فان">
           <span className="home-fun-pattern absolute" aria-hidden="true"/>
           <span className="home-fun-icon relative grid h-12 w-12 shrink-0 place-items-center rounded-2xl"><Laugh size={23} strokeWidth={2.25}/></span>
@@ -274,12 +274,12 @@ export function HomePage() {
         </Link>
 
         <section>
-          <div className="mb-3 flex items-end justify-between">
+          <div className="mb-2 flex items-end justify-between">
             <div><span className="text-[7px] font-black tracking-[.18em] text-fuchsia-300" dir="ltr">MAIN EVENT</span><h2 className="mt-1 text-base font-black tracking-tight">بازی‌های مهم</h2></div>
             <Link to="/matches" className="flex min-h-9 items-center gap-1 text-[10px] font-bold text-cyan-300">همه بازی‌ها<ArrowLeft size={14}/></Link>
           </div>
           {firstMatch ? (
-            <div className="space-y-3">
+            <div className="space-y-2.5">
               <FeaturedMatch match={firstMatch}/>
               {data.matches.slice(1, 3).map((match) => <MatchCard key={match._id} match={match}/>)}
             </div>
@@ -308,7 +308,7 @@ export function HomePage() {
           </section>
         )}
 
-        <section className="space-y-3">
+        <section className="space-y-2.5">
           <SectionTitle title="باشگاه من" action="مشاهده باشگاه" to="/club"/>
           <MyClubCard club={data.club} coinBalance={data.user.coinBalance}/>
           <ClubQuickActions/>
@@ -318,7 +318,7 @@ export function HomePage() {
 
         {data.activeCompetition && (
           <section>
-            <div className="mb-3 flex items-center justify-between"><h2 className="text-sm font-black">رقابت من</h2><Link to="/competition" className="flex items-center gap-1 text-[9px] font-bold text-emerald-300">همه رقابت‌ها<ArrowLeft size={13}/></Link></div>
+            <div className="mb-2 flex items-center justify-between"><h2 className="text-sm font-black">رقابت من</h2><Link to="/competition" className="flex items-center gap-1 text-[9px] font-bold text-emerald-300">همه رقابت‌ها<ArrowLeft size={13}/></Link></div>
             <CompactCompetition competition={data.activeCompetition}/>
           </section>
         )}

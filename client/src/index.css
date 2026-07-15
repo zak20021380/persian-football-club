@@ -114,6 +114,13 @@ button { touch-action: manipulation; }
 .demo-predict-cta { border-radius:10px; background:linear-gradient(105deg,#54e8f2,#76f2d4); box-shadow:0 8px 24px rgba(66,226,231,.18),inset 0 1px rgba(255,255,255,.4); transition:transform .18s ease,box-shadow .18s ease; }
 .group:active .demo-predict-cta { transform:translateX(-2px); box-shadow:0 4px 14px rgba(66,226,231,.14),inset 0 1px rgba(255,255,255,.35); }
 .home-cup-card { animation: home-cup-in .5s cubic-bezier(.22,1,.36,1) both; }
+@keyframes home-cup-in { 0% { opacity:0; transform:translateY(12px); } 100% { opacity:1; transform:translateY(0); } }
+
+/* Home Page Compact Spacing System */
+.home-page section { margin-bottom: 0; }
+.home-page .space-y-4 > * + * { margin-top: 1rem; }
+.home-page .space-y-2\.5 > * + * { margin-top: 0.625rem; }
+
 .quiz-banner { box-shadow: inset 0 1px rgba(255,255,255,.04),0 16px 35px rgba(0,0,0,.18); }
 .ranking-hero { background: radial-gradient(circle at 12% 24%,rgba(247,200,86,.09),transparent 28%),linear-gradient(145deg,#2a063f,#140724 51%,#071827); }
 .ranking-leaderboard-hero { min-height:232px; border-bottom:1px solid rgba(73,228,242,.1); background:radial-gradient(circle at 86% 13%,rgba(74,229,240,.1),transparent 25%),radial-gradient(circle at 8% 46%,rgba(239,100,200,.12),transparent 29%),linear-gradient(143deg,#29063c 0%,#14102f 49%,#061a2b 100%); box-shadow:inset 0 -1px rgba(255,255,255,.025); }
