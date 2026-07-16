@@ -4,11 +4,13 @@ import {
   ArrowLeft,
   Award,
   Check,
+  ChevronLeft,
   Coins,
   Copy,
   Flame,
   Gem,
   Medal,
+  MessageCircleMore,
   Pencil,
   Rocket,
   Share2,
@@ -29,6 +31,7 @@ import { WalletShortcut } from '@/components/WalletShortcut';
 import { Card, ErrorState, LoadingButton, PageSkeleton } from '@/components/ui';
 import { useBootstrap } from '@/hooks/useBootstrap';
 import { api } from '@/lib/api';
+import { impact, openTelegramProfile } from '@/lib/telegram';
 import { cn, faNumber, tehranDate } from '@/lib/utils';
 import type { Badge, User } from '@/types/api';
 
@@ -288,6 +291,15 @@ export function ProfilePage() {
     setClubName(user.clubName || '');
     setEditing(true);
   };
+  const contactAdmin = () => {
+    const username = bootstrap.data?.supportTelegramUsername;
+    if (!username) {
+      toast.error('راه ارتباطی پشتیبانی هنوز تنظیم نشده است');
+      return;
+    }
+    impact('light');
+    if (!openTelegramProfile(username)) toast.error('باز کردن تلگرام ممکن نشد');
+  };
 
   return (
     <main className="profile-page pb-5">
@@ -386,6 +398,29 @@ export function ProfilePage() {
               </div>
             )) : <div className="py-8 text-center"><Sparkles className="mx-auto text-slate-600"/><h3 className="mt-3 text-xs font-black">شروع ماجراجویی</h3><p className="mt-1 text-[9px] text-slate-500">اولین فعالیتت اینجا ثبت می‌شود.</p></div>}
           </Card>
+        </section>
+
+        <section className="profile-animate" style={{ animationDelay: '370ms' }} aria-labelledby="admin-support-title">
+          <button
+            type="button"
+            onClick={contactAdmin}
+            className="group relative flex min-h-[84px] w-full items-center gap-3 overflow-hidden rounded-[1.3rem] border border-cyan-200/[.11] bg-gradient-to-l from-cyan-300/[.075] via-white/[.025] to-fuchsia-300/[.055] p-3.5 text-right shadow-[0_16px_34px_rgba(1,2,13,.2)] transition duration-300 active:scale-[.985]"
+          >
+            <span className="absolute -left-6 -top-9 h-24 w-24 rounded-full border-[16px] border-cyan-300/[.025]" aria-hidden="true"/>
+            <span className="relative grid h-12 w-12 shrink-0 place-items-center rounded-2xl border border-cyan-200/[.15] bg-cyan-300/[.11] text-cyan-200 shadow-[inset_0_1px_rgba(255,255,255,.07)]">
+              <MessageCircleMore size={21} strokeWidth={2.2}/>
+            </span>
+            <span className="relative min-w-0 flex-1">
+              <span className="flex items-center gap-2">
+                <strong id="admin-support-title" className="text-[12px] font-black text-white">ارتباط با پشتیبانی</strong>
+                <span className="rounded-full border border-emerald-300/[.14] bg-emerald-300/[.07] px-2 py-0.5 text-[6px] font-black text-emerald-200">تلگرام</span>
+              </span>
+              <span className="mt-1 block truncate text-[8.5px] leading-5 text-slate-400">
+                {bootstrap.data?.supportTelegramUsername ? 'سؤال یا مشکلت را مستقیماً با مدیر در میان بگذار' : 'راه ارتباطی پشتیبانی در حال راه‌اندازی است'}
+              </span>
+            </span>
+            <ChevronLeft size={18} className="relative shrink-0 text-slate-500 transition-transform duration-300 group-active:-translate-x-1" aria-hidden="true"/>
+          </button>
         </section>
       </div>
     </main>

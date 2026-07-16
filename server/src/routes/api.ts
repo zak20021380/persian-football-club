@@ -73,16 +73,18 @@ router.use('/club', clubRouter);
 
 router.get('/bootstrap', asyncHandler(async (req, res) => {
   const user = req.authUser!;
-  const [weeklyRank, allTimeRank, badges] = await Promise.all([
+  const [weeklyRank, allTimeRank, badges, supportSetting] = await Promise.all([
     User.countDocuments({ weeklyPoints: { $gt: user.weeklyPoints } }).then((n) => n + 1),
     User.countDocuments({ points: { $gt: user.points } }).then((n) => n + 1),
-    Badge.find({ _id: { $in: user.badgeIds } }).lean()
+    Badge.find({ _id: { $in: user.badgeIds } }).lean(),
+    AppSetting.findOne({ key: 'supportTelegramUsername' }).select('value').lean()
   ]);
   res.json({
     user: publicUser(user.toObject(), { weeklyRank, allTimeRank, badges }, req.telegramUser),
     membershipConfirmed: user.membershipConfirmed,
     joinUrl: env.CHANNEL_JOIN_URL,
     botUsername: env.BOT_USERNAME,
+    supportTelegramUsername: normalizeTelegramUsername(supportSetting?.value),
     isAdmin: adminIds.has(user.telegramId),
     developmentMock: env.NODE_ENV === 'development' && user.telegramId === env.DEV_MOCK_TELEGRAM_ID,
     timezone: env.TIMEZONE
@@ -532,6 +534,11 @@ function displayNameFor(user: Record<string, any>, telegramUser?: Pick<TelegramI
   return telegramName || user.clubName || user.favoriteTeam || 'بازیکن باشگاه';
 }
 function todayKey(): string { return new Intl.DateTimeFormat('en-CA', { timeZone: env.TIMEZONE, year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date()); }
+function normalizeTelegramUsername(value: unknown): string | null {
+  if (typeof value !== 'string') return null;
+  const username = value.trim().replace(/^@/, '');
+  return /^[A-Za-z][A-Za-z0-9_]{4,31}$/.test(username) ? username : null;
+}
 function searchableFields(resource: string): string[] {
   return ({ matches: ['competitionName'], questions: ['text','category'], quizzes: ['title'], competitions: ['title'], rewards: ['title'], sponsors: ['name'], badges: ['name'], broadcasts: ['title','message'], settings: ['key'], users: ['displayName','clubName'], coinPackages: ['title','badge'] } as Record<string,string[]>)[resource] ?? ['title'];
 }
@@ -547,6 +554,11 @@ function sanitizeAdminPayload(resource: string, payload: unknown): Record<string
   if (resource === 'coinPackages') {
     const allowed = ['title','coins','price','originalPrice','badge','active','sortOrder'];
     return Object.fromEntries(Object.entries(value).filter(([key]) => allowed.includes(key)));
+  }
+  if (resource === 'settings' && value.key === 'supportTelegramUsername') {
+    const username = normalizeTelegramUsername(value.value);
+    if (!username) throw new AppError(400, 'نام کاربری تلگرام پشتیبانی معتبر نیست');
+    value.value = username;
   }
   return value;
 }

@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { canUseNativeTelegramShare, funPostIdFromTelegramStartParam, sharePreparedTelegramMessage } from '../src/lib/telegram.js';
+import { canUseNativeTelegramShare, funPostIdFromTelegramStartParam, openTelegramProfile, sharePreparedTelegramMessage } from '../src/lib/telegram.js';
 import { shareMemeFallback } from '../src/lib/share.js';
 
 type ShareEvent = 'shareMessageSent' | 'shareMessageFailed';
@@ -63,5 +63,28 @@ describe('meme deep-link start parameters', () => {
     expect(funPostIdFromTelegramStartParam('fun_507f1f77bcf86cd799439011')).toBe('507f1f77bcf86cd799439011');
     expect(funPostIdFromTelegramStartParam('fun_deleted')).toBeUndefined();
     expect(funPostIdFromTelegramStartParam('ref_507f1f77bcf86cd799439011')).toBeUndefined();
+  });
+});
+
+describe('admin contact links', () => {
+  it('uses Telegram native navigation and normalizes a leading @', () => {
+    const openTelegramLink = vi.fn();
+    vi.stubGlobal('window', { Telegram: { WebApp: { openTelegramLink } } });
+    expect(openTelegramProfile('@support_admin')).toBe(true);
+    expect(openTelegramLink).toHaveBeenCalledWith('https://t.me/support_admin');
+  });
+
+  it('falls back to a new browser tab outside Telegram', () => {
+    const open = vi.fn();
+    vi.stubGlobal('window', { open });
+    expect(openTelegramProfile('support_admin')).toBe(true);
+    expect(open).toHaveBeenCalledWith('https://t.me/support_admin', '_blank', 'noopener,noreferrer');
+  });
+
+  it('rejects malformed usernames without opening a link', () => {
+    const open = vi.fn();
+    vi.stubGlobal('window', { open });
+    expect(openTelegramProfile('https://evil.example')).toBe(false);
+    expect(open).not.toHaveBeenCalled();
   });
 });
