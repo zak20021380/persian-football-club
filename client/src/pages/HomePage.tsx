@@ -185,12 +185,25 @@ const clubQuickActions = [
 ];
 
 function MyClubCard({ club, coinBalance }: { club: HomeData['club']; coinBalance: number }) {
-  if (!club) return <Card className="relative overflow-hidden border-emerald-300/[.12] bg-gradient-to-l from-emerald-400/[.07] to-transparent p-5 text-center">
-    <Shield size={98} strokeWidth={1} className="absolute -left-5 -top-5 rotate-6 text-emerald-300/[.07]"/>
-    <div className="relative mx-auto grid h-14 w-14 place-items-center rounded-[1.15rem] bg-emerald-400/[.1] text-emerald-300"><Shield size={25}/></div>
-    <h2 className="relative mt-3 text-sm font-black">باشگاه خودت را بساز، بازیکن بخر و ترکیب بچین</h2>
-    <p className="relative mx-auto mt-1 max-w-xs text-[9px] leading-5 text-slate-500">تیم اختصاصی تو از همین‌جا شروع می‌شود.</p>
-    <Link to="/club" className="btn-primary relative mt-4 min-h-10 px-6 py-2.5 text-[10px]">ساخت باشگاه<ArrowLeft size={15}/></Link>
+  if (!club) return <Card className="club-create-card relative overflow-hidden border-emerald-300/[.14] p-5">
+    <div className="club-create-bg absolute inset-0"/>
+    <Shield size={110} strokeWidth={0.8} className="absolute -left-6 -top-6 rotate-12 text-emerald-300/[.05]"/>
+    <div className="relative space-y-4">
+      <div className="flex items-center gap-3">
+        <div className="club-create-icon grid h-16 w-16 shrink-0 place-items-center rounded-[1.2rem]">
+          <Shield size={28} strokeWidth={2}/>
+        </div>
+        <div className="min-w-0 flex-1">
+          <span className="block text-[7px] font-black uppercase tracking-[.18em] text-emerald-300">Your Club</span>
+          <h2 className="mt-1 text-[15px] font-black leading-tight">باشگاه خودت را بساز</h2>
+        </div>
+      </div>
+      <p className="text-[10px] leading-relaxed text-slate-400">بازیکن بخر، ترکیب بچین، و تیم اختصاصیت رو بساز</p>
+      <Link to="/club" className="club-create-cta inline-flex items-center gap-2 rounded-xl px-4 py-2.5 text-[10px] font-black transition-all">
+        شروع ساخت باشگاه
+        <ArrowLeft size={14} strokeWidth={2.6}/>
+      </Link>
+    </div>
   </Card>;
 
   return <Card className="relative overflow-hidden border-emerald-300/[.13] p-4">
