@@ -115,8 +115,10 @@ button { touch-action: manipulation; }
 .demo-league-badge svg { color:#76f6d6; }
 .demo-deadline-badge { border:1px solid rgba(239,100,200,.13); border-radius:8px; background:linear-gradient(110deg,rgba(239,100,200,.08),rgba(157,124,255,.07)); color:#dcb5f4; box-shadow:inset 0 1px rgba(255,255,255,.02); }
 .demo-deadline-badge svg { color:#ef64c8; }
-.demo-predict-btn { border-radius:11px; background:linear-gradient(105deg,#54e8f2,#76f2d4); box-shadow:0 10px 28px rgba(66,226,231,.22),inset 0 1px rgba(255,255,255,.42); transition:transform .18s ease,box-shadow .18s ease; }
-.demo-predict-btn:active { transform:scale(0.97)!important; box-shadow:0 6px 18px rgba(66,226,231,.18),inset 0 1px rgba(255,255,255,.35); }
+.demo-predict-btn { border:1.5px solid rgba(73,228,242,.35); border-radius:12px; background:linear-gradient(135deg,rgba(6,18,38,.82),rgba(12,24,48,.78)); color:#c8f4f1; box-shadow:0 0 24px rgba(73,228,242,.12),inset 0 1px rgba(255,255,255,.045); -webkit-backdrop-filter:blur(12px); backdrop-filter:blur(12px); transition:all .2s ease; }
+.demo-predict-btn:hover { border-color:rgba(73,228,242,.48); box-shadow:0 0 32px rgba(73,228,242,.18),inset 0 1px rgba(255,255,255,.055); }
+.demo-predict-btn:active { border-color:rgba(73,228,242,.55); box-shadow:0 0 20px rgba(73,228,242,.15),inset 0 1px rgba(255,255,255,.05); }
+.demo-predict-btn svg { color:#73ecf0; }
 .demo-predict-cta { border-radius:10px; background:linear-gradient(105deg,#54e8f2,#76f2d4); box-shadow:0 8px 24px rgba(66,226,231,.18),inset 0 1px rgba(255,255,255,.4); transition:transform .18s ease,box-shadow .18s ease; }
 .group:active .demo-predict-cta { transform:translateX(-2px); box-shadow:0 4px 14px rgba(66,226,231,.14),inset 0 1px rgba(255,255,255,.35); }
 .home-cup-card { animation: home-cup-in .5s cubic-bezier(.22,1,.36,1) both; }

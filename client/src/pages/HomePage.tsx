@@ -164,10 +164,9 @@ function DemoFeaturedMatch() {
               مهلت: ۲ ساعت
             </span>
           </div>
-          <button className="demo-predict-btn flex w-full min-h-[42px] items-center justify-center gap-2 text-[12px] font-black text-[#080b1b] transition-transform active:scale-[0.98]">
-            <Target size={16} strokeWidth={2.6}/>
+          <button className="demo-predict-btn flex w-full min-h-[48px] items-center justify-center gap-2 text-[13px] font-black text-white transition-all duration-200 active:scale-[0.96]">
+            <Target size={15} strokeWidth={2.4}/>
             ثبت پیش‌بینی
-            <ArrowLeft size={15} strokeWidth={2.6}/>
           </button>
         </div>
       </article>
