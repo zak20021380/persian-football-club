@@ -54,6 +54,8 @@ router.post('/auth/telegram', asyncHandler(async (req, res) => {
   res.json({
     token: session.token,
     expiresAt: session.expiresAt,
+    demoDataEnabled: env.DEMO_DATA_ENABLED,
+    footballApiEnabled: env.FOOTBALL_API_ENABLED,
     developmentMock,
     user: publicUser(recovered.user.toObject(), {}, telegramUser)
   });

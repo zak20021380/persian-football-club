@@ -1,6 +1,7 @@
 import { useMemo, useState, type ReactNode } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import toast from 'react-hot-toast';
+import { isDemoDataEnabled } from '@/lib/featureFlags';
 import {
   AlertTriangle,
   ArrowDown,
@@ -65,7 +66,7 @@ interface PremierLeagueStanding {
 interface PremierLeagueData {
   leagueName: string;
   season: number;
-  source: 'api'|'development-mock';
+  source: 'api'|'demo';
   updatedAt: string;
   standings: PremierLeagueStanding[];
 }
@@ -192,7 +193,7 @@ export function RankingsPage() {
   const selectedFantasy = useFantasyRanking(selectedPeriod, scope, system === 'fantasy');
   const weekFantasy = useFantasyRanking('week', scope, system === 'fantasy');
   const seasonFantasy = useFantasyRanking('season', scope, system === 'fantasy');
-  const fantasyDemo = Boolean(import.meta.env.DEV && selectedFantasy.data && selectedFantasy.data.leaders.length === 0);
+  const fantasyDemo = Boolean(isDemoDataEnabled() && selectedFantasy.data && selectedFantasy.data.leaders.length === 0);
   const fantasyEntries = useMemo(
     () => fantasyDemo ? demoFantasyEntries(filter) : mergeFantasyRankings(selectedFantasy.data, weekFantasy.data, seasonFantasy.data),
     [fantasyDemo, filter, seasonFantasy.data, selectedFantasy.data, weekFantasy.data]
@@ -289,10 +290,10 @@ function PremierLeagueTable({ query }: { query: ReturnType<typeof useQuery<Premi
         eyebrow="ENGLISH PREMIER LEAGUE"
         title="جدول لیگ انگلیس"
         subtitle={`فصل ${formatSeason(season)} · ${faNumber(standings.length)} باشگاه واقعی`}
-        badge={source === 'api' ? 'LIVE API' : 'DEV MOCK'}
+        badge={source === 'api' ? 'LIVE API' : 'DEMO DATA'}
         badgeTone={source === 'api' ? 'live' : 'demo'}
       />
-      {source === 'development-mock' && <DevelopmentNotice text="API فوتبال در دسترس نیست؛ این جدول نمونه فقط در محیط توسعه نمایش داده می‌شود."/>}
+      {source === 'demo' && <DevelopmentNotice text="تا زمان فعال‌شدن منبع رسمی، جدول نمونه نمایش داده می‌شود."/>}
       <div className="ranking-table-shell mt-2 overflow-hidden rounded-[1.25rem] border border-white/[.075] p-1.5">
         <div className="px-2 pb-1.5 pt-1 text-[6px] font-bold text-slate-600" id="premier-table-title">رتبه · باشگاه · آمار فصل · فرم ۵ بازی اخیر</div>
         {standings.map(row => <PremierLeagueRow key={row.teamId} row={row}/>) }
@@ -321,8 +322,8 @@ function PremierLeagueRow({ row }: { row: PremierLeagueStanding }) {
 function FantasyTable({ filter, onFilter, entries, demo, loading, error, onRetry, onPreview }: { filter: FantasyFilter; onFilter: (value: FantasyFilter) => void; entries: FantasyEntry[]; demo: boolean; loading: boolean; error: Error|null; onRetry: () => void; onPreview: (entry: FantasyEntry) => void }) {
   return (
     <section aria-labelledby="fantasy-table-title">
-      <SectionHeader eyebrow="FFN FANTASY LEAGUE" title="رتبه‌بندی فانتزی" subtitle="باشگاه‌های ساخته‌شده توسط کاربران FFN" badge={demo ? 'DEV MOCK' : undefined} badgeTone="demo"/>
-      {demo && <DevelopmentNotice text="هنوز امتیاز واقعی ثبت نشده؛ باشگاه‌های نمونه فقط در محیط توسعه فعال‌اند."/>}
+      <SectionHeader eyebrow="FFN FANTASY LEAGUE" title="رتبه‌بندی فانتزی" subtitle="باشگاه‌های ساخته‌شده توسط کاربران FFN" badge={demo ? 'DEMO DATA' : undefined} badgeTone="demo"/>
+      {demo && <DevelopmentNotice text="تا زمان ثبت امتیازهای واقعی، باشگاه‌های نمونه نمایش داده می‌شوند."/>}
       <div className="fantasy-filter-tabs mt-3 grid grid-cols-4 gap-1 p-1" role="tablist" aria-label="بازه رتبه‌بندی فانتزی">
         {fantasyFilters.map(item => <button key={item.value} type="button" role="tab" aria-selected={filter === item.value} onClick={() => onFilter(item.value)} className={cn('min-h-9 min-w-0 rounded-lg px-0.5 text-[7px] font-black transition min-[360px]:text-[8px]', filter === item.value ? 'bg-cyan-300/[.13] text-cyan-200' : 'text-slate-600')}>{item.label}</button>)}
       </div>

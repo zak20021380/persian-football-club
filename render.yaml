@@ -11,3 +11,9 @@ services:
         value: 22
       - key: NODE_ENV
         value: production
+      - key: VITE_DEMO_DATA_ENABLED
+        value: "true"
+      - key: DEMO_DATA_ENABLED
+        value: "true"
+      - key: FOOTBALL_API_ENABLED
+        value: "false"

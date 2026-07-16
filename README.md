@@ -60,6 +60,9 @@ PORT=3000
 TIMEZONE=Asia/Tehran
 PAYMENT_PROVIDER=test
 DAILY_COIN_REWARD=25
+VITE_DEMO_DATA_ENABLED=true
+DEMO_DATA_ENABLED=true
+FOOTBALL_API_ENABLED=false
 ```
 
 ### Local environment file
@@ -69,6 +72,15 @@ Do not create `server/.env`. The server resolves the root file independently of
 the current working directory, so both `npm run dev` from the repository root and
 `npm run dev` from `server/` use the same configuration. Variables supplied by the
 deployment environment take precedence over the local file.
+
+### Demo and Football API flags
+
+Keep `VITE_DEMO_DATA_ENABLED=true`, `DEMO_DATA_ENABLED=true`, and
+`FOOTBALL_API_ENABLED=false` while demo data is the active production source.
+The Football API kill-switch prevents standings requests and admin synchronization
+from contacting the provider. To switch to the real provider later, set
+`FOOTBALL_API_ENABLED=true` and `DEMO_DATA_ENABLED=false`; the frontend receives
+the backend runtime flag during authenticated startup.
 
 توضیح متغیرها:
 

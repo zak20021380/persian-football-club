@@ -6,6 +6,7 @@ import { PageHeader } from '@/components/PageHeader';
 import { PlayerModalFrame } from '@/components/PlayerModalFrame';
 import { ErrorState, PageSkeleton } from '@/components/ui';
 import { api } from '@/lib/api';
+import { isDemoDataEnabled } from '@/lib/featureFlags';
 import { cn, faNumber } from '@/lib/utils';
 import type { ClubPlayer, ClubPlayersData, PlayerTransferOffer } from '@/types/api';
 
@@ -42,7 +43,7 @@ export function PlayersPage() {
   const [position, setPosition] = useState<PositionFilter>('all');
   const [transfer, setTransfer] = useState<TransferFilter>('all');
   const playersQuery = useQuery({ queryKey: ['clubPlayers'], queryFn: async () => (await api.get<ClubPlayersData>('/club/players')).data });
-  const demoMode = Boolean(playersQuery.data && playersQuery.data.players.length === 0);
+  const demoMode = Boolean(isDemoDataEnabled() && playersQuery.data && playersQuery.data.players.length === 0);
   const players = useMemo<DisplayPlayer[]>(() => demoMode ? demoPlayers : playersQuery.data?.players ?? [], [demoMode, playersQuery.data]);
   const filteredPlayers = useMemo(() => players.filter(player => {
     const normalizedQuery = query.trim().toLocaleLowerCase('fa');

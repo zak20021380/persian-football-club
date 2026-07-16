@@ -25,6 +25,11 @@ if (process.env.NODE_ENV !== 'test') {
   console.info(`[env] MONGODB_URI loaded=${mongodbTarget !== 'missing'} target=${mongodbTarget}`);
 }
 
+const booleanFlag = z.preprocess(
+  value => typeof value === 'string' ? value.trim().toLowerCase() : value,
+  z.union([z.literal('true'), z.literal('false'), z.boolean()]).transform(value => value === true || value === 'true')
+);
+
 const schema = z.object({
   BOT_TOKEN: z.string().min(1).default('development-token'),
   BOT_USERNAME: z.string().min(1).default('football_club_bot'),
@@ -47,6 +52,8 @@ const schema = z.object({
   PAYMENT_PROVIDER: z.enum(['none', 'test']).default('none'),
   DAILY_COIN_REWARD: z.coerce.number().int().min(1).max(100_000).default(25),
   TRANSFER_FEE_PERCENT: z.coerce.number().int().min(0).max(50).default(5),
+  DEMO_DATA_ENABLED: booleanFlag.default(true),
+  FOOTBALL_API_ENABLED: booleanFlag.default(false),
   FOOTBALL_API_BASE_URL: z.string().url().refine(value => /^https?:\/\//i.test(value), 'Football API URL must use HTTP(S)').default('https://v3.football.api-sports.io'),
   FOOTBALL_API_KEY: z.string().default(''),
   FOOTBALL_API_KEY_HEADER: z.string().regex(/^[A-Za-z0-9-]+$/).default('x-apisports-key'),

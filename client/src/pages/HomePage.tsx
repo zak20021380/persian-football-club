@@ -23,6 +23,7 @@ import { Link } from 'react-router-dom';
 import { BrandMark } from '@/components/BrandMark';
 import { ClubCrest } from '@/components/ClubCrest';
 import { MatchCard } from '@/components/MatchCard';
+import { isDemoDataEnabled } from '@/lib/featureFlags';
 import { SponsorCard } from '@/components/SponsorCard';
 import { Card, ErrorState, PageSkeleton, SectionTitle } from '@/components/ui';
 import { api } from '@/lib/api';
@@ -327,9 +328,9 @@ export function HomePage() {
               <FeaturedMatch match={firstMatch}/>
               {data.matches.slice(1, 3).map((match) => <MatchCard key={match._id} match={match}/>)}
             </div>
-          ) : (
+          ) : isDemoDataEnabled() ? (
             <DemoFeaturedMatch/>
-          )}
+          ) : null}
         </section>
 
         {data.dailyQuiz && (

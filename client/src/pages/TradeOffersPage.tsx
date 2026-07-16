@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import toast from 'react-hot-toast';
+import { isDemoDataEnabled } from '@/lib/featureFlags';
 import {
   ArrowDownToLine,
   ArrowLeftRight,
@@ -328,7 +329,7 @@ export function TradeOffersPage() {
     const realReceived = (offersQuery.data?.received ?? []).map(toDisplayOffer);
     const realSent = (offersQuery.data?.sent ?? []).map(toDisplayOffer);
     const hasRealOffers = realReceived.length + realSent.length > 0;
-    const useDemoPreview = import.meta.env.DEV && !hasRealOffers;
+    const useDemoPreview = isDemoDataEnabled() && !hasRealOffers;
     return {
       receivedOffers: useDemoPreview ? buildDemoReceivedOffers() : realReceived,
       sentOffers: useDemoPreview ? buildDemoSentOffers() : realSent,

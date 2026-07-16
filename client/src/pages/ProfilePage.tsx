@@ -1,5 +1,6 @@
 import { useState, type CSSProperties, type ReactNode } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { isDemoDataEnabled } from '@/lib/featureFlags';
 import {
   ArrowLeft,
   Award,
@@ -200,7 +201,7 @@ function ClubForm({ values }: { values: number[] }) {
   return <div className="min-w-0 px-1"><span className="block text-[5.5px] text-slate-600">فرم هفتگی</span><span className="mt-1 flex h-4 items-end justify-center gap-[3px]" dir="ltr">{recent.map((value, index) => <i key={`${value}-${index}`} title={`${value}`} className={cn('block w-1 rounded-t-full not-italic', index === recent.length - 1 ? 'bg-emerald-300' : 'bg-cyan-300/45')} style={{ height: `${Math.max(4, Math.round(Math.abs(value) / max * 16))}px` }}/>)}</span></div>;
 }
 
-const developmentClub: Omit<ProfileClubView, 'managerName'|'coinBalance'> = {
+const demoClub: Omit<ProfileClubView, 'managerName'|'coinBalance'> = {
   name: 'Manchester City',
   logoUrl: 'https://media.api-sports.io/football/teams/50.png',
   formation: '4-3-3',
@@ -271,7 +272,7 @@ export function ProfilePage() {
     form: details?.recentWeeks.map(week => week.points) ?? [],
     playerCount: rosterCount || ranking?.playerCount || 0
   } : null;
-  const club = backendClub ?? (bootstrap.data?.developmentMock ? { ...developmentClub, managerName: user.displayName || user.firstName, coinBalance: user.coinBalance } : null);
+  const club = backendClub ?? (isDemoDataEnabled() ? { ...demoClub, managerName: user.displayName || user.firstName, coinBalance: user.coinBalance } : null);
   const clubLoading = bootstrap.isLoading || fantasyRanking.isLoading || clubDetails.isLoading;
   const copy = async (showToast = true) => {
     if (!referrals.data?.link) return;

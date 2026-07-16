@@ -1,5 +1,6 @@
 import axios from 'axios';
 import { telegramInitData } from './telegram';
+import { configureRuntimeFeatureFlags } from './featureFlags';
 
 let sessionToken = '';
 
@@ -15,6 +16,7 @@ api.interceptors.response.use((response) => response, (error) => {
 
 export async function authenticateMiniApp(): Promise<void> {
   const initData = telegramInitData();
-  const response = await api.post<{ token: string; expiresAt: string }>('/auth/telegram', { initData });
+  const response = await api.post<{ token: string; expiresAt: string; demoDataEnabled: boolean; footballApiEnabled: boolean }>('/auth/telegram', { initData });
   sessionToken = response.data.token;
+  configureRuntimeFeatureFlags(response.data);
 }

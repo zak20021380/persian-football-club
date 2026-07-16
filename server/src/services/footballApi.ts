@@ -84,7 +84,7 @@ export interface PremierLeagueStanding {
 export interface PremierLeagueStandingsResponse {
   leagueName: string;
   season: number;
-  source: 'api'|'development-mock';
+  source: 'api'|'demo';
   updatedAt: string;
   standings: PremierLeagueStanding[];
 }
@@ -93,6 +93,10 @@ let standingsCache: { season: number; expiresAt: number; value: PremierLeagueSta
 
 export async function premierLeagueStandings(now = new Date()): Promise<PremierLeagueStandingsResponse> {
   const season = env.FOOTBALL_API_SEASON ?? premierLeagueSeason(now);
+  if (!env.FOOTBALL_API_ENABLED) {
+    if (env.DEMO_DATA_ENABLED) return demoStandings(now);
+    throw new AppError(503, 'منبع جدول لیگ فعال نیست', 'FOOTBALL_DATA_DISABLED');
+  }
   if (standingsCache?.season === season && standingsCache.expiresAt > Date.now()) return standingsCache.value;
   try {
     const parsed = standingsSchema.safeParse(await footballApiRequest('/standings', { league: 39, season }));
@@ -126,12 +130,13 @@ export async function premierLeagueStandings(now = new Date()): Promise<PremierL
     standingsCache = { season, expiresAt: Date.now() + 5 * 60_000, value };
     return value;
   } catch (error) {
-    if (env.NODE_ENV === 'development') return developmentStandings(now);
+    if (env.DEMO_DATA_ENABLED) return demoStandings(now);
     throw error;
   }
 }
 
 export async function synchronizeFantasyPlayers(requestedBy: Types.ObjectId, input: { leagueId?: number; season?: number }) {
+  assertFootballApiEnabled();
   const leagueId = input.leagueId ?? env.FOOTBALL_API_LEAGUE_ID;
   const season = input.season ?? env.FOOTBALL_API_SEASON;
   if (!leagueId || !season) throw new AppError(503, 'شناسه لیگ و فصل API فوتبال روی سرور تنظیم نشده است', 'FOOTBALL_API_CONFIG_MISSING');
@@ -184,6 +189,7 @@ export async function synchronizeFantasyPlayers(requestedBy: Types.ObjectId, inp
 }
 
 export async function synchronizeFixtureStats(requestedBy: Types.ObjectId, matchId: Types.ObjectId) {
+  assertFootballApiEnabled();
   const match = await ImportantMatch.findById(matchId);
   if (!match) throw new AppError(404, 'مسابقه پیدا نشد');
   if (!match.externalApiId) throw new AppError(409, 'شناسه API خارجی برای این مسابقه ثبت نشده است', 'MATCH_EXTERNAL_ID_MISSING');
@@ -237,6 +243,7 @@ export async function synchronizeFixtureStats(requestedBy: Types.ObjectId, match
 }
 
 async function footballApiRequest(path: string, params: Record<string, string|number>) {
+  assertFootballApiEnabled();
   if (!env.FOOTBALL_API_KEY) throw new AppError(503, 'کلید API فوتبال روی سرور تنظیم نشده است', 'FOOTBALL_API_UNAVAILABLE');
   const url = new URL(path, env.FOOTBALL_API_BASE_URL.endsWith('/') ? env.FOOTBALL_API_BASE_URL : `${env.FOOTBALL_API_BASE_URL}/`);
   for (const [key, value] of Object.entries(params)) url.searchParams.set(key, String(value));
@@ -260,6 +267,9 @@ function mapPosition(value?: string | null): FantasyPosition {
 function shortName(name: string): string { return name.length <= 20 ? name : name.slice(0, 20); }
 function errorMessage(error: unknown): string { return error instanceof Error ? error.message.slice(0, 500) : 'خطای نامشخص'; }
 function hasProviderErrors(errors: unknown): boolean { return Array.isArray(errors) ? errors.length > 0 : Boolean(errors && typeof errors === 'object' && Object.keys(errors).length); }
+function assertFootballApiEnabled(): void {
+  if (!env.FOOTBALL_API_ENABLED) throw new AppError(404, 'این قابلیت فعال نیست', 'FOOTBALL_API_DISABLED');
+}
 async function ensureNoRunningSync(type: 'players'|'statistics'): Promise<void> {
   const recent = await FootballApiSync.exists({ type, status: 'running', startedAt: { $gte: new Date(Date.now() - 15 * 60_000) } });
   if (recent) throw new AppError(409, 'یک همگام‌سازی دیگر در حال اجرا است', 'FOOTBALL_API_SYNC_RUNNING');
@@ -279,7 +289,7 @@ function parseStandingForm(value?: string|null): Array<'W'|'D'|'L'> {
   return (value?.toUpperCase().match(/[WDL]/g) ?? []).slice(-5) as Array<'W'|'D'|'L'>;
 }
 
-function developmentStandings(now: Date): PremierLeagueStandingsResponse {
+function demoStandings(now: Date): PremierLeagueStandingsResponse {
   const rows: Array<[number, string, number, number, number, number, number, number, number, string]> = [
     [40, 'Liverpool', 25, 9, 4, 86, 41, 84, 45, 'DWWDW'],
     [42, 'Arsenal', 20, 14, 4, 69, 34, 74, 35, 'WWDWW'],
@@ -305,7 +315,7 @@ function developmentStandings(now: Date): PremierLeagueStandingsResponse {
   return {
     leagueName: 'Premier League',
     season: 2024,
-    source: 'development-mock',
+    source: 'demo',
     updatedAt: now.toISOString(),
     standings: rows.map(([teamId, teamName, won, drawn, lost, goalsFor, goalsAgainst, points, goalDifference, form], index) => ({
       position: index + 1,

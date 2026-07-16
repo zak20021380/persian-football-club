@@ -6,6 +6,7 @@ import { PageHeader } from '@/components/PageHeader';
 import { PlayerModalFrame } from '@/components/PlayerModalFrame';
 import { ErrorState, PageSkeleton } from '@/components/ui';
 import { api } from '@/lib/api';
+import { isDemoDataEnabled } from '@/lib/featureFlags';
 import { cn, faNumber, remaining, tehranDate } from '@/lib/utils';
 import type { ClubPlayer, TransferMarketData, TransferMarketListing } from '@/types/api';
 
@@ -45,7 +46,7 @@ export function TransferMarketPage() {
   const [selected, setSelected] = useState<MarketPlayer|null>(null);
   const [now, setNow] = useState(() => Date.now());
   const marketQuery = useQuery({ queryKey: ['transferMarket'], queryFn: async () => (await api.get<TransferMarketData>('/club/market')).data });
-  const demoMode = Boolean(import.meta.env.DEV && marketQuery.data && marketQuery.data.listings.length === 0);
+  const demoMode = Boolean(isDemoDataEnabled() && marketQuery.data && marketQuery.data.listings.length === 0);
   const listings = useMemo<MarketPlayer[]>(() => demoMode ? demoListings() : marketQuery.data?.listings ?? [], [demoMode, marketQuery.data]);
 
   useEffect(() => {

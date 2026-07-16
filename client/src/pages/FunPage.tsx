@@ -23,6 +23,7 @@ import {
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { BrandMark } from '@/components/BrandMark';
+import { isDemoDataEnabled } from '@/lib/featureFlags';
 import { WalletShortcut } from '@/components/WalletShortcut';
 import { Card, EmptyState, ErrorState, Skeleton } from '@/components/ui';
 import { api } from '@/lib/api';
@@ -623,7 +624,7 @@ export function FunPage() {
   const realPosts = deepLinkedPost.data && !feedPosts.some(post => post._id === deepLinkedPost.data._id)
     ? [deepLinkedPost.data, ...feedPosts]
     : feedPosts;
-  const useMockFeed = !validDeepLinkedPostId && !feed.isLoading && !feed.error && realPosts.length === 0;
+  const useMockFeed = isDemoDataEnabled() && !validDeepLinkedPostId && !feed.isLoading && !feed.error && realPosts.length === 0;
   const posts: MemePost[] = useMockFeed
     ? mockMemes
         .map(meme => {

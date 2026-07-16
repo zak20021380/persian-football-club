@@ -17,6 +17,7 @@ import toast from 'react-hot-toast';
 import { PageHeader } from '@/components/PageHeader';
 import { ErrorState, LoadingButton, PageSkeleton } from '@/components/ui';
 import { api } from '@/lib/api';
+import { isDemoDataEnabled } from '@/lib/featureFlags';
 import { cn, faNumber } from '@/lib/utils';
 import type { CoinPackage, CoinTransaction, StoreData } from '@/types/api';
 
@@ -90,6 +91,13 @@ export function StorePage() {
   if (store.error || !store.data) return <><PageHeader title="فروشگاه" subtitle="کیف پول و امکانات باشگاه" tone="mint" eyebrow="FFN STORE / CLUB SHOP"/><main className="p-4"><ErrorState message={(store.error as Error)?.message || 'فروشگاه در دسترس نیست'} onRetry={() => store.refetch()}/></main></>;
 
   const data = store.data;
+  const demoMode = isDemoDataEnabled();
+  const packageCards = demoMode
+    ? demoCoinPackages.map(demoPackage => ({ demoPackage, availablePackage: data.packages.find(item => item.coins === demoPackage.coins) }))
+    : data.packages.map(availablePackage => ({
+        demoPackage: { coins: availablePackage.coins, title: availablePackage.title, description: availablePackage.badge ?? '', demoPrice: availablePackage.price },
+        availablePackage
+      }));
   const rewardReady = data.dailyReward.claimable || !data.dailyReward.nextClaimAt || new Date(data.dailyReward.nextClaimAt).getTime() <= now;
   return <>
     <PageHeader title="فروشگاه" subtitle="سکه و کیف پول باشگاه" tone="mint" eyebrow="FFN STORE / CLUB SHOP"/>
@@ -101,7 +109,7 @@ export function StorePage() {
             <span className="store-kicker" dir="ltr">MATCHDAY WALLET</span>
             <h1 id="store-balance-title" className="mt-1 text-xs font-black text-slate-100">کیف پول باشگاه</h1>
           </div>
-          <span className="store-dev-chip"><Zap size={10}/>پیش‌نمایش توسعه</span>
+          {demoMode && <span className="store-dev-chip"><Zap size={10}/>پیش‌نمایش توسعه</span>}
         </div>
 
         <div className="relative z-[1] mt-4 flex items-center gap-3">
@@ -126,10 +134,9 @@ export function StorePage() {
       </section>
 
       <section aria-labelledby="coin-packages-title">
-        <StoreSectionHeading id="coin-packages-title" icon={Coins} title="بسته‌های سکه" description="قیمت‌ها نمایشی‌اند؛ فقط بستهٔ فعال API قابل خرید آزمایشی است"/>
+        <StoreSectionHeading id="coin-packages-title" icon={Coins} title="بسته‌های سکه" description={demoMode ? 'قیمت‌ها نمایشی‌اند؛ فقط بستهٔ فعال قابل خرید آزمایشی است' : 'بسته‌های فعال فروشگاه'} demo={demoMode}/>
         <div className="store-coin-grid mt-3 grid grid-cols-2 gap-2.5">
-          {demoCoinPackages.map(demoPackage => {
-            const availablePackage = data.packages.find(item => item.coins === demoPackage.coins);
+          {packageCards.map(({ demoPackage, availablePackage }) => {
             return <CoinPackageCard
               key={demoPackage.coins}
               demoPackage={demoPackage}
@@ -158,9 +165,9 @@ export function StorePage() {
   </>;
 }
 
-function StoreSectionHeading({ id, icon: Icon, title, description }: { id: string; icon: LucideIcon; title: string; description: string }) {
+function StoreSectionHeading({ id, icon: Icon, title, description, demo }: { id: string; icon: LucideIcon; title: string; description: string; demo: boolean }) {
   return <div className="flex items-end justify-between gap-3 px-0.5">
-    <div className="min-w-0"><span className="store-kicker" dir="ltr">DEVELOPMENT SHOWCASE</span><h2 id={id} className="mt-1 text-sm font-black tracking-tight">{title}</h2><p className="mt-1 truncate text-[7.5px] text-slate-500">{description}</p></div>
+    <div className="min-w-0">{demo && <span className="store-kicker" dir="ltr">DEVELOPMENT SHOWCASE</span>}<h2 id={id} className="mt-1 text-sm font-black tracking-tight">{title}</h2><p className="mt-1 truncate text-[7.5px] text-slate-500">{description}</p></div>
     <span className="grid h-9 w-9 shrink-0 place-items-center rounded-xl border border-cyan-300/[.1] bg-cyan-300/[.055] text-cyan-200"><Icon size={16}/></span>
   </div>;
 }

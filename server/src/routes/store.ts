@@ -22,7 +22,7 @@ router.get('/', asyncHandler(async (req, res) => {
     packages,
     dailyReward: { amount: env.DAILY_COIN_REWARD, claimable: !nextClaimAt || new Date(nextClaimAt).getTime() <= Date.now(), nextClaimAt },
     transactions,
-    paymentMode: env.NODE_ENV !== 'production' ? 'test' : 'unavailable'
+    paymentMode: env.DEMO_DATA_ENABLED ? 'test' : 'unavailable'
   });
 }));
 

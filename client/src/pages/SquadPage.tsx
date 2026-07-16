@@ -9,6 +9,7 @@ import { PlayerModalFrame } from '@/components/PlayerModalFrame';
 import { Card, ErrorState, PageSkeleton } from '@/components/ui';
 import { formations } from '@/lib/formations';
 import { api } from '@/lib/api';
+import { isDemoDataEnabled } from '@/lib/featureFlags';
 import { impact, notify } from '@/lib/telegram';
 import { cn, faNumber } from '@/lib/utils';
 import type { BuiltInSquadFormation, ClubPlayer, SquadData, SquadFormation, SquadPosition } from '@/types/api';
@@ -106,7 +107,7 @@ export function SquadPage() {
   const [showAllSubstitutes, setShowAllSubstitutes] = useState(false);
   const [drag, setDrag] = useState<DragState|null>(null);
   const squad = useQuery({ queryKey: ['clubSquad'], queryFn: async () => (await api.get<SquadData>('/club/squad')).data });
-  const demoMode = Boolean(squad.data && squad.data.starters.every(player => !player) && squad.data.substitutes.length === 0);
+  const demoMode = Boolean(isDemoDataEnabled() && squad.data && squad.data.starters.every(player => !player) && squad.data.substitutes.length === 0);
 
   useEffect(() => { draftRef.current = draft; }, [draft]);
   useEffect(() => { dirtyRef.current = dirty; }, [dirty]);

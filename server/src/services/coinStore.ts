@@ -85,7 +85,7 @@ export async function createPurchase(userId: Types.ObjectId, packageId: string, 
 }
 
 export async function confirmTestPurchase(userId: Types.ObjectId, transactionId: string) {
-  if (env.NODE_ENV === 'production') {
+  if (!env.DEMO_DATA_ENABLED) {
     throw new AppError(404, 'مسیر پرداخت آزمایشی در دسترس نیست', 'TEST_PAYMENT_DISABLED');
   }
   return atomic(async session => {

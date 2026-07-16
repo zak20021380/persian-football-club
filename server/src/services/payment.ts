@@ -30,7 +30,7 @@ class UnavailablePaymentService implements PaymentService {
 class TestPaymentService implements PaymentService {
   readonly provider = 'test' as const;
   async createIntent(input: PaymentIntentInput): Promise<PaymentIntent> {
-    if (env.NODE_ENV === 'production') {
+    if (!env.DEMO_DATA_ENABLED) {
       throw new AppError(503, 'پرداخت آزمایشی در محیط واقعی غیرفعال است', 'TEST_PAYMENT_DISABLED');
     }
     return {
@@ -43,6 +43,6 @@ class TestPaymentService implements PaymentService {
 }
 
 export function paymentService(): PaymentService {
-  if (env.NODE_ENV !== 'production') return new TestPaymentService();
-  return env.PAYMENT_PROVIDER === 'test' ? new TestPaymentService() : new UnavailablePaymentService();
+  if (env.DEMO_DATA_ENABLED) return new TestPaymentService();
+  return new UnavailablePaymentService();
 }
