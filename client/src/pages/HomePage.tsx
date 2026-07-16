@@ -185,41 +185,41 @@ const clubQuickActions = [
 ];
 
 function MyClubCard({ club, coinBalance }: { club: HomeData['club']; coinBalance: number }) {
-  if (!club) return <Card className="club-create-card relative overflow-hidden border-emerald-300/[.14] p-5">
-    <div className="club-create-bg absolute inset-0"/>
-    <Shield size={110} strokeWidth={0.8} className="absolute -left-6 -top-6 rotate-12 text-emerald-300/[.05]"/>
+  if (!club) return <Card className="my-club-card relative overflow-hidden border-white/[.1] p-5">
+    <div className="my-club-stripe absolute inset-0"/>
+    <div className="my-club-atmosphere absolute inset-0"/>
     <div className="relative space-y-4">
-      <div className="flex items-center gap-3">
-        <div className="club-create-icon grid h-16 w-16 shrink-0 place-items-center rounded-[1.2rem]">
-          <Shield size={28} strokeWidth={2}/>
+      <div className="flex items-start gap-3">
+        <div className="my-club-icon grid h-14 w-14 shrink-0 place-items-center">
+          <Shield size={24} strokeWidth={2.1}/>
         </div>
-        <div className="min-w-0 flex-1">
-          <span className="block text-[7px] font-black uppercase tracking-[.18em] text-emerald-300">Your Club</span>
-          <h2 className="mt-1 text-[15px] font-black leading-tight">باشگاه خودت را بساز</h2>
+        <div className="min-w-0 flex-1 pt-0.5">
+          <h2 className="text-[16px] font-black leading-tight tracking-tight">باشگاه خودت را بساز</h2>
+          <p className="mt-1.5 text-[10px] leading-relaxed text-slate-400">ترکیب بچین، تیم اختصاصی بساز</p>
         </div>
       </div>
-      <p className="text-[10px] leading-relaxed text-slate-400">بازیکن بخر، ترکیب بچین، و تیم اختصاصیت رو بساز</p>
-      <Link to="/club" className="club-create-cta inline-flex items-center gap-2 rounded-xl px-4 py-2.5 text-[10px] font-black transition-all">
+      <Link to="/club" className="my-club-cta flex items-center justify-center gap-2 py-3 text-[11px] font-black">
         شروع ساخت باشگاه
-        <ArrowLeft size={14} strokeWidth={2.6}/>
+        <ArrowLeft size={15} strokeWidth={2.6}/>
       </Link>
     </div>
   </Card>;
 
-  return <Card className="relative overflow-hidden border-emerald-300/[.13] p-4">
-    <div className="flex items-center gap-3">
-      {club.logo ? <img src={club.logo} alt={club.name} className="h-12 w-12 shrink-0 rounded-2xl object-contain"/> : <span className="grid h-12 w-12 shrink-0 place-items-center rounded-2xl bg-emerald-400/[.1] text-emerald-300"><Shield size={23}/></span>}
-      <div className="min-w-0 flex-1"><p className="text-[8px] font-bold text-emerald-300">باشگاه من</p><h2 className="mt-0.5 truncate text-sm font-black">{club.name}</h2></div>
-      <Link to="/club" className="flex min-h-9 shrink-0 items-center gap-1 rounded-xl bg-emerald-400/[.1] px-2.5 text-[9px] font-black text-emerald-300">ورود به باشگاه<ArrowLeft size={13}/></Link>
-    </div>
-    <div className="mt-4 grid grid-cols-2 gap-2">
-      <div className="rounded-2xl bg-white/[.035] p-3"><span className="text-[8px] text-slate-500">ارزش کل ترکیب</span><strong className="mt-1 block truncate text-xs">{faNumber(club.squadValue)} سکه</strong></div>
-      <div className="rounded-2xl bg-white/[.035] p-3"><span className="text-[8px] text-slate-500">آرایش فعلی</span><strong className="mt-1 block text-xs" dir="ltr">{club.formation}</strong></div>
-    </div>
-    <div className="mt-2 grid grid-cols-3 divide-x divide-x-reverse divide-white/[.06] rounded-2xl bg-white/[.025] py-2.5 text-center">
-      <div><strong className="block text-xs text-amber-300">{faNumber(coinBalance)}</strong><span className="mt-1 block text-[7px] text-slate-500">موجودی سکه</span></div>
-      <div><strong className="block text-xs">{faNumber(club.playerCount)}</strong><span className="mt-1 block text-[7px] text-slate-500">بازیکن</span></div>
-      <div><strong className="block text-xs text-violet-300">{faNumber(club.newOfferCount)}</strong><span className="mt-1 block text-[7px] text-slate-500">پیشنهاد جدید</span></div>
+  return <Card className="my-club-card relative overflow-hidden border-white/[.1] p-5">
+    <div className="my-club-stripe absolute inset-0"/>
+    <div className="my-club-atmosphere absolute inset-0"/>
+    <div className="relative space-y-4">
+      <div className="flex items-start gap-3">
+        {club.logo ? <img src={club.logo} alt={club.name} className="h-14 w-14 shrink-0 rounded-xl object-contain"/> : <span className="grid h-14 w-14 shrink-0 place-items-center rounded-xl bg-cyan-400/[.1] text-cyan-300 shadow-lg shadow-cyan-400/[.05]"><Shield size={24}/></span>}
+        <div className="min-w-0 flex-1 pt-0.5">
+          <h2 className="truncate text-[16px] font-black leading-tight tracking-tight">{club.name}</h2>
+          <p className="mt-1.5 text-[10px] text-slate-400">{faNumber(club.playerCount)} بازیکن • {faNumber(coinBalance)} سکه</p>
+        </div>
+      </div>
+      <Link to="/club" className="my-club-cta flex items-center justify-center gap-2 py-3 text-[11px] font-black">
+        ورود به باشگاه
+        <ArrowLeft size={15} strokeWidth={2.6}/>
+      </Link>
     </div>
   </Card>;
 }
