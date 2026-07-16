@@ -1,4 +1,4 @@
-import { ArrowLeft, Coins, Handshake, History, Palette, Repeat2, ShieldCheck, Shirt, UsersRound } from 'lucide-react';
+import { ArrowLeft, ArrowRight, Coins, Handshake, History, Palette, Repeat2, Shield, ShieldCheck, Shirt, Sparkles, UsersRound } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { PageHeader } from '@/components/PageHeader';
 import { Card } from '@/components/ui';
@@ -30,5 +30,56 @@ export function ClubPage() {
 export function ClubFeaturePage({ slug }: { slug: string }) {
   const feature = featureBySlug[slug] ?? clubEntries[0];
   const Icon = feature.icon;
-  return <><PageHeader title={feature.title} subtitle="باشگاه من" back tone="mint" eyebrow="MY CLUB / FEATURE"/><main className="p-4"><Card className="empty-state flex min-h-56 flex-col items-center justify-center text-center"><span className="grid h-14 w-14 place-items-center rounded-xl bg-cyan-300 text-[#10051d]"><Icon size={25}/></span><span className="mt-4 text-[7px] font-black tracking-[.18em] text-fuchsia-300" dir="ltr">COMING NEXT MATCHDAY</span><h1 className="mt-1 text-base font-black">{feature.title}</h1><p className="mt-2 max-w-xs text-[11px] leading-6 text-slate-400">این بخش در ساختار باشگاه آماده شده و اطلاعات آن با فعال‌شدن قابلیت مربوط نمایش داده می‌شود.</p><Link to="/club" className="btn-secondary mt-5 min-w-32">بازگشت به باشگاه</Link></Card></main></>;
+  return <>
+    <PageHeader title={feature.title} subtitle="باشگاه من" back tone="mint" eyebrow="MY CLUB / FEATURE"/>
+    <main className="p-4">
+      {slug === 'customization' ? <ClubCustomizationPreview/> : <Card className="empty-state flex min-h-56 flex-col items-center justify-center text-center"><span className="grid h-14 w-14 place-items-center rounded-xl bg-cyan-300 text-[#10051d]"><Icon size={25}/></span><span className="mt-4 text-[7px] font-black tracking-[.18em] text-fuchsia-300" dir="ltr">COMING NEXT MATCHDAY</span><h1 className="mt-1 text-base font-black">{feature.title}</h1><p className="mt-2 max-w-xs text-[11px] leading-6 text-slate-400">این بخش در ساختار باشگاه آماده شده و اطلاعات آن با فعال‌شدن قابلیت مربوط نمایش داده می‌شود.</p><Link to="/club" className="btn-secondary mt-5 min-w-32">بازگشت به باشگاه</Link></Card>}
+    </main>
+  </>;
+}
+
+const customizationOptions = [
+  { label: 'لوگوی باشگاه', icon: Shield },
+  { label: 'رنگ تیم', icon: Palette },
+  { label: 'لباس تیم', icon: Shirt },
+];
+
+function ClubCustomizationPreview() {
+  return <section className="club-customization-card" aria-labelledby="club-customization-title">
+    <div className="club-customization-heading">
+      <span className="club-customization-status"><Sparkles size={11}/>به‌زودی</span>
+      <span className="club-customization-eyebrow" dir="ltr">IDENTITY LAB / PREVIEW</span>
+    </div>
+
+    <div className="club-identity-preview" aria-hidden="true">
+      <div className="club-identity-logo">
+        <span className="club-identity-logo-mark"><Shield size={34} strokeWidth={1.6}/><b>FC</b></span>
+        <small>LOGO</small>
+      </div>
+      <div className="club-identity-colors">
+        <small>TEAM COLORS</small>
+        <span className="club-identity-color club-identity-color-cyan"/>
+        <span className="club-identity-color club-identity-color-violet"/>
+        <span className="club-identity-color club-identity-color-magenta"/>
+      </div>
+      <div className="club-identity-jersey">
+        <span className="club-identity-jersey-mark"><Shirt size={37} strokeWidth={1.55}/></span>
+        <small>KIT 01</small>
+      </div>
+    </div>
+
+    <div className="club-customization-copy">
+      <h1 id="club-customization-title">هویت باشگاهت را بساز</h1>
+      <p>لوگو، رنگ‌ها و لباس تیم را با هویت دلخواهت هماهنگ کن.</p>
+    </div>
+
+    <div className="club-customization-options" aria-label="گزینه‌های شخصی‌سازی در راه">
+      {customizationOptions.map(({ label, icon: OptionIcon }) => <button key={label} type="button" disabled className="club-customization-option">
+        <span><OptionIcon size={17} strokeWidth={1.8}/></span>
+        {label}
+      </button>)}
+    </div>
+
+    <Link to="/club" className="club-customization-back"><ArrowRight size={14}/>بازگشت به باشگاه</Link>
+  </section>;
 }
