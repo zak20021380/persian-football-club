@@ -153,13 +153,22 @@ function DemoFeaturedMatch() {
           </div>
         </div>
 
-        <div className="demo-match-footer relative mx-3 mb-3 mt-3 flex min-h-11 items-center justify-between gap-2 px-3">
-          <span className="text-[8px] font-bold text-slate-400">لیگ برتر انگلیس</span>
-          <span className="demo-predict-cta flex min-h-9 shrink-0 items-center gap-2 px-4 text-[11px] font-black text-[#080b1b]">
-            <Target size={15} strokeWidth={2.6}/>
-            پیش‌بینی کن
-            <ArrowLeft size={14} strokeWidth={2.6}/>
-          </span>
+        <div className="demo-match-footer relative mx-3 mb-3 mt-3 space-y-2.5">
+          <div className="flex items-center justify-between gap-2">
+            <span className="demo-league-badge flex items-center gap-1.5 whitespace-nowrap px-2.5 py-1.5 text-[8px] font-bold">
+              <Trophy size={11} strokeWidth={2.3}/>
+              لیگ برتر انگلیس
+            </span>
+            <span className="demo-deadline-badge flex items-center gap-1.5 whitespace-nowrap px-2.5 py-1.5 text-[7px] font-bold">
+              <Clock3 size={10} strokeWidth={2.3}/>
+              مهلت: ۲ ساعت
+            </span>
+          </div>
+          <button className="demo-predict-btn flex w-full min-h-[42px] items-center justify-center gap-2 text-[12px] font-black text-[#080b1b] transition-transform active:scale-[0.98]">
+            <Target size={16} strokeWidth={2.6}/>
+            ثبت پیش‌بینی
+            <ArrowLeft size={15} strokeWidth={2.6}/>
+          </button>
         </div>
       </article>
     </Link>
