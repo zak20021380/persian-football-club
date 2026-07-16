@@ -13,11 +13,14 @@ import {
   Radio,
   Shield,
   Shirt,
+  Smile,
+  Sparkles,
   Tags,
   Target,
   Trophy,
   UserRound,
-  WalletCards
+  WalletCards,
+  Zap
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { BrandMark } from '@/components/BrandMark';
@@ -270,15 +273,27 @@ export function HomePage() {
       <div className="relative -mt-6 px-4"><QuickActions predictionsCount={data.predictionsCount}/></div>
 
       <div className="mt-4 space-y-4 px-4">
-        <Link to="/fun" className="home-fun-feature group relative isolate flex min-h-[120px] items-center gap-3 overflow-hidden rounded-[1.45rem] p-4 transition active:scale-[.99]" aria-label="فان فوتبالی؛ مشاهده بخش فان">
+        <Link to="/fun" className="home-fun-feature group relative isolate block overflow-hidden rounded-[1.5rem] p-5 transition active:scale-[.99]" aria-label="فان فوتبالی؛ مشاهده بخش فان">
           <span className="home-fun-pattern absolute" aria-hidden="true"/>
-          <span className="home-fun-icon relative grid h-12 w-12 shrink-0 place-items-center rounded-2xl"><Laugh size={23} strokeWidth={2.25}/></span>
-          <span className="relative min-w-0 flex-1">
-            <span className="block text-[6px] font-black tracking-[.16em] text-fuchsia-300" dir="ltr">FFN FUN / FOOTBALL HUMOR</span>
-            <strong className="mt-1 block text-sm font-black tracking-tight text-white">فان فوتبالی</strong>
-            <span className="mt-1 block line-clamp-2 text-[8px] leading-4 text-slate-400">میم‌ها، سوژه‌ها و لحظه‌های بامزه دنیای فوتبال</span>
-            <span className="home-fun-cta mt-2 inline-flex min-h-8 items-center gap-1.5 rounded-xl px-3 text-[8px] font-black">مشاهده فان<ArrowLeft size={13}/></span>
-          </span>
+          <div className="relative space-y-4">
+            <div className="flex items-start justify-between gap-4">
+              <div className="min-w-0 flex-1 space-y-2">
+                <span className="inline-block text-[6px] font-black uppercase tracking-[.22em] text-fuchsia-300" dir="ltr">Football Humor</span>
+                <h2 className="text-[20px] font-black leading-none tracking-tight text-white">فان فوتبالی</h2>
+                <p className="text-[10px] leading-relaxed text-slate-400">میم‌ها و لحظات خنده‌دار دنیای فوتبال</p>
+              </div>
+              <span className="home-fun-badge flex shrink-0 items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-[8px] font-bold">
+                <Zap size={11} strokeWidth={2.6}/>
+                داغ امروز
+              </span>
+            </div>
+            <div className="flex justify-end">
+              <span className="home-fun-cta inline-flex items-center gap-2 rounded-xl px-4 py-2.5 text-[10px] font-black transition-all">
+                مشاهده فان
+                <ArrowLeft size={14} strokeWidth={2.6}/>
+              </span>
+            </div>
+          </div>
         </Link>
 
         <section>
