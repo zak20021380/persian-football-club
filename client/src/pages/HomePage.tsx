@@ -8,19 +8,16 @@ import {
   Coins,
   Handshake,
   Inbox,
-  Laugh,
   Play,
   Radio,
   Shield,
   Shirt,
-  Smile,
   Sparkles,
   Tags,
   Target,
   Trophy,
   UserRound,
-  WalletCards,
-  Zap
+  WalletCards
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { BrandMark } from '@/components/BrandMark';
@@ -286,24 +283,35 @@ export function HomePage() {
       <div className="relative -mt-6 px-4"><QuickActions predictionsCount={data.predictionsCount}/></div>
 
       <div className="mt-4 space-y-4 px-4">
-        <Link to="/fun" className="home-fun-feature group relative isolate block overflow-hidden rounded-[1.5rem] p-5 transition active:scale-[.99]" aria-label="فان فوتبالی؛ مشاهده بخش فان">
+        <Link to="/fun" className="home-fun-feature group relative isolate block overflow-hidden rounded-[1.5rem] transition active:scale-[.99]" aria-label="فان فوتبالی؛ مشاهده بخش فان">
           <span className="home-fun-pattern absolute" aria-hidden="true"/>
-          <div className="relative space-y-4">
-            <div className="flex items-start justify-between gap-4">
-              <div className="min-w-0 flex-1 space-y-2">
-                <span className="inline-block text-[6px] font-black uppercase tracking-[.22em] text-fuchsia-300" dir="ltr">Football Humor</span>
-                <h2 className="text-[20px] font-black leading-none tracking-tight text-white">فان فوتبالی</h2>
-                <p className="text-[10px] leading-relaxed text-slate-400">میم‌ها و لحظات خنده‌دار دنیای فوتبال</p>
+          <span className="home-fun-glow absolute" aria-hidden="true"/>
+          <div className="home-fun-content">
+            <div className="home-fun-intro">
+              <div className="home-fun-copy">
+                <span className="home-fun-eyebrow inline-flex items-center gap-1.5 font-black uppercase tracking-[.18em] text-fuchsia-300" dir="ltr">
+                  <Sparkles size={12} strokeWidth={2.4}/>
+                  Football Humor
+                </span>
+                <h2 className="home-fun-title font-black tracking-tight text-white">فان فوتبالی</h2>
+                <p className="home-fun-subtitle text-slate-300">میم‌ها، کری‌ها و خنده‌دارترین لحظات دنیای فوتبال</p>
               </div>
-              <span className="home-fun-badge flex shrink-0 items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-[8px] font-bold">
-                <Zap size={11} strokeWidth={2.6}/>
-                داغ امروز
-              </span>
+              <div className="home-fun-visual" aria-hidden="true">
+                <span className="home-fun-visual-back"/>
+                <span className="home-fun-visual-card">
+                  <span className="home-fun-media-top"><i/><i/><i/></span>
+                  <span className="home-fun-play"><Play size={19} fill="currentColor" strokeWidth={2}/></span>
+                  <span className="home-fun-media-lines"><i/><i/></span>
+                </span>
+              </div>
             </div>
-            <div className="flex justify-end">
-              <span className="home-fun-cta inline-flex items-center gap-2 rounded-xl px-4 py-2.5 text-[10px] font-black transition-all">
-                مشاهده فان
-                <ArrowLeft size={14} strokeWidth={2.6}/>
+            <div className="home-fun-actions">
+              <span className="home-fun-badge inline-flex items-center gap-2 font-bold">
+                <i aria-hidden="true"/>
+                محتوای تازه هر روز
+              </span>
+              <span className="home-fun-cta inline-flex items-center font-black transition-all">
+                <span className="home-fun-cta-label">بزن بریم</span>
               </span>
             </div>
           </div>
