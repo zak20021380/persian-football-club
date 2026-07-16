@@ -2,7 +2,7 @@ export type Id = string;
 export interface User { _id: Id; firstName: string; displayName?: string; clubName?: string; photoUrl?: string; favoriteTeam?: string; points: number; coinBalance: number; weeklyPoints: number; streak: number; quizAccuracy: number; correctPredictions: number; exactPredictions: number; successfulReferrals: number; weeklyRank?: number; allTimeRank?: number; createdAt: string; activity?: Activity[]; badges?: Badge[]; }
 export interface Activity { type: string; title: string; points: number; at: string; }
 export interface Badge { _id: Id; name: string; description: string; icon: string; category: string; threshold: number; }
-export interface Bootstrap { user: User; membershipConfirmed: boolean; joinUrl: string; botUsername: string; supportTelegramUsername: string|null; isAdmin: boolean; developmentMock: boolean; timezone: string; }
+export interface Bootstrap { user: User; botUsername: string; supportTelegramUsername: string|null; isAdmin: boolean; developmentMock: boolean; timezone: string; }
 export interface Match { _id: Id; externalApiId?: number; homeTeamId?: Id; awayTeamId?: Id; homeTeam: string; awayTeam: string; competitionName: string; kickoffAt: string; predictionDeadline: string; homeLogo?: string; awayLogo?: string; description?: string; status: 'scheduled'|'live'|'finished'|'cancelled'; homeScore?: number; awayScore?: number; predictionOpen: boolean; prediction?: Prediction|null; reminder?: MatchReminder|null; reminderOptions?: MatchReminderMinutes[]; reminderError?: { code: string; message: string }|null; }
 export type MatchReminderMinutes = 15|30|60;
 export interface MatchReminder { _id: Id; minutes: MatchReminderMinutes; sendAt: string; status: 'pending'|'processing'|'sent'|'failed'; }
