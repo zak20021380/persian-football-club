@@ -52,6 +52,7 @@ const schema = z.object({
   PAYMENT_PROVIDER: z.enum(['none', 'test']).default('none'),
   DAILY_COIN_REWARD: z.coerce.number().int().min(1).max(100_000).default(25),
   TRANSFER_FEE_PERCENT: z.coerce.number().int().min(0).max(50).default(5),
+  CHANNEL_MEMBERSHIP_REQUIRED: booleanFlag.default(false),
   DEMO_DATA_ENABLED: booleanFlag.default(true),
   FOOTBALL_API_ENABLED: booleanFlag.default(false),
   FOOTBALL_API_BASE_URL: z.string().url().refine(value => /^https?:\/\//i.test(value), 'Football API URL must use HTTP(S)').default('https://v3.football.api-sports.io'),

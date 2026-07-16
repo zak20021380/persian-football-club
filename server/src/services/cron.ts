@@ -61,7 +61,7 @@ export async function runCronCycle() {
     const userQuery = broadcast.audience === 'custom'
       ? { telegramId: { $in: broadcast.telegramIds } }
       : broadcast.audience === 'members'
-        ? { membershipConfirmed: true, blockedBot: false }
+        ? env.CHANNEL_MEMBERSHIP_REQUIRED ? { membershipConfirmed: true, blockedBot: false } : { blockedBot: false }
         : broadcast.audience === 'active'
           ? { lastActiveAt: { $gte: new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000) }, blockedBot: false }
           : { blockedBot: false };

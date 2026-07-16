@@ -22,6 +22,12 @@ async function upsertFromContext(ctx: Parameters<typeof bot.start>[0] extends ne
 async function sendEntryState(ctx: any): Promise<void> {
   const user = await upsertFromContext(ctx);
   if (!user || !ctx.from) return;
+  if (!env.CHANNEL_MEMBERSHIP_REQUIRED) {
+    await ctx.reply('آماده‌ای وارد باشگاه شوی؟ ⚽', Markup.inlineKeyboard([
+      [Markup.button.webApp('⚽ ورود به باشگاه فوتبالی', env.BASE_URL)]
+    ]));
+    return;
+  }
   const member = await checkChannelMembership(bot.telegram, ctx.from.id);
   await User.updateOne({ _id: user._id }, { $set: { membershipConfirmed: member } });
   if (!member) {

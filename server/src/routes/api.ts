@@ -29,6 +29,7 @@ import clubRouter from './club.js';
 import adminFantasyRouter from './adminFantasy.js';
 
 const router = Router();
+const membershipFilter = (): Record<string, boolean> => env.CHANNEL_MEMBERSHIP_REQUIRED ? { membershipConfirmed: true } : {};
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 2 * 1024 * 1024, files: 1 }, fileFilter: (_req, file, cb) => cb(null, /^image\/(png|jpeg|webp|gif)$/.test(file.mimetype)) });
 
 router.get('/health', (_req, res) => res.json({ ok: true, service: 'persian-football-club', time: new Date().toISOString() }));
@@ -83,7 +84,7 @@ router.get('/bootstrap', asyncHandler(async (req, res) => {
   ]);
   res.json({
     user: publicUser(user.toObject(), { weeklyRank, allTimeRank, badges }, req.telegramUser),
-    membershipConfirmed: user.membershipConfirmed,
+    membershipConfirmed: env.CHANNEL_MEMBERSHIP_REQUIRED ? user.membershipConfirmed : true,
     joinUrl: env.CHANNEL_JOIN_URL,
     botUsername: env.BOT_USERNAME,
     supportTelegramUsername: normalizeTelegramUsername(supportSetting?.value),
@@ -94,6 +95,10 @@ router.get('/bootstrap', asyncHandler(async (req, res) => {
 }));
 
 router.post('/membership/check', asyncHandler(async (req, res) => {
+  if (!env.CHANNEL_MEMBERSHIP_REQUIRED) {
+    res.json({ member: true, enforcementRequired: false });
+    return;
+  }
   const user = req.authUser!;
   if (env.NODE_ENV !== 'production' && env.BOT_TOKEN === 'development-token') {
     user.membershipConfirmed = true;
@@ -118,7 +123,7 @@ router.get('/home', asyncHandler(async (req, res) => {
     ImportantMatch.find({ published: true, status: { $in: ['live','scheduled'] }, kickoffAt: { $gte: new Date(now.getTime() - 3 * 60 * 60 * 1000) } }).sort({ status: 1, kickoffAt: 1 }).limit(5).populate('homeTeamId awayTeamId', 'name shortName logoUrl').lean(),
     Competition.find({ published: true, status: 'active', startsAt: { $lte: now }, endsAt: { $gt: now } }).sort({ endsAt: 1 }).limit(4).lean(),
     Quiz.findOne({ published: true, status: 'active', startsAt: { $lte: now }, endsAt: { $gt: now } }).sort({ startsAt: -1 }).lean(),
-    User.find({ membershipConfirmed: true }).sort({ weeklyPoints: -1, createdAt: 1 }).limit(5).select('displayName clubName weeklyPoints points').lean(),
+    User.find(membershipFilter()).sort({ weeklyPoints: -1, createdAt: 1 }).limit(5).select('displayName clubName weeklyPoints points').lean(),
     Reward.find({ active: true, startsAt: { $lte: now }, endsAt: { $gt: now } }).sort({ endsAt: 1 }).limit(4).lean(),
     Sponsor.findOne({ active: true, placement: 'home', startsAt: { $lte: now }, endsAt: { $gt: now } }).sort({ createdAt: -1 }).lean(),
     Prediction.countDocuments({ userId: user._id }),
@@ -311,12 +316,12 @@ router.get('/rankings', asyncHandler(async (req, res) => {
     res.json(await clubValueRankings(current._id)); return;
   }
   if (type === 'predictors') {
-    const leaders = await User.find({ membershipConfirmed: true }).sort({ correctPredictions: -1, exactPredictions: -1 }).limit(50).select('displayName clubName favoriteTeam correctPredictions exactPredictions').lean();
+    const leaders = await User.find(membershipFilter()).sort({ correctPredictions: -1, exactPredictions: -1 }).limit(50).select('displayName clubName favoriteTeam correctPredictions exactPredictions').lean();
     const rank = await User.countDocuments({ correctPredictions: { $gt: current.correctPredictions } }).then((n) => n + 1);
     res.json({ type, leaders: leaders.map((leader) => publicUser(leader)), current: { ...publicUser(current.toObject(), {}, req.telegramUser), rank } }); return;
   }
   if (type === 'referrals') {
-    const leaders = await User.find({ membershipConfirmed: true }).sort({ successfulReferrals: -1 }).limit(50).select('displayName clubName favoriteTeam successfulReferrals points').lean();
+    const leaders = await User.find(membershipFilter()).sort({ successfulReferrals: -1 }).limit(50).select('displayName clubName favoriteTeam successfulReferrals points').lean();
     const rank = await User.countDocuments({ successfulReferrals: { $gt: current.successfulReferrals } }).then((n) => n + 1);
     res.json({ type, leaders: leaders.map((leader) => publicUser(leader)), current: { ...publicUser(current.toObject(), {}, req.telegramUser), rank } }); return;
   }
@@ -338,7 +343,7 @@ router.get('/rankings', asyncHandler(async (req, res) => {
     res.json({ type, leaders, current: mine ? { ...mine, rank } : null }); return;
   }
   const field = type === 'all' ? 'points' : 'weeklyPoints';
-  const leaders = await User.find({ membershipConfirmed: true }).sort({ [field]: -1, createdAt: 1 }).limit(50).select(`displayName clubName favoriteTeam ${field} points weeklyPoints`).lean();
+  const leaders = await User.find(membershipFilter()).sort({ [field]: -1, createdAt: 1 }).limit(50).select(`displayName clubName favoriteTeam ${field} points weeklyPoints`).lean();
   const value = field === 'points' ? current.points : current.weeklyPoints;
   const rank = await User.countDocuments({ [field]: { $gt: value } }).then((n) => n + 1);
   res.json({ type, leaders: leaders.map((leader) => publicUser(leader)), current: { ...publicUser(current.toObject(), {}, req.telegramUser), rank } });
@@ -401,7 +406,7 @@ const resources: Record<string, Model<any>> = {
 router.get('/admin/overview', asyncHandler(async (_req, res) => {
   const now = new Date();
   const [users, members, activeCompetitions, upcomingMatches, pendingBroadcasts, sponsorAgg] = await Promise.all([
-    User.countDocuments(), User.countDocuments({ membershipConfirmed: true }), Competition.countDocuments({ status: 'active', endsAt: { $gt: now } }),
+    User.countDocuments(), User.countDocuments(membershipFilter()), Competition.countDocuments({ status: 'active', endsAt: { $gt: now } }),
     ImportantMatch.countDocuments({ status: 'scheduled', kickoffAt: { $gt: now } }), Broadcast.countDocuments({ status: { $in: ['draft','scheduled'] } }),
     Sponsor.aggregate([{ $group: { _id: null, impressions: { $sum: '$impressions' }, clicks: { $sum: '$clicks' } } }])
   ]);

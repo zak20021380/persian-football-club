@@ -23,11 +23,13 @@ export function requireAdmin(req: Request, _res: Response, next: NextFunction): 
 }
 
 export function requireConfirmedMembership(req: Request, _res: Response, next: NextFunction): void {
+  if (!env.CHANNEL_MEMBERSHIP_REQUIRED) return next();
   if (!req.authUser?.membershipConfirmed) return next(new AppError(403, 'ابتدا عضویت کانال را تأیید کنید', 'CHANNEL_MEMBERSHIP_REQUIRED'));
   next();
 }
 
 export const verifyLiveMembership = asyncHandler(async (req: Request, _res: Response, next: NextFunction) => {
+  if (!env.CHANNEL_MEMBERSHIP_REQUIRED) return next();
   if (!req.authUser) throw new AppError(401, 'ورود لازم است');
   if (env.NODE_ENV !== 'production' && env.BOT_TOKEN === 'development-token') {
     if (!req.authUser.membershipConfirmed) throw new AppError(403, 'عضویت کانال تأیید نشده است', 'CHANNEL_MEMBERSHIP_REQUIRED');

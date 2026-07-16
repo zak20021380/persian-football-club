@@ -11,3 +11,4 @@ process.env.CRON_SECRET = 'test-cron-secret';
 process.env.SESSION_SECRET = 'test-session-secret-at-least-32-characters';
 process.env.SESSION_TTL_SECONDS = '3600';
 process.env.INIT_DATA_MAX_AGE_SECONDS = '3600';
+process.env.CHANNEL_MEMBERSHIP_REQUIRED = 'false';

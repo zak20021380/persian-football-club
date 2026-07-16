@@ -246,9 +246,9 @@ async function rankingUsers(currentUserId: Types.ObjectId, scope: RankingScope =
   }
   return User.find({
     ...(userIds ? { _id: { $in: userIds } } : {}),
-    $or: [{ membershipConfirmed: true }, { _id: currentUserId }]
+    ...(env.CHANNEL_MEMBERSHIP_REQUIRED ? { $or: [{ membershipConfirmed: true }, { _id: currentUserId }] } : {})
   })
-    .select('displayName clubName favoriteTeam membershipConfirmed coinBalance createdAt')
+    .select(`displayName clubName favoriteTeam coinBalance createdAt${env.CHANNEL_MEMBERSHIP_REQUIRED ? ' membershipConfirmed' : ''}`)
     .lean() as unknown as Promise<RankingUser[]>;
 }
 
@@ -314,8 +314,8 @@ function rankedResponse(
 }
 
 export async function rankingClubDetails(userId: Types.ObjectId, period: RankingPeriod, currentUserId: Types.ObjectId): Promise<RankingClubDetails|null> {
-  const user = await User.findById(userId).select('clubName favoriteTeam membershipConfirmed').lean() as unknown as RankingUser|null;
-  if (!user || (!user.membershipConfirmed && String(userId) !== String(currentUserId))) return null;
+  const user = await User.findById(userId).select(`clubName favoriteTeam${env.CHANNEL_MEMBERSHIP_REQUIRED ? ' membershipConfirmed' : ''}`).lean() as unknown as RankingUser|null;
+  if (!user || (env.CHANNEL_MEMBERSHIP_REQUIRED && !user.membershipConfirmed && String(userId) !== String(currentUserId))) return null;
 
   const [squad, roster, logos, currentUser] = await Promise.all([
     Squad.findOne({ userId }).lean(),

@@ -1,4 +1,5 @@
 import mongoose from 'mongoose';
+import { env } from '../config/env.js';
 import { Referral, User } from '../models/index.js';
 
 export function canCreateReferral(referrerTelegramId: number, invitedTelegramId: number, invitedIsNew: boolean): boolean {
@@ -19,6 +20,7 @@ export async function createPendingReferral(referrerCode: string, invitedUserId:
 }
 
 export async function rewardPendingReferral(invitedUserId: mongoose.Types.ObjectId): Promise<boolean> {
+  if (!env.CHANNEL_MEMBERSHIP_REQUIRED) return false;
   const referral = await Referral.findOneAndUpdate(
     { invitedUserId, status: 'pending' },
     { $set: { status: 'rewarded', rewardedAt: new Date() } },

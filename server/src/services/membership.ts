@@ -9,6 +9,7 @@ export function isAcceptedMember(status: MembershipStatus, isMember?: boolean): 
 }
 
 export async function checkChannelMembership(telegram: Telegram, telegramId: number): Promise<boolean> {
+  if (!env.CHANNEL_MEMBERSHIP_REQUIRED) return true;
   try {
     const member = await withTelegramRetry(() => telegram.getChatMember(env.CHANNEL_ID, telegramId));
     return isAcceptedMember(member.status as MembershipStatus, 'is_member' in member ? member.is_member : undefined);

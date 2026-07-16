@@ -60,6 +60,7 @@ PORT=3000
 TIMEZONE=Asia/Tehran
 PAYMENT_PROVIDER=test
 DAILY_COIN_REWARD=25
+CHANNEL_MEMBERSHIP_REQUIRED=false
 VITE_DEMO_DATA_ENABLED=true
 DEMO_DATA_ENABLED=true
 FOOTBALL_API_ENABLED=false
@@ -82,6 +83,13 @@ from contacting the provider. To switch to the real provider later, set
 `FOOTBALL_API_ENABLED=true` and `DEMO_DATA_ENABLED=false`; the frontend receives
 the backend runtime flag during authenticated startup.
 
+### Channel membership enforcement
+
+Set `CHANNEL_MEMBERSHIP_REQUIRED=false` to bypass every Mini App and bot entry
+membership gate. In this mode no `getChatMember` request is made and pending
+referrals are not rewarded. Existing membership state is preserved. Set the flag
+to `true` later to restore live channel checks and membership-dependent rewards.
+
 توضیح متغیرها:
 
 | متغیر | مقدار |
@@ -92,6 +100,7 @@ the backend runtime flag during authenticated startup.
 | `CHANNEL_ID` | شناسه عددی کانال؛ برای کانال‌ها معمولاً با `-100` شروع می‌شود |
 | `CHANNEL_USERNAME` | نام کاربری کانال عمومی بدون `@`؛ برای کانال خصوصی می‌تواند خالی باشد |
 | `CHANNEL_JOIN_URL` | لینک عضویت عمومی یا لینک دعوت کانال خصوصی |
+| `CHANNEL_MEMBERSHIP_REQUIRED` | `false` برای غیرفعال‌کردن کامل و موقت اجبار عضویت؛ `true` برای فعال‌سازی دوباره |
 | `ADMIN_IDS` | شناسه‌های عددی تلگرام مدیران، جداشده با ویرگول |
 | `BASE_URL` | URL کامل HTTPS سرویس، بدون `/` پایانی |
 | `TELEGRAM_MINI_APP_DEEP_LINK_BASE` | لینک عمومی HTTPS مینی‌اپ تلگرام بدون `startapp`؛ نمونه: `https://t.me/your_bot/your_app` |
@@ -163,6 +172,8 @@ npm audit --omit=dev # بررسی آسیب‌پذیری production
 8. Privacy mode برای این پروژه مانع کارکرد پیام خصوصی و Web App نیست.
 
 ## تنظیم کانال و عضویت اجباری
+
+این بخش فقط وقتی `CHANNEL_MEMBERSHIP_REQUIRED=true` است اعمال می‌شود.
 
 1. ربات را به کانال اضافه کنید.
 2. ربات را admin کنید تا `getChatMember` و ارسال اعلان کانال قابل اتکا باشد.
