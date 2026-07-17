@@ -394,9 +394,11 @@ button { touch-action: manipulation; }
 .squad-player { animation: squad-player-in .42s cubic-bezier(.22,1,.36,1) both; }
 .squad-page { -webkit-overflow-scrolling: touch; }
 .squad-page > header { contain: paint; background-color: rgba(7,17,31,.97); -webkit-backdrop-filter: none; backdrop-filter: none; }
+html.lineup-drag-active,html.lineup-drag-active body { overflow:hidden!important; overscroll-behavior:none!important; touch-action:none!important; -webkit-user-select:none!important; user-select:none!important; }
 .lineup-pitch { contain: layout paint style; touch-action: pan-y; overflow-anchor: none; -webkit-user-select: none; user-select: none; -webkit-touch-callout:none; }
 .lineup-pitch.is-dragging,.lineup-pitch.is-dragging .lineup-player { touch-action:none; cursor:grabbing; }
 .lineup-player { touch-action: pan-y; transform: translate3d(-50%,-50%,0); animation: lineup-player-in .28s ease-out both; -webkit-user-drag:none; -webkit-touch-callout:none; }
+.lineup-pitch.is-custom-formation .lineup-player.is-draggable-player { touch-action:none; }
 .bench-section { position:relative; overflow:hidden; border:1px solid rgba(148,211,209,.085); border-radius:1.35rem; padding:.65rem; background:radial-gradient(circle at 92% 0,rgba(52,211,153,.045),transparent 34%),linear-gradient(145deg,rgba(11,25,42,.9),rgba(6,17,31,.96)); box-shadow:inset 0 1px rgba(255,255,255,.025),0 12px 26px rgba(0,0,0,.14); }
 .bench-heading-icon { border:1px solid rgba(110,231,213,.12); background:rgba(17,43,55,.62); color:rgba(167,243,230,.82); box-shadow:inset 0 1px rgba(255,255,255,.035); }
 .bench-count { border:1px solid rgba(110,231,183,.1); background:rgba(16,185,129,.055); color:rgba(167,243,208,.78); }

@@ -130,12 +130,16 @@ function lockPageScrollingDuringDrag(): () => void {
     overflow: root.style.overflow,
     overscrollBehavior: root.style.overscrollBehavior,
     touchAction: root.style.touchAction,
+    userSelect: root.style.userSelect,
+    webkitUserSelect: root.style.webkitUserSelect,
     scrollBehavior: root.style.scrollBehavior,
   };
   const bodyStyles = {
     overflow: body.style.overflow,
     overscrollBehavior: body.style.overscrollBehavior,
     touchAction: body.style.touchAction,
+    userSelect: body.style.userSelect,
+    webkitUserSelect: body.style.webkitUserSelect,
     position: body.style.position,
     top: body.style.top,
     left: body.style.left,
@@ -146,18 +150,26 @@ function lockPageScrollingDuringDrag(): () => void {
     if (event.cancelable) event.preventDefault();
   };
   const listenerOptions: AddEventListenerOptions = { capture: true, passive: false };
+  const hadDragClass = root.classList.contains('lineup-drag-active');
 
+  document.addEventListener('pointermove', preventBrowserGesture, listenerOptions);
   document.addEventListener('touchmove', preventBrowserGesture, listenerOptions);
   document.addEventListener('gesturestart', preventBrowserGesture, listenerOptions);
+  document.addEventListener('gesturechange', preventBrowserGesture, listenerOptions);
   document.addEventListener('selectstart', preventBrowserGesture, listenerOptions);
   document.addEventListener('dragstart', preventBrowserGesture, listenerOptions);
   document.addEventListener('contextmenu', preventBrowserGesture, listenerOptions);
+  root.classList.add('lineup-drag-active');
   root.style.overflow = 'hidden';
   root.style.overscrollBehavior = 'none';
   root.style.touchAction = 'none';
+  root.style.userSelect = 'none';
+  root.style.webkitUserSelect = 'none';
   body.style.overflow = 'hidden';
   body.style.overscrollBehavior = 'none';
   body.style.touchAction = 'none';
+  body.style.userSelect = 'none';
+  body.style.webkitUserSelect = 'none';
   body.style.position = 'fixed';
   body.style.top = `${-scrollY}px`;
   body.style.left = `${-scrollX}px`;
@@ -168,16 +180,23 @@ function lockPageScrollingDuringDrag(): () => void {
   return () => {
     if (released) return;
     released = true;
+    document.removeEventListener('pointermove', preventBrowserGesture, listenerOptions);
     document.removeEventListener('touchmove', preventBrowserGesture, listenerOptions);
     document.removeEventListener('gesturestart', preventBrowserGesture, listenerOptions);
+    document.removeEventListener('gesturechange', preventBrowserGesture, listenerOptions);
     document.removeEventListener('selectstart', preventBrowserGesture, listenerOptions);
     document.removeEventListener('dragstart', preventBrowserGesture, listenerOptions);
     document.removeEventListener('contextmenu', preventBrowserGesture, listenerOptions);
-    Object.assign(root.style, rootStyles);
-    Object.assign(body.style, bodyStyles);
+    root.style.overflow = rootStyles.overflow;
+    root.style.overscrollBehavior = rootStyles.overscrollBehavior;
+    root.style.touchAction = rootStyles.touchAction;
+    root.style.userSelect = rootStyles.userSelect;
+    root.style.webkitUserSelect = rootStyles.webkitUserSelect;
     root.style.scrollBehavior = 'auto';
+    Object.assign(body.style, bodyStyles);
     window.scrollTo(scrollX, scrollY);
     root.style.scrollBehavior = rootStyles.scrollBehavior;
+    if (!hadDragClass) root.classList.remove('lineup-drag-active');
   };
 }
 
@@ -401,14 +420,14 @@ export function SquadPage() {
       const mouseReady = gesture.pointerType === 'mouse' && distance >= MOUSE_DRAG_THRESHOLD;
       const absX = Math.abs(deltaX);
       const absY = Math.abs(deltaY);
-      const touchScroll = gesture.pointerType !== 'mouse' && absY >= TOUCH_SCROLL_THRESHOLD && absY > absX * 1.15;
+      const touchScroll = !gesture.freePositioning && gesture.pointerType !== 'mouse' && absY >= TOUCH_SCROLL_THRESHOLD && absY > absX * 1.15;
       if (touchScroll) {
         clearDragActivationTimer(gesture);
         dragRef.current = null;
         safelyReleasePointer(gesture.element, gesture.pointerId);
         return;
       }
-      const deliberateTouchDrag = gesture.pointerType !== 'mouse' && distance >= TOUCH_DRAG_THRESHOLD && absX >= absY * .9;
+      const deliberateTouchDrag = gesture.pointerType !== 'mouse' && distance >= TOUCH_DRAG_THRESHOLD && (gesture.freePositioning || absX >= absY * .9);
       if (mouseReady || deliberateTouchDrag) activateDrag(event.pointerId);
       if (!gesture.active) return;
     }
@@ -530,12 +549,21 @@ export function SquadPage() {
     window.addEventListener('blur', cancelInterruptedDrag);
     window.addEventListener('pagehide', cancelInterruptedDrag);
     document.addEventListener('visibilitychange', cancelWhenHidden);
+    document.addEventListener('touchcancel', cancelInterruptedDrag, { capture: true, passive: true });
     return () => {
       window.removeEventListener('blur', cancelInterruptedDrag);
       window.removeEventListener('pagehide', cancelInterruptedDrag);
       document.removeEventListener('visibilitychange', cancelWhenHidden);
+      document.removeEventListener('touchcancel', cancelInterruptedDrag, true);
       const gesture = dragRef.current;
-      if (gesture) clearDragActivationTimer(gesture);
+      if (gesture) {
+        clearDragActivationTimer(gesture);
+        safelyReleasePointer(gesture.element, gesture.pointerId);
+        if (gesture.freePositioning) {
+          gesture.element.style.left = `${gesture.originX}%`;
+          gesture.element.style.top = `${gesture.originY}%`;
+        }
+      }
       if (dragFrameRef.current !== null) window.cancelAnimationFrame(dragFrameRef.current);
       if (dragReturnTimerRef.current !== null) window.clearTimeout(dragReturnTimerRef.current);
       releaseDragScrollLock();
@@ -644,7 +672,7 @@ export function SquadPage() {
         <div className="grid grid-cols-4 gap-1.5 rounded-[1.25rem] bg-white/[.025] p-1.5">{formationOptions.map(option => { const active = draft.formation === option.value; return <button type="button" key={option.value} aria-pressed={active} onClick={() => chooseFormation(option.value)} className={cn('min-h-9 min-w-0 rounded-xl px-1 text-[8px] font-black transition active:scale-95', active ? 'bg-pitch-400 text-ink-950 shadow-[0_7px_20px_rgba(16,185,129,.16)]' : 'text-slate-500 hover:bg-white/[.035]', option.value === 'custom' && 'leading-3')}>{option.label}</button>; })}</div>
       </section>
 
-      <FormationPitch ref={pitchRef} className={cn('lineup-pitch mx-auto w-full select-none', drag && !drag.returning && 'is-dragging', drag && !drag.returning ? drag.valid ? 'border-emerald-200/50' : 'border-rose-300/70' : 'border-emerald-100/[.18]')} aria-label="زمین چیدمان بازیکنان">
+      <FormationPitch ref={pitchRef} className={cn('lineup-pitch mx-auto w-full select-none', draft.formation === 'custom' && 'is-custom-formation', drag && !drag.returning && 'is-dragging', drag && !drag.returning ? drag.valid ? 'border-emerald-200/50' : 'border-rose-300/70' : 'border-emerald-100/[.18]')} aria-label="زمین چیدمان بازیکنان">
         {draft.positions.map((position, index) => <PitchSlot
           key={`${index}-${draft.starters[index]?._id ?? 'empty'}`}
           position={position}
@@ -743,7 +771,7 @@ const PitchSlot = memo(function PitchSlot({ position, player, index, selected, d
     'aria-label': player ? `${player.name}، ${player.position}` : `افزودن بازیکن به پست ${position.role}`,
   };
   const markerStyle = { zIndex: dragging ? 40 : dropTarget ? 30 : 10, animationDelay: `${index * 22}ms`, viewTransitionName: player ? transitionName(player) : undefined };
-  const markerClassName = cn('lineup-player transition-[opacity,filter] duration-200', dragging && 'is-dragging cursor-grabbing', dragging && !freeDragging && !returning && 'opacity-25 grayscale', freeDragging && 'is-free-dragging', returning && 'is-custom-returning', selected && !dragging && 'is-selected');
+  const markerClassName = cn('lineup-player is-draggable-player transition-[opacity,filter] duration-200', dragging && 'is-dragging cursor-grabbing', dragging && !freeDragging && !returning && 'opacity-25 grayscale', freeDragging && 'is-free-dragging', returning && 'is-custom-returning', selected && !dragging && 'is-selected');
   const overlay = dropTarget ? <span className={cn('pointer-events-none absolute -inset-2 -z-10 rounded-[1.35rem] border-2 border-dashed', dropValid ? 'border-emerald-200 bg-emerald-300/15' : 'border-rose-200 bg-rose-300/15')}/> : undefined;
 
   return player ? <FormationPitchPlayer
