@@ -394,12 +394,15 @@ button { touch-action: manipulation; }
 .squad-player { animation: squad-player-in .42s cubic-bezier(.22,1,.36,1) both; }
 .squad-page { -webkit-overflow-scrolling: touch; }
 .squad-page > header { contain: paint; background-color: rgba(7,17,31,.97); -webkit-backdrop-filter: none; backdrop-filter: none; }
-.lineup-pitch { contain: layout paint style; touch-action: pan-y; overflow-anchor: none; -webkit-user-select: none; user-select: none; }
-.lineup-player { touch-action: pan-y; transform: translate3d(-50%,-50%,0); animation: lineup-player-in .28s ease-out both; }
+.lineup-pitch { contain: layout paint style; touch-action: pan-y; overflow-anchor: none; -webkit-user-select: none; user-select: none; -webkit-touch-callout:none; }
+.lineup-pitch.is-dragging,.lineup-pitch.is-dragging .lineup-player { touch-action:none; cursor:grabbing; }
+.lineup-player { touch-action: pan-y; transform: translate3d(-50%,-50%,0); animation: lineup-player-in .28s ease-out both; -webkit-user-drag:none; -webkit-touch-callout:none; }
 .bench-player { touch-action: pan-y; }
 .lineup-player.is-selected { transform: translate3d(-50%,-50%,0) scale(1.05); }
 .lineup-player.is-dragging { will-change: transform; }
 .lineup-player.is-dragging > span { box-shadow: 0 8px 16px rgba(0,0,0,.28); }
+.lineup-drag-preview { transform:translate3d(-50%,-50%,0) scale(1.06); will-change:left,top,transform,opacity; animation:lineup-drag-preview-in .14s cubic-bezier(.22,1,.36,1) both; }
+.lineup-drag-preview.is-returning { transform:translate3d(-50%,-50%,0) scale(.82); opacity:0; animation:none; transition:left .18s cubic-bezier(.22,1,.36,1),top .18s cubic-bezier(.22,1,.36,1),transform .18s cubic-bezier(.22,1,.36,1),opacity .18s ease; }
 .bench-player.is-drop-valid { box-shadow: 0 0 0 1px rgba(110,231,183,.3),0 10px 24px rgba(6,95,70,.24); }
 .bench-player.is-drop-invalid { box-shadow: 0 0 0 1px rgba(253,164,175,.3),0 10px 24px rgba(136,19,55,.22); }
 ::view-transition-group(*) { animation-duration: .32s; animation-timing-function: cubic-bezier(.22,1,.36,1); }
@@ -417,6 +420,7 @@ button { touch-action: manipulation; }
 @keyframes store-rise { from { opacity: 0; transform: translateY(8px) scale(.99); } to { opacity: 1; transform: translateY(0) scale(1); } }
 @keyframes squad-player-in { from { opacity: 0; transform: translate(-50%,-42%) scale(.9); } to { opacity: 1; transform: translate(-50%,-50%) scale(1); } }
 @keyframes lineup-player-in { from { opacity: 0; } to { opacity: 1; } }
+@keyframes lineup-drag-preview-in { from { opacity:.55; transform:translate3d(-50%,-50%,0) scale(.92); } to { opacity:1; transform:translate3d(-50%,-50%,0) scale(1.06); } }
 @keyframes squad-backdrop-in { from { opacity: 0; } to { opacity: 1; } }
 @keyframes squad-sheet-in { from { opacity: .7; translate: 0 36px; } to { opacity: 1; translate: 0 0; } }
 @keyframes player-modal-backdrop-in { from { opacity: 0; } to { opacity: 1; } }

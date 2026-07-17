@@ -1,4 +1,4 @@
-import { memo, useCallback, useEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent, type ReactNode } from 'react';
+import { memo, useCallback, useEffect, useMemo, useRef, useState, type DragEvent as ReactDragEvent, type PointerEvent as ReactPointerEvent, type ReactNode } from 'react';
 import { createPortal, flushSync } from 'react-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { ArrowLeft, ArrowLeftRight, BadgeDollarSign, BriefcaseBusiness, Building2, CalendarClock, CircleAlert, Eye, Flag, ListRestart, Plus, RotateCcw, Save, Shirt, Sparkles, Trash2, UserRound, UsersRound } from 'lucide-react';
@@ -30,6 +30,7 @@ interface DragState {
   valid: boolean;
   clientX: number;
   clientY: number;
+  returning?: boolean;
 }
 interface DragGesture {
   source: DragLocation;
@@ -49,6 +50,7 @@ interface DragGesture {
   moved: boolean;
   element: HTMLButtonElement;
   pitchRect: DOMRect|null;
+  activationTimer: number|null;
 }
 
 const formationOptions: Array<{ value: SquadFormation; label: string }> = [
@@ -83,10 +85,91 @@ const demoSubstitutes: DisplayPlayer[] = [
 ];
 
 const DRAFT_KEY = 'persian-football-club:squad-draft:v2';
-const TOUCH_DRAG_THRESHOLD = 12;
+const TOUCH_DRAG_THRESHOLD = 9;
+const TOUCH_SCROLL_THRESHOLD = 8;
+const TOUCH_LONG_PRESS_MS = 180;
 const MOUSE_DRAG_THRESHOLD = 4;
+const RETURN_ANIMATION_MS = 180;
 const MIN_SLOT_X_GAP = 18;
 const MIN_SLOT_Y_GAP = 15;
+
+function clearDragActivationTimer(gesture: DragGesture): void {
+  if (gesture.activationTimer === null) return;
+  window.clearTimeout(gesture.activationTimer);
+  gesture.activationTimer = null;
+}
+
+function safelyCapturePointer(element: HTMLElement, pointerId: number): void {
+  try {
+    if (!element.hasPointerCapture(pointerId)) element.setPointerCapture(pointerId);
+  } catch { /* The pointer may already have been interrupted by the WebView. */ }
+}
+
+function safelyReleasePointer(element: HTMLElement, pointerId: number): void {
+  try {
+    if (element.hasPointerCapture(pointerId)) element.releasePointerCapture(pointerId);
+  } catch { /* The pointer may already have been released by the browser. */ }
+}
+
+function lockPageScrollingDuringDrag(): () => void {
+  const root = document.documentElement;
+  const body = document.body;
+  const scrollX = window.scrollX;
+  const scrollY = window.scrollY;
+  const rootStyles = {
+    overflow: root.style.overflow,
+    overscrollBehavior: root.style.overscrollBehavior,
+    touchAction: root.style.touchAction,
+    scrollBehavior: root.style.scrollBehavior,
+  };
+  const bodyStyles = {
+    overflow: body.style.overflow,
+    overscrollBehavior: body.style.overscrollBehavior,
+    touchAction: body.style.touchAction,
+    position: body.style.position,
+    top: body.style.top,
+    left: body.style.left,
+    right: body.style.right,
+    width: body.style.width,
+  };
+  const preventBrowserGesture = (event: Event) => {
+    if (event.cancelable) event.preventDefault();
+  };
+  const listenerOptions: AddEventListenerOptions = { capture: true, passive: false };
+
+  document.addEventListener('touchmove', preventBrowserGesture, listenerOptions);
+  document.addEventListener('gesturestart', preventBrowserGesture, listenerOptions);
+  document.addEventListener('selectstart', preventBrowserGesture, listenerOptions);
+  document.addEventListener('dragstart', preventBrowserGesture, listenerOptions);
+  document.addEventListener('contextmenu', preventBrowserGesture, listenerOptions);
+  root.style.overflow = 'hidden';
+  root.style.overscrollBehavior = 'none';
+  root.style.touchAction = 'none';
+  body.style.overflow = 'hidden';
+  body.style.overscrollBehavior = 'none';
+  body.style.touchAction = 'none';
+  body.style.position = 'fixed';
+  body.style.top = `${-scrollY}px`;
+  body.style.left = `${-scrollX}px`;
+  body.style.right = '0';
+  body.style.width = '100%';
+
+  let released = false;
+  return () => {
+    if (released) return;
+    released = true;
+    document.removeEventListener('touchmove', preventBrowserGesture, listenerOptions);
+    document.removeEventListener('gesturestart', preventBrowserGesture, listenerOptions);
+    document.removeEventListener('selectstart', preventBrowserGesture, listenerOptions);
+    document.removeEventListener('dragstart', preventBrowserGesture, listenerOptions);
+    document.removeEventListener('contextmenu', preventBrowserGesture, listenerOptions);
+    Object.assign(root.style, rootStyles);
+    Object.assign(body.style, bodyStyles);
+    root.style.scrollBehavior = 'auto';
+    window.scrollTo(scrollX, scrollY);
+    root.style.scrollBehavior = rootStyles.scrollBehavior;
+  };
+}
 
 export function SquadPage() {
   const queryClient = useQueryClient();
@@ -95,6 +178,8 @@ export function SquadPage() {
   const dragRef = useRef<DragGesture|null>(null);
   const dragViewRef = useRef<DragState|null>(null);
   const dragFrameRef = useRef<number|null>(null);
+  const dragReturnTimerRef = useRef<number|null>(null);
+  const releaseScrollLockRef = useRef<(() => void)|null>(null);
   const savePendingRef = useRef(false);
   const suppressClickRef = useRef(false);
   const dirtyRef = useRef(false);
@@ -149,6 +234,34 @@ export function SquadPage() {
     if (!demoMode) swapMutation.mutate({ next, previous, previousDirty: dirtyRef.current });
   }, [demoMode, swapMutation]);
 
+  const releaseDragScrollLock = useCallback(() => {
+    releaseScrollLockRef.current?.();
+    releaseScrollLockRef.current = null;
+  }, []);
+
+  const returnDragPreview = useCallback((gesture: DragGesture) => {
+    const sourceRect = gesture.element.getBoundingClientRect();
+    const returning: DragState = {
+      source: gesture.source,
+      target: null,
+      player: gesture.player,
+      valid: false,
+      clientX: sourceRect.left + sourceRect.width / 2,
+      clientY: sourceRect.top + sourceRect.height / 2,
+      returning: true,
+    };
+    dragViewRef.current = returning;
+    setDrag(returning);
+    if (dragReturnTimerRef.current !== null) window.clearTimeout(dragReturnTimerRef.current);
+    dragReturnTimerRef.current = window.setTimeout(() => {
+      if (dragViewRef.current === returning || dragViewRef.current?.returning) {
+        dragViewRef.current = null;
+        setDrag(null);
+      }
+      dragReturnTimerRef.current = null;
+    }, RETURN_ANIMATION_MS);
+  }, []);
+
   const renderDragFrame = useCallback(() => {
     dragFrameRef.current = null;
     const gesture = dragRef.current;
@@ -192,9 +305,11 @@ export function SquadPage() {
     if (!gesture || gesture.pointerId !== pointerId || gesture.active) return;
     const pitch = pitchRef.current;
     if (!pitch) return;
+    clearDragActivationTimer(gesture);
     gesture.pitchRect = pitch.getBoundingClientRect();
     gesture.active = true;
-    if (!gesture.element.hasPointerCapture(pointerId)) gesture.element.setPointerCapture(pointerId);
+    if (!gesture.element.hasPointerCapture(pointerId)) safelyCapturePointer(gesture.element, pointerId);
+    releaseScrollLockRef.current = lockPageScrollingDuringDrag();
     impact('light');
     const initialView = { source: gesture.source, target: gesture.source, player: gesture.player, valid: true, clientX: gesture.clientX, clientY: gesture.clientY };
     dragViewRef.current = initialView;
@@ -205,15 +320,25 @@ export function SquadPage() {
   const beginDrag = useCallback((event: ReactPointerEvent<HTMLButtonElement>, source: DragLocation) => {
     const currentDraft = draftRef.current;
     const player = currentDraft ? playerAt(currentDraft, source) : null;
-    if (!currentDraft || !player || savePendingRef.current || event.button !== 0) return;
+    if (!currentDraft || !player || savePendingRef.current || event.button !== 0 || !event.isPrimary || dragRef.current) return;
+    if (dragReturnTimerRef.current !== null) {
+      window.clearTimeout(dragReturnTimerRef.current);
+      dragReturnTimerRef.current = null;
+      dragViewRef.current = null;
+      setDrag(null);
+    }
     const position = source.kind === 'pitch' ? currentDraft.positions[source.index] : null;
     const gesture: DragGesture = {
       source, player, pointerId: event.pointerId, pointerType: event.pointerType, startX: event.clientX, startY: event.clientY,
       clientX: event.clientX, clientY: event.clientY, x: position?.x ?? 50, y: position?.y ?? 50, target: source,
-      valid: true, active: false, finishing: false, moved: false, element: event.currentTarget, pitchRect: null,
+      valid: true, active: false, finishing: false, moved: false, element: event.currentTarget, pitchRect: null, activationTimer: null,
     };
     dragRef.current = gesture;
-  }, []);
+    safelyCapturePointer(gesture.element, gesture.pointerId);
+    if (gesture.pointerType !== 'mouse') {
+      gesture.activationTimer = window.setTimeout(() => activateDrag(gesture.pointerId), TOUCH_LONG_PRESS_MS);
+    }
+  }, [activateDrag]);
 
   const moveDrag = useCallback((event: ReactPointerEvent<HTMLButtonElement>) => {
     const gesture = dragRef.current;
@@ -226,13 +351,22 @@ export function SquadPage() {
     if (!gesture.active) {
       const distance = Math.hypot(deltaX, deltaY);
       const mouseReady = gesture.pointerType === 'mouse' && distance >= MOUSE_DRAG_THRESHOLD;
-      const deliberateTouchDrag = gesture.pointerType !== 'mouse' && Math.abs(deltaX) >= TOUCH_DRAG_THRESHOLD && Math.abs(deltaX) > Math.abs(deltaY) * 1.15;
+      const absX = Math.abs(deltaX);
+      const absY = Math.abs(deltaY);
+      const touchScroll = gesture.pointerType !== 'mouse' && absY >= TOUCH_SCROLL_THRESHOLD && absY > absX * 1.15;
+      if (touchScroll) {
+        clearDragActivationTimer(gesture);
+        dragRef.current = null;
+        safelyReleasePointer(gesture.element, gesture.pointerId);
+        return;
+      }
+      const deliberateTouchDrag = gesture.pointerType !== 'mouse' && distance >= TOUCH_DRAG_THRESHOLD && absX >= absY * .9;
       if (mouseReady || deliberateTouchDrag) activateDrag(event.pointerId);
-      return;
+      if (!gesture.active) return;
     }
 
     // Native vertical scrolling stays untouched until a drag has deliberately started.
-    event.preventDefault();
+    if (event.cancelable) event.preventDefault();
     if (dragFrameRef.current === null) dragFrameRef.current = window.requestAnimationFrame(renderDragFrame);
   }, [activateDrag, renderDragFrame]);
 
@@ -240,39 +374,61 @@ export function SquadPage() {
     const gesture = dragRef.current;
     if (!gesture || gesture.finishing || event.pointerId !== gesture.pointerId) return;
     gesture.finishing = true;
-    if (event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId);
+    clearDragActivationTimer(gesture);
+    safelyReleasePointer(event.currentTarget, event.pointerId);
     if (dragFrameRef.current !== null) {
       window.cancelAnimationFrame(dragFrameRef.current);
       dragFrameRef.current = null;
       renderDragFrame();
     }
     const wasActive = gesture.active;
-    gesture.element.style.transform = '';
     dragRef.current = null;
-    dragViewRef.current = null;
-    setDrag(null);
+    releaseDragScrollLock();
     if (wasActive) {
       suppressClickRef.current = true;
       window.setTimeout(() => { suppressClickRef.current = false; }, 0);
     }
-    if (cancelled || !wasActive || !gesture.moved) return;
+    if (!wasActive) {
+      dragViewRef.current = null;
+      setDrag(null);
+      return;
+    }
+    if (cancelled || !gesture.moved) {
+      if (gesture.moved) returnDragPreview(gesture);
+      else {
+        dragViewRef.current = null;
+        setDrag(null);
+      }
+      return;
+    }
     if (!gesture.valid) {
+      returnDragPreview(gesture);
       notify('warning');
       return void toast.error('این جابه‌جایی قوانین ترکیب را نقض می‌کند.');
     }
     const currentDraft = draftRef.current;
-    if (!currentDraft) return;
+    if (!currentDraft) return void returnDragPreview(gesture);
     if (gesture.target) {
-      if (sameDragLocation(gesture.source, gesture.target)) return;
+      if (sameDragLocation(gesture.source, gesture.target)) return void returnDragPreview(gesture);
       const next = swapPlayers(currentDraft, gesture.source, gesture.target);
-      if (next && !validateDraft(next)) commitDragDraft(next);
+      if (next && !validateDraft(next)) {
+        dragViewRef.current = null;
+        setDrag(null);
+        commitDragDraft(next);
+      } else returnDragPreview(gesture);
     } else if (gesture.source.kind === 'pitch' && currentDraft.formation === 'custom') {
       const positions = clonePositions(currentDraft.positions);
       positions[gesture.source.index] = { ...positions[gesture.source.index], x: roundCoordinate(gesture.x), y: roundCoordinate(gesture.y) };
       const next = { ...currentDraft, positions };
-      if (!validateDraft(next)) commitDragDraft(next);
+      if (!validateDraft(next)) {
+        dragViewRef.current = null;
+        setDrag(null);
+        commitDragDraft(next);
+      } else returnDragPreview(gesture);
+    } else {
+      returnDragPreview(gesture);
     }
-  }, [commitDragDraft, renderDragFrame]);
+  }, [commitDragDraft, releaseDragScrollLock, renderDragFrame, returnDragPreview]);
 
   const cancelDrag = useCallback((event: ReactPointerEvent<HTMLButtonElement>) => finishDrag(event, true), [finishDrag]);
 
@@ -281,8 +437,9 @@ export function SquadPage() {
     if (!gesture) return;
     if (gesture.finishing) return;
     gesture.finishing = true;
-    if (gesture.element.hasPointerCapture(gesture.pointerId)) gesture.element.releasePointerCapture(gesture.pointerId);
-    gesture.element.style.transform = '';
+    clearDragActivationTimer(gesture);
+    safelyReleasePointer(gesture.element, gesture.pointerId);
+    releaseDragScrollLock();
     if (dragFrameRef.current !== null) {
       window.cancelAnimationFrame(dragFrameRef.current);
       dragFrameRef.current = null;
@@ -290,7 +447,7 @@ export function SquadPage() {
     dragRef.current = null;
     dragViewRef.current = null;
     setDrag(null);
-  }, []);
+  }, [releaseDragScrollLock]);
 
   const openSlot = useCallback((index: number) => {
     if (suppressClickRef.current) return;
@@ -313,12 +470,14 @@ export function SquadPage() {
       window.removeEventListener('pagehide', cancelInterruptedDrag);
       document.removeEventListener('visibilitychange', cancelWhenHidden);
       const gesture = dragRef.current;
-      if (gesture) gesture.element.style.transform = '';
+      if (gesture) clearDragActivationTimer(gesture);
       if (dragFrameRef.current !== null) window.cancelAnimationFrame(dragFrameRef.current);
+      if (dragReturnTimerRef.current !== null) window.clearTimeout(dragReturnTimerRef.current);
+      releaseDragScrollLock();
       dragRef.current = null;
       dragViewRef.current = null;
     };
-  }, [cancelInterruptedDrag]);
+  }, [cancelInterruptedDrag, releaseDragScrollLock]);
 
   useEffect(() => {
     if (!squad.data || draft) return;
@@ -406,7 +565,7 @@ export function SquadPage() {
       <div className="mb-3 flex items-center justify-between rounded-2xl border border-white/[.06] bg-white/[.025] p-2.5">
         <div className="flex min-w-0 items-center gap-2">
           <span className={cn('h-2 w-2 shrink-0 rounded-full', dirty ? 'bg-amber-300 shadow-[0_0_12px_rgba(252,211,77,.5)]' : 'bg-emerald-400')}/>
-          <div className="min-w-0"><strong className="block text-[9px]">{demoMode ? 'حالت نمایشی' : dirty ? 'تغییرات ذخیره‌نشده' : 'همه تغییرات ذخیره شده'}</strong><span className="block truncate text-[7px] text-slate-500">{drag ? drag.valid ? 'رها کن تا جابه‌جا شود' : 'محل رهاکردن نامعتبر است' : 'بازیکن را بگیر و روی جایگاه مقصد رها کن'}</span></div>
+          <div className="min-w-0"><strong className="block text-[9px]">{demoMode ? 'حالت نمایشی' : dirty ? 'تغییرات ذخیره‌نشده' : 'همه تغییرات ذخیره شده'}</strong><span className="block truncate text-[7px] text-slate-500">{drag && !drag.returning ? drag.valid ? 'رها کن تا جابه‌جا شود' : 'محل رهاکردن نامعتبر است' : 'بازیکن را بگیر و روی جایگاه مقصد رها کن'}</span></div>
         </div>
         <button type="button" onClick={save} disabled={saveMutation.isPending || swapMutation.isPending || (!dirty && !demoMode)} className="inline-flex min-h-9 shrink-0 items-center gap-1.5 rounded-xl bg-pitch-400 px-3 text-[9px] font-black text-ink-950 transition active:scale-95 disabled:opacity-45">
           {saveMutation.isPending || swapMutation.isPending ? <RotateCcw size={14} className="animate-spin"/> : <Save size={14}/>}ذخیره ترکیب
@@ -420,7 +579,7 @@ export function SquadPage() {
         <div className="grid grid-cols-4 gap-1.5 rounded-[1.25rem] bg-white/[.025] p-1.5">{formationOptions.map(option => { const active = draft.formation === option.value; return <button type="button" key={option.value} aria-pressed={active} onClick={() => chooseFormation(option.value)} className={cn('min-h-9 min-w-0 rounded-xl px-1 text-[8px] font-black transition active:scale-95', active ? 'bg-pitch-400 text-ink-950 shadow-[0_7px_20px_rgba(16,185,129,.16)]' : 'text-slate-500 hover:bg-white/[.035]', option.value === 'custom' && 'leading-3')}>{option.label}</button>; })}</div>
       </section>
 
-      <FormationPitch ref={pitchRef} className={cn('lineup-pitch mx-auto w-full select-none', drag && 'is-dragging', drag ? drag.valid ? 'border-emerald-200/50' : 'border-rose-300/70' : 'border-emerald-100/[.18]')} aria-label="زمین چیدمان بازیکنان">
+      <FormationPitch ref={pitchRef} className={cn('lineup-pitch mx-auto w-full select-none', drag && !drag.returning && 'is-dragging', drag && !drag.returning ? drag.valid ? 'border-emerald-200/50' : 'border-rose-300/70' : 'border-emerald-100/[.18]')} aria-label="زمین چیدمان بازیکنان">
         {draft.positions.map((position, index) => <PitchSlot
           key={`${index}-${draft.starters[index]?._id ?? 'empty'}`}
           position={position}
@@ -437,7 +596,7 @@ export function SquadPage() {
           onLostPointerCapture={cancelDrag}
           onClick={openSlot}
         />)}
-        {drag && <div className={cn('pointer-events-none absolute left-1/2 top-3 z-30 -translate-x-1/2 rounded-full border px-2.5 py-1 text-[7px] font-black', drag.valid ? 'border-emerald-200/30 bg-emerald-950/95 text-emerald-100' : 'border-rose-200/30 bg-rose-950/95 text-rose-100')}>{drag.valid ? drag.target && !sameDragLocation(drag.source, drag.target) ? 'رها کن تا بازیکن‌ها جابه‌جا شوند' : 'بازیکن را روی مقصد رها کن' : 'این مقصد با قوانین ترکیب سازگار نیست'}</div>}
+        {drag && !drag.returning && <div className={cn('pointer-events-none absolute left-1/2 top-3 z-30 -translate-x-1/2 rounded-full border px-2.5 py-1 text-[7px] font-black', drag.valid ? 'border-emerald-200/30 bg-emerald-950/95 text-emerald-100' : 'border-rose-200/30 bg-rose-950/95 text-rose-100')}>{drag.valid ? drag.target && !sameDragLocation(drag.source, drag.target) ? 'رها کن تا بازیکن‌ها جابه‌جا شوند' : 'بازیکن را روی مقصد رها کن' : 'این مقصد با قوانین ترکیب سازگار نیست'}</div>}
       </FormationPitch>
 
       {validationMessage && !demoMode && <div className="mt-3 flex items-start gap-2 rounded-2xl border border-amber-300/15 bg-amber-300/[.06] p-2.5 text-[8px] leading-5 text-amber-100/80"><CircleAlert size={15} className="mt-0.5 shrink-0 text-amber-300"/><span>{validationMessage}</span></div>}
@@ -509,6 +668,8 @@ const PitchSlot = memo(function PitchSlot({ position, player, index, selected, d
 }) {
   const interactionProps = {
     'data-pitch-index': index,
+    draggable: false,
+    onDragStart: (event: ReactDragEvent<HTMLButtonElement>) => event.preventDefault(),
     onClick: () => onClick(index),
     onPointerDown: (event: ReactPointerEvent<HTMLButtonElement>) => onPointerDown(event, index),
     onPointerMove,
@@ -563,9 +724,9 @@ const BenchPlayer = memo(function BenchPlayer({ player, index, dragging, dropTar
 });
 
 function FloatingDragPlayer({ drag }: { drag: DragState }) {
-  return <div data-floating-drag-player dir="rtl" aria-hidden="true" style={{ left: drag.clientX, top: drag.clientY }} className={cn('pointer-events-none fixed z-[140] flex w-[92px] -translate-x-1/2 -translate-y-[115%] items-center gap-2 rounded-2xl border bg-ink-900/95 p-2 shadow-[0_14px_34px_rgba(0,0,0,.45)] backdrop-blur-md transition-colors', drag.valid ? 'border-emerald-300/70 shadow-emerald-950/40' : 'border-rose-300/75 shadow-rose-950/40')}>
+  return <div data-floating-drag-player dir="rtl" aria-hidden="true" style={{ left: drag.clientX, top: drag.clientY }} className={cn('lineup-drag-preview pointer-events-none fixed z-[140] flex w-[92px] items-center gap-2 rounded-2xl border bg-ink-900/95 p-2 shadow-[0_14px_34px_rgba(0,0,0,.45)] backdrop-blur-md transition-colors', drag.returning ? 'is-returning border-white/20' : drag.valid ? 'border-emerald-300/70 shadow-emerald-950/40' : 'border-rose-300/75 shadow-rose-950/40')}>
     <PlayerAvatar player={drag.player} className="h-9 w-9"/>
-    <span className="min-w-0 flex-1"><strong className="block truncate text-[8px] font-black text-white">{shortName(drag.player.name)}</strong><span className={cn('mt-1 block text-[6px] font-bold', drag.valid ? 'text-emerald-300' : 'text-rose-300')}>{drag.valid ? 'مقصد معتبر' : 'مقصد نامعتبر'}</span></span>
+    <span className="min-w-0 flex-1"><strong className="block truncate text-[8px] font-black text-white">{shortName(drag.player.name)}</strong><span className={cn('mt-1 block text-[6px] font-bold', drag.returning ? 'text-slate-300' : drag.valid ? 'text-emerald-300' : 'text-rose-300')}>{drag.returning ? 'بازگشت به جایگاه' : drag.valid ? 'مقصد معتبر' : 'مقصد نامعتبر'}</span></span>
   </div>;
 }
 
