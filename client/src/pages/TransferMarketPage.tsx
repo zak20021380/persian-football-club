@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import toast from 'react-hot-toast';
-import { BadgeDollarSign, Building2, CalendarClock, ChevronLeft, CircleDollarSign, Clock3, Flag, HandCoins, LoaderCircle, Search, Shirt, Tags, UserRound, UsersRound } from 'lucide-react';
+import { Building2, CalendarClock, ChevronLeft, CircleAlert, CircleDollarSign, Clock3, Flag, HandCoins, LoaderCircle, Search, Shirt, Tags, UserRound, UsersRound } from 'lucide-react';
 import { PageHeader } from '@/components/PageHeader';
 import { PlayerModalFrame } from '@/components/PlayerModalFrame';
 import { ErrorState, PageSkeleton } from '@/components/ui';
@@ -136,28 +136,68 @@ function MarketDetailsModal({ player, now, balance, loading, onClose, onSubmit }
   const belowAsking = player.status === 'active' && amount < basePrice;
   const insufficient = amount > balance;
   const blockedReason = sold ? 'این بازیکن فروخته شده است' : expired ? 'مهلت این آگهی تمام شده است' : player.ownedByCurrentUser ? 'این بازیکن متعلق به باشگاه شماست' : player.hasActiveOfferFromCurrentUser ? 'برای این بازیکن پیشنهاد فعال دارید' : belowAsking ? 'مبلغ کمتر از قیمت درخواستی است' : insufficient ? 'موجودی سکه کافی نیست' : null;
+  const offerDisabled = Boolean(blockedReason) || loading || amount < 1;
+  const inputDisabled = sold || expired || player.ownedByCurrentUser || player.hasActiveOfferFromCurrentUser;
   return <PlayerModalFrame label={`جزئیات آگهی ${player.name}`} onClose={onClose} swipeDisabled={loading}>
-    <div className="momentum-scroll mx-auto w-full max-w-xl overflow-y-auto overscroll-contain px-3 pb-[max(16px,var(--safe-bottom))]">
-      <section className="relative overflow-hidden rounded-[1.4rem] border border-white/[.08] bg-gradient-to-l from-sky-400/[.06] to-white/[.025] p-3">
-        <div className="pointer-events-none absolute -left-8 -top-10 h-28 w-28 rounded-full bg-sky-400/[.09] blur-3xl"/>
-        <div className="relative flex items-center gap-3"><PlayerPhoto player={player} className="h-[82px] w-[76px] shrink-0 rounded-[1.25rem] border-2 border-sky-200/20"/><div className="min-w-0 flex-1"><span className={cn('inline-flex rounded-full border px-2 py-0.5 text-[7px] font-black', statusMeta[player.status].className)}>{statusMeta[player.status].label}</span><h2 className="mt-1.5 truncate text-base font-black">{player.name}</h2><p className="mt-1 flex min-w-0 items-center gap-1.5 truncate text-[8px] text-slate-400"><Building2 size={10} className="shrink-0"/>{player.club || 'باشگاه ثبت نشده'}<span className="text-white/15">•</span><Flag size={10} className="shrink-0"/>{player.nationality || 'ملیت ثبت نشده'}</p></div></div>
+    <div className="momentum-scroll market-modal mx-auto w-full max-w-xl flex-1 overflow-y-auto overscroll-contain px-3 pb-[max(16px,var(--safe-bottom))]">
+      <section className="market-modal-identity relative overflow-hidden rounded-[1.4rem] border border-white/[.08] p-3.5">
+        <div className="pointer-events-none absolute -left-10 -top-12 h-32 w-32 rounded-full bg-sky-400/[.09] blur-3xl"/>
+        <div className="pointer-events-none absolute -right-8 -bottom-12 h-24 w-24 rounded-full bg-amber-400/[.06] blur-3xl"/>
+        <div className="relative">
+          <div className="flex items-center justify-between gap-2">
+            <span className={cn('inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[7px] font-black', statusMeta[player.status].className)}>
+              <span className="h-1.5 w-1.5 rounded-full bg-current shadow-[0_0_8px_currentColor]"/>
+              {statusMeta[player.status].label}
+            </span>
+            <span className="rounded-full border border-white/[.07] bg-white/[.04] px-2 py-0.5 text-[6.5px] font-black text-slate-300" dir="ltr">{player.position}</span>
+          </div>
+          <h2 className="mt-3 truncate text-[1.35rem] font-black leading-[1.15] tracking-[-.01em] text-white">{player.name}</h2>
+          <p className="mt-1.5 flex min-w-0 flex-wrap items-center gap-x-1.5 gap-y-1 text-[8px] text-slate-400">
+            <span className="flex shrink-0 items-center gap-1"><Shirt size={9} className="text-emerald-300/80"/>{positionLabel(player.position)}</span>
+            <span className="h-2.5 w-px shrink-0 bg-white/[.08]"/>
+            <span className="flex min-w-0 items-center gap-1 truncate"><Building2 size={9} className="shrink-0 text-slate-500"/><span className="truncate">{player.club || 'باشگاه ثبت نشده'}</span></span>
+            <span className="h-2.5 w-px shrink-0 bg-white/[.08]"/>
+            <span className="flex shrink-0 items-center gap-1"><Flag size={9} className="text-slate-500"/>{player.nationality || 'ملیت ثبت نشده'}</span>
+          </p>
+        </div>
       </section>
 
-      <section className="mt-2 grid grid-cols-2 gap-1.5" aria-label="اطلاعات آگهی">
-        <InfoCard icon={<Shirt size={13}/>} label="پست اصلی" value={`${positionLabel(player.position)} · ${player.position}`}/>
-        <InfoCard icon={<BadgeDollarSign size={13}/>} label="قیمت درخواستی" value={formatCoins(basePrice)}/>
-        <InfoCard icon={<Building2 size={13}/>} label="باشگاه فروشنده" value={player.sellerClub}/>
-        <InfoCard icon={<Tags size={13}/>} label="وضعیت آگهی" value={statusMeta[player.status].label}/>
-        <InfoCard icon={<CalendarClock size={13}/>} label="انقضای آگهی" value={player.expiresAt ? tehranDate(player.expiresAt) : 'بدون محدودیت'}/>
-        <InfoCard icon={<HandCoins size={13}/>} label="پیشنهاد فعال" value={`${faNumber(player.activeOfferCount)} پیشنهاد`}/>
+      <section className="mt-2.5 grid grid-cols-2 gap-1.5" aria-label="اطلاعات آگهی">
+        <InfoCard icon={<Building2 size={12}/>} label="باشگاه فروشنده" value={player.sellerClub}/>
+        <InfoCard icon={<Tags size={12}/>} label="وضعیت آگهی" value={statusMeta[player.status].label}/>
+        <InfoCard icon={<CalendarClock size={12}/>} label="انقضای آگهی" value={player.expiresAt ? tehranDate(player.expiresAt) : 'بدون محدودیت'}/>
+        <InfoCard icon={<HandCoins size={12}/>} label="پیشنهاد فعال" value={`${faNumber(player.activeOfferCount)} پیشنهاد`}/>
       </section>
 
-      <section className="mt-2 rounded-[1.3rem] border border-amber-300/[.13] bg-amber-400/[.045] p-3">
-        <div className="flex items-center justify-between gap-2"><span><span className="block text-[7px] text-slate-500">مبلغ پیشنهاد خرید</span><strong className="mt-0.5 block text-[9px] text-amber-100">موجودی شما: {faNumber(balance)} سکه</strong></span><CircleDollarSign size={20} className="text-amber-300"/></div>
-        <label className="mt-2 flex h-11 items-center gap-2 rounded-xl border border-white/[.08] bg-ink-950/70 px-3"><input type="number" inputMode="numeric" min={minAmount} value={amount} disabled={sold || expired || player.ownedByCurrentUser || player.hasActiveOfferFromCurrentUser} onChange={event => setAmount(Math.max(0, Number(event.target.value) || 0))} className="min-w-0 flex-1 bg-transparent text-[11px] font-black outline-none disabled:opacity-50" aria-label="مبلغ پیشنهاد خرید"/><span className="text-[8px] text-slate-400">سکه</span></label>
-        {blockedReason && <p className="mt-2 rounded-xl border border-rose-300/[.12] bg-rose-400/[.055] px-3 py-2 text-center text-[7.5px] font-bold text-rose-200">{blockedReason}</p>}
-        <button type="button" disabled={Boolean(blockedReason) || loading || amount < 1} onClick={() => onSubmit(amount)} className="mt-2 inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-l from-sky-400 to-emerald-400 text-[9.5px] font-black text-ink-950 transition active:scale-[.985] disabled:cursor-not-allowed disabled:from-slate-600 disabled:to-slate-600 disabled:text-slate-300 disabled:opacity-55">{loading ? <LoaderCircle size={14} className="animate-spin"/> : <HandCoins size={14}/>}ارسال پیشنهاد خرید</button>
+      <section className="market-modal-price relative mt-2.5 overflow-hidden rounded-[1.4rem] border border-amber-300/[.18] p-3.5">
+        <div className="pointer-events-none absolute inset-0 bg-gradient-to-l from-amber-400/[.07] via-transparent to-transparent"/>
+        <div className="relative flex items-center justify-between gap-3">
+          <div className="min-w-0">
+            <span className="block text-[6.5px] font-black uppercase tracking-wider text-amber-200/75">قیمت درخواستی</span>
+            <strong className="mt-1.5 block text-[1.2rem] font-black leading-none text-amber-100" dir="ltr">{faNumber(basePrice)}<span className="ms-1.5 text-[8px] font-black text-amber-300/80">سکه</span></strong>
+            <span className="mt-2 block text-[6.5px] text-slate-500">موجودی شما: {faNumber(balance)} سکه</span>
+          </div>
+          <span className="grid h-11 w-11 shrink-0 place-items-center rounded-2xl border border-amber-300/20 bg-amber-400/[.08] text-amber-300">
+            <CircleDollarSign size={19}/>
+          </span>
+        </div>
       </section>
+
+      <section className="mt-2.5 rounded-[1.3rem] border border-white/[.07] bg-white/[.025] p-3">
+        <label className="block">
+          <span className="block text-[6.5px] font-bold uppercase tracking-wider text-slate-500">مبلغ پیشنهاد خرید</span>
+          <div className="mt-1.5 flex h-11 items-center gap-2 rounded-xl border border-white/[.08] bg-ink-950/70 px-3 transition focus-within:border-sky-300/35">
+            <input type="number" inputMode="numeric" min={minAmount} value={amount} disabled={inputDisabled} onChange={event => setAmount(Math.max(0, Number(event.target.value) || 0))} className="min-w-0 flex-1 bg-transparent text-[11px] font-black text-white outline-none disabled:opacity-50" aria-label="مبلغ پیشنهاد خرید"/>
+            <span className="text-[8px] font-bold text-slate-400">سکه</span>
+          </div>
+        </label>
+        {blockedReason && <p className="mt-2 flex items-center gap-1.5 rounded-xl border border-rose-300/[.14] bg-rose-400/[.055] px-3 py-2 text-[7.5px] font-bold text-rose-200"><CircleAlert size={12} className="shrink-0"/>{blockedReason}</p>}
+      </section>
+
+      <button type="button" disabled={offerDisabled} onClick={() => onSubmit(amount)} className="market-modal-cta mt-2.5 inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-xl text-[9.5px] font-black transition">
+        {loading ? <LoaderCircle size={15} className="animate-spin"/> : <HandCoins size={15}/>}
+        <span>{loading ? 'در حال ارسال پیشنهاد…' : 'ارسال پیشنهاد خرید'}</span>
+      </button>
     </div>
   </PlayerModalFrame>;
 }
@@ -166,17 +206,14 @@ function FilterSelect({ label, value, onChange, options }: { label: string; valu
   return <label className="min-w-0"><span className="sr-only">{label}</span><select value={value} onChange={event => onChange(event.target.value)} className="h-9 w-full min-w-0 rounded-xl border border-white/[.07] bg-ink-950 px-1.5 text-[7px] font-bold text-slate-300 outline-none">{options.map(([optionValue, optionLabel]) => <option key={optionValue} value={optionValue}>{optionLabel}</option>)}</select></label>;
 }
 
-function PlayerPhoto({ player, className }: { player: MarketPlayer; className?: string }) {
-  if (player.demoIndex !== undefined) {
-    const column = player.demoIndex % 4;
-    const row = Math.floor(player.demoIndex / 4);
-    return <span role="img" aria-label={`تصویر ${player.name}`} className={cn('block bg-cover bg-no-repeat', className)} style={{ backgroundImage: "url('/assets/demo-player-sprite.png')", backgroundSize: '400% 300%', backgroundPosition: `${column * 33.333}% ${row * 50}%` }}/>;
-  }
-  return player.photoUrl ? <img src={player.photoUrl} alt={`تصویر ${player.name}`} loading="lazy" className={cn('block object-cover', className)}/> : <span role="img" aria-label={`نمایه ${player.name}`} className={cn('grid place-items-center bg-ink-850 text-lg font-black text-sky-300', className)}>{player.name.slice(0, 1)}</span>;
-}
-
 function InfoCard({ icon, label, value }: { icon: React.ReactNode; label: string; value: string }) {
-  return <div className="flex min-h-[50px] min-w-0 items-center gap-2 rounded-xl border border-white/[.06] bg-white/[.035] p-2"><span className="grid h-7 w-7 shrink-0 place-items-center rounded-lg bg-sky-400/[.08] text-sky-300">{icon}</span><span className="min-w-0 flex-1"><span className="block text-[6px] text-slate-500">{label}</span><strong className="mt-0.5 block truncate text-[7px] text-slate-100">{value}</strong></span></div>;
+  return <div className="market-modal-stat flex min-h-[52px] min-w-0 items-center gap-2 rounded-xl border border-white/[.06] bg-white/[.025] p-2 shadow-[inset_0_1px_rgba(255,255,255,.022)]">
+    <span className="grid h-7 w-7 shrink-0 place-items-center rounded-lg border border-sky-300/[.12] bg-sky-400/[.08] text-sky-300">{icon}</span>
+    <span className="min-w-0 flex-1">
+      <span className="block text-[6px] font-bold uppercase tracking-wider text-slate-500">{label}</span>
+      <strong className="mt-0.5 block truncate text-[7.5px] font-black text-slate-100">{value}</strong>
+    </span>
+  </div>;
 }
 
 function EmptyMarket({ filtered }: { filtered: boolean }) {
