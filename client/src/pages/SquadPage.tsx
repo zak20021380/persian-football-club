@@ -525,7 +525,6 @@ const PitchSlot = memo(function PitchSlot({ position, player, index, selected, d
     {...interactionProps}
     position={position}
     name={player.name}
-    avatar={<PlayerAvatar player={player} className="h-full w-full !border-0"/>}
     primaryMeta={position.role}
     secondaryMeta={faNumber(player.overall)}
     overlay={overlay}
