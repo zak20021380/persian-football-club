@@ -33,6 +33,7 @@ import {
 } from 'lucide-react';
 import { BrandMark } from '@/components/BrandMark';
 import { ClubCrest } from '@/components/ClubCrest';
+import { FormationPitch, FormationPitchEmptySlot, FormationPitchPlayer } from '@/components/FormationPitch';
 import { PlayerModalFrame } from '@/components/PlayerModalFrame';
 import { WalletShortcut } from '@/components/WalletShortcut';
 import { ErrorState } from '@/components/ui';
@@ -462,32 +463,31 @@ function PublicFormationPitch({ details, onPlayer }: { details: RankingClubDetai
   return (
     <section className="mt-3">
       <SquadSectionHead title="ترکیب اصلی" count={details.starters.filter(Boolean).length} trailing={details.formation || '4-3-3'}/>
-      <div className="public-fantasy-pitch relative mt-2 overflow-hidden rounded-[1.35rem] border border-emerald-100/[.18]" dir="ltr" aria-label={`ترکیب اصلی با آرایش ${details.formation || '4-3-3'}`}>
-        <div className="public-pitch-atmosphere absolute inset-0"/>
-        <PitchMarkings/>
+      <FormationPitch className="mt-2" aria-label={`ترکیب اصلی با آرایش ${details.formation || '4-3-3'}`}>
         {details.starters.map((player, index) => {
           const position = positions[index] ?? formations['4-3-3'][index];
-          return player ? <PublicPitchPlayer key={player._id} player={player} position={position} captain={player._id === details.captainId} vice={player._id === details.viceCaptainId} onClick={() => onPlayer({ player, role: position.role })}/> : <span key={`empty-${index}`} style={{ left: `${position.x}%`, top: `${position.y}%` }} className="public-empty-slot absolute grid h-7 w-7 -translate-x-1/2 -translate-y-1/2 place-items-center rounded-full border border-dashed border-white/25 text-[5px] text-white/35">{position.role}</span>;
+          return player ? <PublicPitchPlayer key={player._id} player={player} position={position} captain={player._id === details.captainId} vice={player._id === details.viceCaptainId} onClick={() => onPlayer({ player, role: position.role })}/> : <FormationPitchEmptySlot key={`empty-${index}`} position={position} disabled aria-label={`جایگاه خالی ${position.role}`}/>;
         })}
-      </div>
+      </FormationPitch>
     </section>
   );
-}
-
-function PitchMarkings() {
-  return <div className="pointer-events-none absolute inset-2.5 rounded-[1rem] border border-white/[.23]"><span className="absolute inset-x-0 top-1/2 border-t border-white/[.2]"/><span className="absolute left-1/2 top-1/2 h-[20%] w-[34%] -translate-x-1/2 -translate-y-1/2 rounded-full border border-white/[.2]"/><span className="absolute left-1/2 top-1/2 h-1.5 w-1.5 -translate-x-1/2 -translate-y-1/2 rounded-full bg-white/35"/><span className="absolute left-1/2 top-0 h-[17%] w-[48%] -translate-x-1/2 border border-t-0 border-white/[.2]"/><span className="absolute bottom-0 left-1/2 h-[17%] w-[48%] -translate-x-1/2 border border-b-0 border-white/[.2]"/><span className="absolute left-1/2 top-0 h-[7%] w-[22%] -translate-x-1/2 border border-t-0 border-white/[.18]"/><span className="absolute bottom-0 left-1/2 h-[7%] w-[22%] -translate-x-1/2 border border-b-0 border-white/[.18]"/></div>;
 }
 
 function PublicPitchPlayer({ player, position, captain, vice, onClick }: { player: RankingClubPlayer; position: FormationSlot; captain: boolean; vice: boolean; onClick: () => void }) {
   const status = availabilityMeta(player.availability);
   const StatusIcon = status.icon;
-  return (
-    <button type="button" onClick={onClick} aria-label={`جزئیات ${player.name}، ${position.role}، ${player.gameweekPoints} امتیاز`} style={{ left: `${position.x}%`, top: `${position.y}%` }} className={cn('public-pitch-player absolute flex -translate-x-1/2 -translate-y-1/2 flex-col items-center text-center', player.availability !== 'available' && 'has-status')}>
-      <span className="relative grid h-8 w-8 place-items-center overflow-visible rounded-full border border-white/25 bg-[#101a38] shadow-[0_7px_14px_rgba(0,0,0,.38)] min-[375px]:h-9 min-[375px]:w-9 min-[430px]:h-10 min-[430px]:w-10">{player.photoUrl ? <img src={player.photoUrl} alt="" className="h-full w-full rounded-full object-cover"/> : <UserRound size={15} className="text-cyan-100"/>}{(captain || vice) && <i className={cn('absolute -right-1 -top-1 grid h-4 w-4 place-items-center rounded-full border border-black/25 text-[6px] font-black not-italic shadow-md', captain ? 'bg-amber-300 text-[#181006]' : 'bg-slate-200 text-slate-900')}>{captain ? 'C' : 'V'}</i>}{player.availability !== 'available' && <i className={cn('absolute -left-1 -top-1 grid h-4 w-4 place-items-center rounded-full border border-black/20 not-italic', status.className)} title={status.label}><StatusIcon size={8}/></i>}</span>
-      <strong className="mt-0.5 block w-full truncate rounded-md bg-[#061324]/90 px-1 py-0.5 text-[5.5px] font-black leading-3 text-white min-[375px]:text-[6px] min-[430px]:text-[6.5px]">{shortPlayerName(player.name)}</strong>
-      <span className="mt-px flex items-center gap-0.5 rounded-full bg-black/45 px-1 py-0.5 text-[5px] font-bold text-cyan-50"><b className="text-cyan-300">{position.role}</b><i className="not-italic text-white/25">·</i>{faNumber(player.gameweekPoints)}</span>
-    </button>
-  );
+  return <FormationPitchPlayer
+    position={position}
+    name={player.name}
+    avatarUrl={player.photoUrl}
+    primaryMeta={position.role}
+    secondaryMeta={faNumber(player.gameweekPoints)}
+    rightBadge={captain || vice ? { content: captain ? 'C' : 'V', className: captain ? 'bg-amber-300 text-[#181006]' : 'bg-slate-200 text-slate-900' } : undefined}
+    leftBadge={player.availability !== 'available' ? { content: <StatusIcon size={8}/>, className: status.className, title: status.label } : undefined}
+    onClick={onClick}
+    aria-label={`جزئیات ${player.name}، ${position.role}، ${player.gameweekPoints} امتیاز`}
+    className={player.availability !== 'available' ? 'has-status' : undefined}
+  />;
 }
 
 function PublicBench({ details, onPlayer }: { details: RankingClubDetails; onPlayer: (selection: SelectedPublicPlayer) => void }) {

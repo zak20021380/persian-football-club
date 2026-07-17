@@ -392,12 +392,11 @@ button { touch-action: manipulation; }
 .store-buy-button { border:1px solid rgba(255,255,255,.055); background:rgba(255,255,255,.035); color:#667487; }
 .store-buy-button.is-available { border-color:rgba(105,239,214,.17); background:linear-gradient(105deg,rgba(73,228,242,.13),rgba(114,248,220,.13)); color:#9cf2df; box-shadow:inset 0 1px rgba(255,255,255,.035); }
 .squad-player { animation: squad-player-in .42s cubic-bezier(.22,1,.36,1) both; }
-.squad-page { -webkit-overflow-scrolling: touch; overscroll-behavior-y: contain; }
+.squad-page { -webkit-overflow-scrolling: touch; }
 .squad-page > header { contain: paint; background-color: rgba(7,17,31,.97); -webkit-backdrop-filter: none; backdrop-filter: none; }
-.lineup-pitch { contain: layout paint style; touch-action: auto; overflow-anchor: none; -webkit-user-select: none; user-select: none; }
-.lineup-player { touch-action: auto; transform: translate3d(-50%,-50%,0); animation: lineup-player-in .28s ease-out both; }
-.bench-player { touch-action: auto; }
-.lineup-pitch.is-dragging,.lineup-player.is-dragging,.bench-player.is-dragging { touch-action: none; overscroll-behavior: none; }
+.lineup-pitch { contain: layout paint style; touch-action: pan-y; overflow-anchor: none; -webkit-user-select: none; user-select: none; }
+.lineup-player { touch-action: pan-y; transform: translate3d(-50%,-50%,0); animation: lineup-player-in .28s ease-out both; }
+.bench-player { touch-action: pan-y; }
 .lineup-player.is-selected { transform: translate3d(-50%,-50%,0) scale(1.05); }
 .lineup-player.is-dragging { will-change: transform; }
 .lineup-player.is-dragging > span { box-shadow: 0 8px 16px rgba(0,0,0,.28); }

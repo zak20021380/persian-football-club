@@ -4,6 +4,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { ArrowLeft, ArrowLeftRight, BadgeDollarSign, BriefcaseBusiness, Building2, CalendarClock, CircleAlert, Eye, Flag, ListRestart, Plus, RotateCcw, Save, Shirt, Sparkles, Trash2, UserRound, UsersRound } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import toast from 'react-hot-toast';
+import { FormationPitch, FormationPitchEmptySlot, FormationPitchPlayer } from '@/components/FormationPitch';
 import { PageHeader } from '@/components/PageHeader';
 import { PlayerModalFrame } from '@/components/PlayerModalFrame';
 import { Card, ErrorState, PageSkeleton } from '@/components/ui';
@@ -48,7 +49,6 @@ interface DragGesture {
   moved: boolean;
   element: HTMLButtonElement;
   pitchRect: DOMRect|null;
-  longPressTimer: number|null;
 }
 
 const formationOptions: Array<{ value: SquadFormation; label: string }> = [
@@ -83,7 +83,6 @@ const demoSubstitutes: DisplayPlayer[] = [
 ];
 
 const DRAFT_KEY = 'persian-football-club:squad-draft:v2';
-const LONG_PRESS_MS = 180;
 const TOUCH_DRAG_THRESHOLD = 12;
 const MOUSE_DRAG_THRESHOLD = 4;
 const MIN_SLOT_X_GAP = 18;
@@ -91,12 +90,11 @@ const MIN_SLOT_Y_GAP = 15;
 
 export function SquadPage() {
   const queryClient = useQueryClient();
-  const pitchRef = useRef<HTMLElement|null>(null);
+  const pitchRef = useRef<HTMLDivElement|null>(null);
   const draftRef = useRef<LineupDraft|null>(null);
   const dragRef = useRef<DragGesture|null>(null);
   const dragViewRef = useRef<DragState|null>(null);
   const dragFrameRef = useRef<number|null>(null);
-  const dragScrollCleanupRef = useRef<(() => void)|null>(null);
   const savePendingRef = useRef(false);
   const suppressClickRef = useRef(false);
   const dirtyRef = useRef(false);
@@ -196,11 +194,8 @@ export function SquadPage() {
     if (!pitch) return;
     gesture.pitchRect = pitch.getBoundingClientRect();
     gesture.active = true;
-    dragScrollCleanupRef.current?.();
-    dragScrollCleanupRef.current = lockDragScrolling(gesture.element, pitch);
+    if (!gesture.element.hasPointerCapture(pointerId)) gesture.element.setPointerCapture(pointerId);
     impact('light');
-    if (gesture.longPressTimer !== null) window.clearTimeout(gesture.longPressTimer);
-    gesture.longPressTimer = null;
     const initialView = { source: gesture.source, target: gesture.source, player: gesture.player, valid: true, clientX: gesture.clientX, clientY: gesture.clientY };
     dragViewRef.current = initialView;
     setDrag(initialView);
@@ -211,16 +206,14 @@ export function SquadPage() {
     const currentDraft = draftRef.current;
     const player = currentDraft ? playerAt(currentDraft, source) : null;
     if (!currentDraft || !player || savePendingRef.current || event.button !== 0) return;
-    event.currentTarget.setPointerCapture(event.pointerId);
     const position = source.kind === 'pitch' ? currentDraft.positions[source.index] : null;
     const gesture: DragGesture = {
       source, player, pointerId: event.pointerId, pointerType: event.pointerType, startX: event.clientX, startY: event.clientY,
       clientX: event.clientX, clientY: event.clientY, x: position?.x ?? 50, y: position?.y ?? 50, target: source,
-      valid: true, active: false, finishing: false, moved: false, element: event.currentTarget, pitchRect: null, longPressTimer: null,
+      valid: true, active: false, finishing: false, moved: false, element: event.currentTarget, pitchRect: null,
     };
-    gesture.longPressTimer = window.setTimeout(() => activateDrag(event.pointerId), LONG_PRESS_MS);
     dragRef.current = gesture;
-  }, [activateDrag]);
+  }, []);
 
   const moveDrag = useCallback((event: ReactPointerEvent<HTMLButtonElement>) => {
     const gesture = dragRef.current;
@@ -235,10 +228,6 @@ export function SquadPage() {
       const mouseReady = gesture.pointerType === 'mouse' && distance >= MOUSE_DRAG_THRESHOLD;
       const deliberateTouchDrag = gesture.pointerType !== 'mouse' && Math.abs(deltaX) >= TOUCH_DRAG_THRESHOLD && Math.abs(deltaX) > Math.abs(deltaY) * 1.15;
       if (mouseReady || deliberateTouchDrag) activateDrag(event.pointerId);
-      else if (Math.abs(deltaY) >= TOUCH_DRAG_THRESHOLD && Math.abs(deltaY) > Math.abs(deltaX)) {
-        if (gesture.longPressTimer !== null) window.clearTimeout(gesture.longPressTimer);
-        gesture.longPressTimer = null;
-      }
       return;
     }
 
@@ -251,7 +240,6 @@ export function SquadPage() {
     const gesture = dragRef.current;
     if (!gesture || gesture.finishing || event.pointerId !== gesture.pointerId) return;
     gesture.finishing = true;
-    if (gesture.longPressTimer !== null) window.clearTimeout(gesture.longPressTimer);
     if (event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId);
     if (dragFrameRef.current !== null) {
       window.cancelAnimationFrame(dragFrameRef.current);
@@ -260,8 +248,6 @@ export function SquadPage() {
     }
     const wasActive = gesture.active;
     gesture.element.style.transform = '';
-    dragScrollCleanupRef.current?.();
-    dragScrollCleanupRef.current = null;
     dragRef.current = null;
     dragViewRef.current = null;
     setDrag(null);
@@ -292,22 +278,15 @@ export function SquadPage() {
 
   const cancelInterruptedDrag = useCallback(() => {
     const gesture = dragRef.current;
-    if (!gesture) {
-      dragScrollCleanupRef.current?.();
-      dragScrollCleanupRef.current = null;
-      return;
-    }
+    if (!gesture) return;
     if (gesture.finishing) return;
     gesture.finishing = true;
-    if (gesture.longPressTimer !== null) window.clearTimeout(gesture.longPressTimer);
     if (gesture.element.hasPointerCapture(gesture.pointerId)) gesture.element.releasePointerCapture(gesture.pointerId);
     gesture.element.style.transform = '';
     if (dragFrameRef.current !== null) {
       window.cancelAnimationFrame(dragFrameRef.current);
       dragFrameRef.current = null;
     }
-    dragScrollCleanupRef.current?.();
-    dragScrollCleanupRef.current = null;
     dragRef.current = null;
     dragViewRef.current = null;
     setDrag(null);
@@ -334,11 +313,8 @@ export function SquadPage() {
       window.removeEventListener('pagehide', cancelInterruptedDrag);
       document.removeEventListener('visibilitychange', cancelWhenHidden);
       const gesture = dragRef.current;
-      if (gesture?.longPressTimer !== null && gesture?.longPressTimer !== undefined) window.clearTimeout(gesture.longPressTimer);
       if (gesture) gesture.element.style.transform = '';
       if (dragFrameRef.current !== null) window.cancelAnimationFrame(dragFrameRef.current);
-      dragScrollCleanupRef.current?.();
-      dragScrollCleanupRef.current = null;
       dragRef.current = null;
       dragViewRef.current = null;
     };
@@ -424,7 +400,7 @@ export function SquadPage() {
     saveMutation.mutate(draft);
   };
 
-  return <div className="squad-page min-h-screen overflow-x-hidden pb-8">
+  return <div className="squad-page min-h-[100dvh] overflow-x-clip pb-[max(2rem,var(--safe-bottom))]">
     <PageHeader title="ترکیب من" subtitle={`${faNumber(draft.starters.filter(Boolean).length)} بازیکن در ترکیب`} back backTo="/club" tone="mint" eyebrow="TACTICAL BOARD / XI"/>
     <main className="mx-auto max-w-xl px-3 pt-3 sm:px-4">
       <div className="mb-3 flex items-center justify-between rounded-2xl border border-white/[.06] bg-white/[.025] p-2.5">
@@ -444,14 +420,7 @@ export function SquadPage() {
         <div className="grid grid-cols-4 gap-1.5 rounded-[1.25rem] bg-white/[.025] p-1.5">{formationOptions.map(option => { const active = draft.formation === option.value; return <button type="button" key={option.value} aria-pressed={active} onClick={() => chooseFormation(option.value)} className={cn('min-h-9 min-w-0 rounded-xl px-1 text-[8px] font-black transition active:scale-95', active ? 'bg-pitch-400 text-ink-950 shadow-[0_7px_20px_rgba(16,185,129,.16)]' : 'text-slate-500 hover:bg-white/[.035]', option.value === 'custom' && 'leading-3')}>{option.label}</button>; })}</div>
       </section>
 
-      <section ref={pitchRef} className={cn('lineup-pitch relative mx-auto aspect-[0.648] w-full max-w-[430px] select-none overflow-hidden rounded-[1.75rem] border bg-[#09603f] shadow-[0_10px_28px_rgba(0,0,0,.26)]', drag && 'is-dragging', drag ? drag.valid ? 'border-emerald-200/50' : 'border-rose-300/70' : 'border-emerald-200/[.16]')} dir="ltr" aria-label="زمین چیدمان بازیکنان">
-        <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_45%,rgba(255,255,255,.07),transparent_38%),repeating-linear-gradient(90deg,rgba(255,255,255,.028)_0,rgba(255,255,255,.028)_12.5%,transparent_12.5%,transparent_25%)]"/>
-        <div className="absolute inset-3 rounded-[1.25rem] border border-white/25"/>
-        <div className="absolute inset-x-3 top-1/2 border-t border-white/25"/>
-        <div className="absolute left-1/2 top-1/2 h-[21%] w-[32%] -translate-x-1/2 -translate-y-1/2 rounded-full border border-white/25"/>
-        <div className="absolute left-1/2 top-3 h-[16%] w-[48%] -translate-x-1/2 border border-t-0 border-white/25"/>
-        <div className="absolute bottom-3 left-1/2 h-[16%] w-[48%] -translate-x-1/2 border border-b-0 border-white/25"/>
-        <div className="absolute left-1/2 top-1/2 h-1.5 w-1.5 -translate-x-1/2 -translate-y-1/2 rounded-full bg-white/40"/>
+      <FormationPitch ref={pitchRef} className={cn('lineup-pitch mx-auto w-full select-none', drag && 'is-dragging', drag ? drag.valid ? 'border-emerald-200/50' : 'border-rose-300/70' : 'border-emerald-100/[.18]')} aria-label="زمین چیدمان بازیکنان">
         {draft.positions.map((position, index) => <PitchSlot
           key={`${index}-${draft.starters[index]?._id ?? 'empty'}`}
           position={position}
@@ -469,7 +438,7 @@ export function SquadPage() {
           onClick={openSlot}
         />)}
         {drag && <div className={cn('pointer-events-none absolute left-1/2 top-3 z-30 -translate-x-1/2 rounded-full border px-2.5 py-1 text-[7px] font-black', drag.valid ? 'border-emerald-200/30 bg-emerald-950/95 text-emerald-100' : 'border-rose-200/30 bg-rose-950/95 text-rose-100')}>{drag.valid ? drag.target && !sameDragLocation(drag.source, drag.target) ? 'رها کن تا بازیکن‌ها جابه‌جا شوند' : 'بازیکن را روی مقصد رها کن' : 'این مقصد با قوانین ترکیب سازگار نیست'}</div>}
-      </section>
+      </FormationPitch>
 
       {validationMessage && !demoMode && <div className="mt-3 flex items-start gap-2 rounded-2xl border border-amber-300/15 bg-amber-300/[.06] p-2.5 text-[8px] leading-5 text-amber-100/80"><CircleAlert size={15} className="mt-0.5 shrink-0 text-amber-300"/><span>{validationMessage}</span></div>}
 
@@ -538,16 +507,36 @@ const PitchSlot = memo(function PitchSlot({ position, player, index, selected, d
   onPointerUp: (event: ReactPointerEvent<HTMLButtonElement>) => void; onPointerCancel: (event: ReactPointerEvent<HTMLButtonElement>) => void; onClick: (index: number) => void;
   onLostPointerCapture: (event: ReactPointerEvent<HTMLButtonElement>) => void;
 }) {
-  return <button type="button" data-pitch-index={index} onClick={() => onClick(index)} onPointerDown={event => onPointerDown(event, index)} onPointerMove={onPointerMove} onPointerUp={onPointerUp} onPointerCancel={onPointerCancel} onLostPointerCapture={onLostPointerCapture} aria-label={player ? `${player.name}، ${player.position}` : `افزودن بازیکن به پست ${position.role}`} style={{ left: `${position.x}%`, top: `${position.y}%`, zIndex: dragging ? 40 : dropTarget ? 30 : 10, animationDelay: `${index * 22}ms`, viewTransitionName: player ? transitionName(player) : undefined }} className={cn('lineup-player absolute flex w-[56px] -translate-x-1/2 -translate-y-1/2 flex-col items-center text-center transition-[opacity,filter] duration-200 min-[390px]:w-[62px]', dragging && 'is-dragging cursor-grabbing opacity-25 grayscale', selected && !dragging && 'is-selected')}>
-    {dropTarget && <span className={cn('pointer-events-none absolute -inset-2 -z-10 rounded-[1.35rem] border-2 border-dashed', dropValid ? 'border-emerald-200 bg-emerald-300/15' : 'border-rose-200 bg-rose-300/15')}/>}
-    {player ? <>
-      <span className={cn('relative rounded-[1.1rem] border bg-gradient-to-b from-slate-800/95 to-ink-950/95 px-1.5 pb-1.5 pt-1 shadow-[0_5px_12px_rgba(0,0,0,.24)]', dragging ? 'border-emerald-200/70' : 'border-white/20')}>
-        <PlayerAvatar player={player} className="mx-auto h-9 w-9 min-[390px]:h-10 min-[390px]:w-10"/>
-        <span className="mt-1 flex items-center justify-center gap-1"><i className="h-1.5 w-1.5 rounded-full bg-emerald-400 shadow-[0_0_7px_rgba(52,211,153,.8)]"/><strong className="max-w-[40px] truncate text-[7px] leading-none text-white min-[390px]:max-w-[46px]">{shortName(player.name)}</strong></span>
-        <span className="mt-1 text-[6px] font-bold text-emerald-200">{position.role}</span>
-      </span>
-    </> : <span className={cn('flex min-h-[58px] w-[50px] flex-col items-center justify-center rounded-[1.1rem] border border-dashed bg-ink-950/55 text-white/75 shadow-[0_5px_12px_rgba(0,0,0,.14)] min-[390px]:w-[54px]', selected ? 'border-amber-300 text-amber-300' : 'border-white/35', dropTarget && 'border-emerald-100 bg-emerald-950/70')}><span className="grid h-7 w-7 place-items-center rounded-full bg-white/[.07]"><Plus size={14}/></span><strong className="mt-1 text-[6px]">افزودن بازیکن</strong><span className="mt-0.5 text-[6px] font-black text-emerald-100/75">{position.role}</span></span>}
-  </button>;
+  const interactionProps = {
+    'data-pitch-index': index,
+    onClick: () => onClick(index),
+    onPointerDown: (event: ReactPointerEvent<HTMLButtonElement>) => onPointerDown(event, index),
+    onPointerMove,
+    onPointerUp,
+    onPointerCancel,
+    onLostPointerCapture,
+    'aria-label': player ? `${player.name}، ${player.position}` : `افزودن بازیکن به پست ${position.role}`,
+  };
+  const markerStyle = { zIndex: dragging ? 40 : dropTarget ? 30 : 10, animationDelay: `${index * 22}ms`, viewTransitionName: player ? transitionName(player) : undefined };
+  const markerClassName = cn('lineup-player transition-[opacity,filter] duration-200', dragging && 'is-dragging cursor-grabbing opacity-25 grayscale', selected && !dragging && 'is-selected');
+  const overlay = dropTarget ? <span className={cn('pointer-events-none absolute -inset-2 -z-10 rounded-[1.35rem] border-2 border-dashed', dropValid ? 'border-emerald-200 bg-emerald-300/15' : 'border-rose-200 bg-rose-300/15')}/> : undefined;
+
+  return player ? <FormationPitchPlayer
+    {...interactionProps}
+    position={position}
+    name={player.name}
+    avatar={<PlayerAvatar player={player} className="h-full w-full !border-0"/>}
+    primaryMeta={position.role}
+    secondaryMeta={faNumber(player.overall)}
+    overlay={overlay}
+    style={markerStyle}
+    className={markerClassName}
+  /> : <FormationPitchEmptySlot
+    {...interactionProps}
+    position={position}
+    style={markerStyle}
+    className={cn('lineup-player', selected && 'is-selected border-amber-300 text-amber-300', dropTarget && (dropValid ? 'border-emerald-100 bg-emerald-950/70 text-emerald-100' : 'border-rose-200 bg-rose-950/70 text-rose-100'))}
+  />;
 });
 
 function PlayerAvatar({ player, className }: { player: DisplayPlayer; className?: string }) {
@@ -769,54 +758,3 @@ function positionLabel(position: ClubPlayer['position']) {
 function formatMarketValue(value?: number) { return value === undefined ? 'ثبت نشده' : `${faNumber(value)} سکه`; }
 function clamp(value: number, min: number, max: number) { return Math.min(max, Math.max(min, value)); }
 function roundCoordinate(value: number) { return Math.round(value * 10) / 10; }
-function preventActiveTouchScroll(event: TouchEvent) { if (event.cancelable) event.preventDefault(); }
-
-function lockDragScrolling(player: HTMLElement, pitch: HTMLElement): () => void {
-  const root = document.documentElement;
-  const body = document.body;
-  const scrollX = window.scrollX;
-  const scrollY = window.scrollY;
-  const rootStyles = captureInlineStyles(root, ['overflow', 'overscrollBehavior', 'touchAction']);
-  const bodyStyles = captureInlineStyles(body, ['overflow', 'overscrollBehavior', 'touchAction', 'position', 'top', 'left', 'right', 'width']);
-  const pitchStyles = captureInlineStyles(pitch, ['touchAction', 'overscrollBehavior']);
-  const playerStyles = captureInlineStyles(player, ['touchAction', 'overscrollBehavior']);
-
-  root.style.overflow = 'hidden';
-  root.style.overscrollBehavior = 'none';
-  root.style.touchAction = 'none';
-  body.style.overflow = 'hidden';
-  body.style.overscrollBehavior = 'none';
-  body.style.touchAction = 'none';
-  body.style.position = 'fixed';
-  body.style.top = `${-scrollY}px`;
-  body.style.left = `${-scrollX}px`;
-  body.style.right = '0';
-  body.style.width = '100%';
-  pitch.style.touchAction = 'none';
-  pitch.style.overscrollBehavior = 'none';
-  player.style.touchAction = 'none';
-  player.style.overscrollBehavior = 'none';
-  window.addEventListener('touchmove', preventActiveTouchScroll, { passive: false, capture: true });
-
-  let restored = false;
-  return () => {
-    if (restored) return;
-    restored = true;
-    window.removeEventListener('touchmove', preventActiveTouchScroll, true);
-    restoreInlineStyles(root, rootStyles);
-    restoreInlineStyles(body, bodyStyles);
-    restoreInlineStyles(pitch, pitchStyles);
-    restoreInlineStyles(player, playerStyles);
-    window.scrollTo(scrollX, scrollY);
-  };
-}
-
-type LockStyleProperty = 'overflow'|'overscrollBehavior'|'touchAction'|'position'|'top'|'left'|'right'|'width';
-
-function captureInlineStyles(element: HTMLElement, properties: LockStyleProperty[]) {
-  return properties.map(property => [property, element.style[property] as string] as const);
-}
-
-function restoreInlineStyles(element: HTMLElement, styles: ReadonlyArray<readonly [LockStyleProperty, string]>) {
-  styles.forEach(([property, value]) => { element.style[property] = value; });
-}
