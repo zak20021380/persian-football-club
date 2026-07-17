@@ -187,7 +187,6 @@ export function SquadPage() {
   const [dirty, setDirty] = useState(false);
   const [selectedSlot, setSelectedSlot] = useState<number|null>(null);
   const [selectedBenchPlayer, setSelectedBenchPlayer] = useState<DisplayPlayer|null>(null);
-  const [showAllSubstitutes, setShowAllSubstitutes] = useState(false);
   const [drag, setDrag] = useState<DragState|null>(null);
   const squad = useQuery({ queryKey: ['clubSquad'], queryFn: async () => (await api.get<SquadData>('/club/squad')).data });
   const demoMode = Boolean(isDemoDataEnabled() && squad.data && squad.data.starters.every(player => !player) && squad.data.substitutes.length === 0);
@@ -601,11 +600,17 @@ export function SquadPage() {
 
       {validationMessage && !demoMode && <div className="mt-3 flex items-start gap-2 rounded-2xl border border-amber-300/15 bg-amber-300/[.06] p-2.5 text-[8px] leading-5 text-amber-100/80"><CircleAlert size={15} className="mt-0.5 shrink-0 text-amber-300"/><span>{validationMessage}</span></div>}
 
-      <section className="mt-4">
-        <div className="mb-2.5 flex items-end justify-between"><div><div className="flex items-center gap-2"><UsersRound size={16} className="text-pitch-300"/><h2 className="text-xs font-black">بازیکنان ذخیره</h2></div><p className="mt-1 text-[7px] text-slate-500">نیمکت آماده برای تغییر جریان مسابقه</p></div><span className="rounded-full border border-emerald-300/10 bg-emerald-400/[.07] px-2 py-1 text-[7px] font-bold text-emerald-200">{faNumber(draft.substitutes.length)} بازیکن</span></div>
-        {draft.substitutes.length ? <>
+      <section className="bench-section mt-4" aria-labelledby="bench-title">
+        <div className="mb-2.5 flex items-center justify-between gap-3">
+          <div className="flex min-w-0 items-center gap-2.5">
+            <span className="bench-heading-icon grid h-8 w-8 shrink-0 place-items-center rounded-xl"><UsersRound size={15}/></span>
+            <div className="min-w-0"><h2 id="bench-title" className="text-[11px] font-black text-slate-100">بازیکنان ذخیره</h2><p className="mt-0.5 truncate text-[6.5px] font-medium text-slate-500">نیمکت منتخب برای تعویض سریع</p></div>
+          </div>
+          <span className="bench-count shrink-0 rounded-full px-2 py-1 text-[6.5px] font-black">{faNumber(Math.min(draft.substitutes.length, 4))} بازیکن</span>
+        </div>
+        {draft.substitutes.length ? (
           <div className="grid grid-cols-4 gap-1.5 sm:gap-2">
-            {(showAllSubstitutes ? draft.substitutes : draft.substitutes.slice(0, 8)).map((player, index) => (
+            {draft.substitutes.slice(0, 4).map((player, index) => (
               <BenchPlayer
                 key={player._id}
                 player={player}
@@ -622,16 +627,7 @@ export function SquadPage() {
               />
             ))}
           </div>
-          {draft.substitutes.length > 8 && (
-            <button
-              type="button"
-              onClick={() => setShowAllSubstitutes(value => !value)}
-              className="mt-2.5 flex min-h-9 w-full items-center justify-center gap-1.5 rounded-xl border border-emerald-300/12 bg-emerald-400/[.07] text-[8px] font-black text-emerald-200 transition active:scale-[.985]"
-            >
-              {showAllSubstitutes ? 'نمایش کمتر' : 'مشاهده همه ذخیره‌ها'}
-            </button>
-          )}
-        </> : <Card className="flex min-h-20 items-center gap-3 border-dashed p-3"><span className="grid h-10 w-10 shrink-0 place-items-center rounded-2xl bg-white/[.04] text-slate-500"><UserRound size={18}/></span><div className="min-w-0 flex-1"><h3 className="text-[10px] font-black">نیمکت خالی است</h3><p className="mt-1 text-[8px] text-slate-500">از بازار بازیکن جدید به باشگاه اضافه کن.</p></div><Link to="/club/transfer-market" className="flex min-h-9 shrink-0 items-center rounded-xl bg-white/[.05] px-2.5 text-[8px] font-bold text-slate-300">بازار</Link></Card>}
+        ) : <Card className="flex min-h-20 items-center gap-3 border-dashed p-3"><span className="grid h-10 w-10 shrink-0 place-items-center rounded-2xl bg-white/[.04] text-slate-500"><UserRound size={18}/></span><div className="min-w-0 flex-1"><h3 className="text-[10px] font-black">نیمکت خالی است</h3><p className="mt-1 text-[8px] text-slate-500">از بازار بازیکن جدید به باشگاه اضافه کن.</p></div><Link to="/club/transfer-market" className="flex min-h-9 shrink-0 items-center rounded-xl bg-white/[.05] px-2.5 text-[8px] font-bold text-slate-300">بازار</Link></Card>}
       </section>
     </main>
 
@@ -714,12 +710,10 @@ const BenchPlayer = memo(function BenchPlayer({ player, index, dragging, dropTar
   onPointerUp: (event: ReactPointerEvent<HTMLButtonElement>) => void; onPointerCancel: (event: ReactPointerEvent<HTMLButtonElement>) => void;
   onLostPointerCapture: (event: ReactPointerEvent<HTMLButtonElement>) => void; onClick: () => void;
 }) {
-  const accent = ['from-emerald-400/10', 'from-sky-400/10', 'from-violet-400/10'][index % 3];
-  return <button type="button" data-bench-index={index} onPointerDown={onPointerDown} onPointerMove={onPointerMove} onPointerUp={onPointerUp} onPointerCancel={onPointerCancel} onLostPointerCapture={onLostPointerCapture} onClick={onClick} aria-label={`${player.name}، ${player.position}، ${formatMarketValue(player.marketValue)}`} style={{ viewTransitionName: transitionName(player) }} className={cn('bench-player relative flex min-w-0 w-full flex-col items-center overflow-hidden rounded-xl border bg-gradient-to-b to-ink-900/90 px-1 py-1.5 text-center shadow-[0_4px_10px_rgba(0,0,0,.1)] transition duration-200 active:scale-[.98] sm:rounded-2xl sm:px-1.5 sm:py-2', accent, dragging ? 'is-dragging border-white/[.04] opacity-25 grayscale' : dropTarget ? dropValid ? 'is-drop-valid border-emerald-300/70 ring-2 ring-emerald-300/25' : 'is-drop-invalid border-rose-300/70 ring-2 ring-rose-300/25' : 'border-white/[.06]')}>
-    <PlayerAvatar player={player} className="h-8 w-8 shadow-[0_3px_8px_rgba(0,0,0,.2)] sm:h-[34px] sm:w-[34px]"/>
-    <strong className="mt-1 w-full truncate text-[7px] font-black leading-tight text-white sm:mt-1.5 sm:text-[8px]">{shortName(player.name)}</strong>
-    <span className="mt-0.5 w-full truncate text-[5.5px] font-bold text-slate-400 sm:text-[6px]">{player.position}</span>
-    <span className="mt-0.5 w-full truncate text-[5.5px] font-bold text-emerald-300/90 sm:mt-1 sm:text-[6px]">{formatMarketValue(player.marketValue)}</span>
+  return <button type="button" data-bench-index={index} onPointerDown={onPointerDown} onPointerMove={onPointerMove} onPointerUp={onPointerUp} onPointerCancel={onPointerCancel} onLostPointerCapture={onLostPointerCapture} onClick={onClick} aria-label={`${player.name}، ${player.position}، امتیاز ${faNumber(player.overall)}`} title={player.name} style={{ viewTransitionName: transitionName(player) }} className={cn('bench-player relative flex min-h-[76px] min-w-0 w-full flex-col items-center justify-center overflow-hidden rounded-xl border px-1.5 py-2 text-center transition-[transform,border-color,background-color,box-shadow,opacity,filter] duration-200 active:scale-[.97]', dragging ? 'is-dragging border-white/[.04] opacity-25 grayscale' : dropTarget ? dropValid ? 'is-drop-valid border-emerald-300/70 ring-2 ring-emerald-300/20' : 'is-drop-invalid border-rose-300/70 ring-2 ring-rose-300/20' : 'border-white/[.07]')}>
+    <span className="bench-player-icon grid h-8 w-8 shrink-0 place-items-center rounded-full"><UserRound size={14} strokeWidth={1.8}/></span>
+    <strong className="mt-1.5 block w-full truncate text-[7.5px] font-black leading-3 text-slate-50 sm:text-[8px]">{shortName(player.name)}</strong>
+    <span className="mt-0.5 block rounded-full px-1.5 py-0.5 text-[5.5px] font-extrabold leading-none text-cyan-200/80">{player.position}</span>
   </button>;
 });
 
