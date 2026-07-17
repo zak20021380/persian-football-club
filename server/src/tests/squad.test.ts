@@ -57,6 +57,18 @@ describe('squad validation', () => {
     expect(validateSquadPositions(positions)).toContain('روی هم');
   });
 
+  it('allows overlapping positions for free custom placement', () => {
+    const positions = Array.from({ length: 11 }, (_, index) => ({ role: index ? 'CM' : 'GK', x: 10 + (index % 4) * 26, y: 10 + Math.floor(index / 4) * 38 }));
+    positions[5] = { ...positions[4] };
+    expect(validateSquadPositions(positions, { allowOverlap: true })).toBeNull();
+  });
+
+  it('still rejects out-of-bounds free custom positions', () => {
+    const positions = Array.from({ length: 11 }, (_, index) => ({ role: index ? 'CM' : 'GK', x: 10 + (index % 4) * 26, y: 10 + Math.floor(index / 4) * 38 }));
+    positions[0].x = 96;
+    expect(validateSquadPositions(positions, { allowOverlap: true })).toContain('داخل محدوده');
+  });
+
   it('rejects diagonally overlapping player cards', () => {
     const positions = Array.from({ length: 11 }, (_, index) => ({ role: index ? 'CM' : 'GK', x: 10 + (index % 4) * 26, y: 10 + Math.floor(index / 4) * 38 }));
     positions[5] = { ...positions[4], x: positions[4].x + 14, y: positions[4].y + 10 };

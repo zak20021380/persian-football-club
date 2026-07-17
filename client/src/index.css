@@ -407,6 +407,9 @@ button { touch-action: manipulation; }
 .lineup-player.is-selected { transform: translate3d(-50%,-50%,0) scale(1.05); }
 .lineup-player.is-dragging { will-change: transform; }
 .lineup-player.is-dragging > span { box-shadow: 0 8px 16px rgba(0,0,0,.28); }
+.lineup-player.is-free-dragging { transform:translate3d(-50%,-50%,0) scale(1.07); filter:brightness(1.14); transition:transform .12s cubic-bezier(.22,1,.36,1),filter .12s ease; }
+.lineup-player.is-free-dragging > span:first-of-type { border-color:rgba(167,243,208,.68); box-shadow:0 11px 24px rgba(0,0,0,.42),0 0 0 3px rgba(52,211,153,.11); }
+.lineup-player.is-custom-returning { transform:translate3d(-50%,-50%,0) scale(1); transition:left .18s cubic-bezier(.22,1,.36,1),top .18s cubic-bezier(.22,1,.36,1),transform .18s cubic-bezier(.22,1,.36,1),filter .18s ease; }
 .lineup-drag-preview { transform:translate3d(-50%,-50%,0) scale(1.06); will-change:left,top,transform,opacity; animation:lineup-drag-preview-in .14s cubic-bezier(.22,1,.36,1) both; }
 .lineup-drag-preview.is-returning { transform:translate3d(-50%,-50%,0) scale(.82); opacity:0; animation:none; transition:left .18s cubic-bezier(.22,1,.36,1),top .18s cubic-bezier(.22,1,.36,1),transform .18s cubic-bezier(.22,1,.36,1),opacity .18s ease; }
 .bench-player.is-drop-valid { box-shadow: 0 0 0 1px rgba(110,231,183,.3),0 10px 24px rgba(6,95,70,.24); }

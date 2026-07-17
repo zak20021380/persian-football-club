@@ -31,6 +31,7 @@ interface DragState {
   clientX: number;
   clientY: number;
   returning?: boolean;
+  freePositioning?: boolean;
 }
 interface DragGesture {
   source: DragLocation;
@@ -51,6 +52,11 @@ interface DragGesture {
   element: HTMLButtonElement;
   pitchRect: DOMRect|null;
   activationTimer: number|null;
+  freePositioning: boolean;
+  originX: number;
+  originY: number;
+  grabOffsetX: number;
+  grabOffsetY: number;
 }
 
 const formationOptions: Array<{ value: SquadFormation; label: string }> = [
@@ -92,6 +98,10 @@ const MOUSE_DRAG_THRESHOLD = 4;
 const RETURN_ANIMATION_MS = 180;
 const MIN_SLOT_X_GAP = 18;
 const MIN_SLOT_Y_GAP = 15;
+const CUSTOM_MIN_X = 9;
+const CUSTOM_MAX_X = 91;
+const CUSTOM_MIN_Y = 8;
+const CUSTOM_MAX_Y = 92;
 
 function clearDragActivationTimer(gesture: DragGesture): void {
   if (gesture.activationTimer === null) return;
@@ -261,6 +271,31 @@ export function SquadPage() {
     }, RETURN_ANIMATION_MS);
   }, []);
 
+  const returnCustomMarker = useCallback((gesture: DragGesture) => {
+    const returning: DragState = {
+      source: gesture.source,
+      target: null,
+      player: gesture.player,
+      valid: false,
+      clientX: gesture.clientX,
+      clientY: gesture.clientY,
+      returning: true,
+      freePositioning: true,
+    };
+    dragViewRef.current = returning;
+    flushSync(() => setDrag(returning));
+    gesture.element.style.left = `${gesture.originX}%`;
+    gesture.element.style.top = `${gesture.originY}%`;
+    if (dragReturnTimerRef.current !== null) window.clearTimeout(dragReturnTimerRef.current);
+    dragReturnTimerRef.current = window.setTimeout(() => {
+      if (dragViewRef.current?.returning && dragViewRef.current.freePositioning) {
+        dragViewRef.current = null;
+        setDrag(null);
+      }
+      dragReturnTimerRef.current = null;
+    }, RETURN_ANIMATION_MS);
+  }, []);
+
   const renderDragFrame = useCallback(() => {
     dragFrameRef.current = null;
     const gesture = dragRef.current;
@@ -269,31 +304,40 @@ export function SquadPage() {
     if (!gesture?.active || !currentDraft || !pitch) return;
 
     const rect = gesture.pitchRect ?? pitch.getBoundingClientRect();
-    const rawX = ((gesture.clientX - rect.left) / rect.width) * 100;
-    const rawY = ((gesture.clientY - rect.top) / rect.height) * 100;
-    gesture.x = clamp(rawX, 7, 93);
-    gesture.y = clamp(rawY, 6, 94);
+    const markerCenterX = gesture.freePositioning ? gesture.clientX - gesture.grabOffsetX : gesture.clientX;
+    const markerCenterY = gesture.freePositioning ? gesture.clientY - gesture.grabOffsetY : gesture.clientY;
+    const rawX = ((markerCenterX - rect.left) / rect.width) * 100;
+    const rawY = ((markerCenterY - rect.top) / rect.height) * 100;
+    gesture.x = clamp(rawX, gesture.freePositioning ? CUSTOM_MIN_X : 7, gesture.freePositioning ? CUSTOM_MAX_X : 93);
+    gesture.y = clamp(rawY, gesture.freePositioning ? CUSTOM_MIN_Y : 6, gesture.freePositioning ? CUSTOM_MAX_Y : 94);
     gesture.moved ||= Math.hypot(gesture.clientX - gesture.startX, gesture.clientY - gesture.startY) > 3;
 
-    const insidePitch = rawX >= 2 && rawX <= 98 && rawY >= 2 && rawY <= 98;
+    const insidePitch = gesture.clientX >= rect.left && gesture.clientX <= rect.right && gesture.clientY >= rect.top && gesture.clientY <= rect.bottom;
     let target = dropLocationAtPoint(gesture.clientX, gesture.clientY);
-    if (!target && insidePitch) target = { kind: 'pitch', index: nearestPosition(currentDraft.positions, gesture.x, gesture.y, rect, -1).index };
+    if (gesture.freePositioning) {
+      gesture.element.style.left = `${gesture.x}%`;
+      gesture.element.style.top = `${gesture.y}%`;
+      target = insidePitch ? null : target?.kind === 'bench' ? target : null;
+    } else if (!target && insidePitch) {
+      target = { kind: 'pitch', index: nearestPosition(currentDraft.positions, gesture.x, gesture.y, rect, -1).index };
+    }
     gesture.target = target;
 
-    if (target) {
+    if (gesture.freePositioning && insidePitch) {
+      gesture.valid = true;
+    } else if (target) {
       if (sameDragLocation(gesture.source, target)) gesture.valid = true;
       else {
         const candidate = swapPlayers(currentDraft, gesture.source, target);
         gesture.valid = Boolean(candidate && !validateDraft(candidate));
       }
-    } else if (gesture.source.kind === 'pitch' && currentDraft.formation === 'custom' && insidePitch) {
-      gesture.valid = !currentDraft.positions.some((position, index) => index !== gesture.source.index && slotsOverlapInPitch(position, gesture, rect));
     } else gesture.valid = false;
 
     const previous = dragViewRef.current;
-    if (!previous || !sameOptionalDragLocation(previous.target, gesture.target) || previous.valid !== gesture.valid || previous.clientX !== gesture.clientX || previous.clientY !== gesture.clientY) {
+    const previewMoved = !gesture.freePositioning && previous && (previous.clientX !== gesture.clientX || previous.clientY !== gesture.clientY);
+    if (!previous || !sameOptionalDragLocation(previous.target, gesture.target) || previous.valid !== gesture.valid || previewMoved) {
       if (previous && (!sameOptionalDragLocation(previous.target, gesture.target) || previous.valid !== gesture.valid)) impact(gesture.valid ? 'light' : 'medium');
-      const next = { source: gesture.source, target: gesture.target, player: gesture.player, valid: gesture.valid, clientX: gesture.clientX, clientY: gesture.clientY };
+      const next = { source: gesture.source, target: gesture.target, player: gesture.player, valid: gesture.valid, clientX: gesture.clientX, clientY: gesture.clientY, freePositioning: gesture.freePositioning };
       dragViewRef.current = next;
       setDrag(next);
     }
@@ -310,7 +354,7 @@ export function SquadPage() {
     if (!gesture.element.hasPointerCapture(pointerId)) safelyCapturePointer(gesture.element, pointerId);
     releaseScrollLockRef.current = lockPageScrollingDuringDrag();
     impact('light');
-    const initialView = { source: gesture.source, target: gesture.source, player: gesture.player, valid: true, clientX: gesture.clientX, clientY: gesture.clientY };
+    const initialView = { source: gesture.source, target: gesture.freePositioning ? null : gesture.source, player: gesture.player, valid: true, clientX: gesture.clientX, clientY: gesture.clientY, freePositioning: gesture.freePositioning };
     dragViewRef.current = initialView;
     setDrag(initialView);
     if (dragFrameRef.current === null) dragFrameRef.current = window.requestAnimationFrame(renderDragFrame);
@@ -327,10 +371,15 @@ export function SquadPage() {
       setDrag(null);
     }
     const position = source.kind === 'pitch' ? currentDraft.positions[source.index] : null;
+    const markerRect = event.currentTarget.getBoundingClientRect();
+    const freePositioning = source.kind === 'pitch' && currentDraft.formation === 'custom';
     const gesture: DragGesture = {
       source, player, pointerId: event.pointerId, pointerType: event.pointerType, startX: event.clientX, startY: event.clientY,
       clientX: event.clientX, clientY: event.clientY, x: position?.x ?? 50, y: position?.y ?? 50, target: source,
       valid: true, active: false, finishing: false, moved: false, element: event.currentTarget, pitchRect: null, activationTimer: null,
+      freePositioning, originX: position?.x ?? 50, originY: position?.y ?? 50,
+      grabOffsetX: freePositioning ? event.clientX - (markerRect.left + markerRect.width / 2) : 0,
+      grabOffsetY: freePositioning ? event.clientY - (markerRect.top + markerRect.height / 2) : 0,
     };
     dragRef.current = gesture;
     safelyCapturePointer(gesture.element, gesture.pointerId);
@@ -393,7 +442,10 @@ export function SquadPage() {
       return;
     }
     if (cancelled || !gesture.moved) {
-      if (gesture.moved) returnDragPreview(gesture);
+      if (gesture.moved) {
+        if (gesture.freePositioning) returnCustomMarker(gesture);
+        else returnDragPreview(gesture);
+      }
       else {
         dragViewRef.current = null;
         setDrag(null);
@@ -401,21 +453,30 @@ export function SquadPage() {
       return;
     }
     if (!gesture.valid) {
-      returnDragPreview(gesture);
+      if (gesture.freePositioning) returnCustomMarker(gesture);
+      else returnDragPreview(gesture);
       notify('warning');
       return void toast.error('این جابه‌جایی قوانین ترکیب را نقض می‌کند.');
     }
     const currentDraft = draftRef.current;
-    if (!currentDraft) return void returnDragPreview(gesture);
+    if (!currentDraft) {
+      if (gesture.freePositioning) returnCustomMarker(gesture);
+      else returnDragPreview(gesture);
+      return;
+    }
     if (gesture.target) {
-      if (sameDragLocation(gesture.source, gesture.target)) return void returnDragPreview(gesture);
+      if (sameDragLocation(gesture.source, gesture.target)) {
+        if (gesture.freePositioning) return void returnCustomMarker(gesture);
+        return void returnDragPreview(gesture);
+      }
       const next = swapPlayers(currentDraft, gesture.source, gesture.target);
       if (next && !validateDraft(next)) {
         dragViewRef.current = null;
         setDrag(null);
         commitDragDraft(next);
-      } else returnDragPreview(gesture);
-    } else if (gesture.source.kind === 'pitch' && currentDraft.formation === 'custom') {
+      } else if (gesture.freePositioning) returnCustomMarker(gesture);
+      else returnDragPreview(gesture);
+    } else if (gesture.freePositioning && currentDraft.formation === 'custom') {
       const positions = clonePositions(currentDraft.positions);
       positions[gesture.source.index] = { ...positions[gesture.source.index], x: roundCoordinate(gesture.x), y: roundCoordinate(gesture.y) };
       const next = { ...currentDraft, positions };
@@ -423,11 +484,12 @@ export function SquadPage() {
         dragViewRef.current = null;
         setDrag(null);
         commitDragDraft(next);
-      } else returnDragPreview(gesture);
+      } else returnCustomMarker(gesture);
     } else {
-      returnDragPreview(gesture);
+      if (gesture.freePositioning) returnCustomMarker(gesture);
+      else returnDragPreview(gesture);
     }
-  }, [commitDragDraft, releaseDragScrollLock, renderDragFrame, returnDragPreview]);
+  }, [commitDragDraft, releaseDragScrollLock, renderDragFrame, returnCustomMarker, returnDragPreview]);
 
   const cancelDrag = useCallback((event: ReactPointerEvent<HTMLButtonElement>) => finishDrag(event, true), [finishDrag]);
 
@@ -442,6 +504,10 @@ export function SquadPage() {
     if (dragFrameRef.current !== null) {
       window.cancelAnimationFrame(dragFrameRef.current);
       dragFrameRef.current = null;
+    }
+    if (gesture.freePositioning) {
+      gesture.element.style.left = `${gesture.originX}%`;
+      gesture.element.style.top = `${gesture.originY}%`;
     }
     dragRef.current = null;
     dragViewRef.current = null;
@@ -564,7 +630,7 @@ export function SquadPage() {
       <div className="mb-3 flex items-center justify-between rounded-2xl border border-white/[.06] bg-white/[.025] p-2.5">
         <div className="flex min-w-0 items-center gap-2">
           <span className={cn('h-2 w-2 shrink-0 rounded-full', dirty ? 'bg-amber-300 shadow-[0_0_12px_rgba(252,211,77,.5)]' : 'bg-emerald-400')}/>
-          <div className="min-w-0"><strong className="block text-[9px]">{demoMode ? 'حالت نمایشی' : dirty ? 'تغییرات ذخیره‌نشده' : 'همه تغییرات ذخیره شده'}</strong><span className="block truncate text-[7px] text-slate-500">{drag && !drag.returning ? drag.valid ? 'رها کن تا جابه‌جا شود' : 'محل رهاکردن نامعتبر است' : 'بازیکن را بگیر و روی جایگاه مقصد رها کن'}</span></div>
+          <div className="min-w-0"><strong className="block text-[9px]">{demoMode ? 'حالت نمایشی' : dirty ? 'تغییرات ذخیره‌نشده' : 'همه تغییرات ذخیره شده'}</strong><span className="block truncate text-[7px] text-slate-500">{drag && !drag.returning ? drag.freePositioning && drag.valid ? 'رها کن تا جایگاه ثبت شود' : drag.valid ? 'رها کن تا جابه‌جا شود' : 'محل رهاکردن نامعتبر است' : 'بازیکن را بگیر و روی جایگاه مقصد رها کن'}</span></div>
         </div>
         <button type="button" onClick={save} disabled={saveMutation.isPending || swapMutation.isPending || (!dirty && !demoMode)} className="inline-flex min-h-9 shrink-0 items-center gap-1.5 rounded-xl bg-pitch-400 px-3 text-[9px] font-black text-ink-950 transition active:scale-95 disabled:opacity-45">
           {saveMutation.isPending || swapMutation.isPending ? <RotateCcw size={14} className="animate-spin"/> : <Save size={14}/>}ذخیره ترکیب
@@ -586,6 +652,8 @@ export function SquadPage() {
           index={index}
           selected={selectedSlot === index}
           dragging={drag?.source.kind === 'pitch' && drag.source.index === index}
+          freeDragging={Boolean(drag?.freePositioning && !drag.returning && drag.source.kind === 'pitch' && drag.source.index === index)}
+          returning={Boolean(drag?.freePositioning && drag.returning && drag.source.kind === 'pitch' && drag.source.index === index)}
           dropTarget={drag?.target?.kind === 'pitch' && drag.target.index === index && !sameDragLocation(drag.source, drag.target)}
           dropValid={drag?.valid ?? true}
           onPointerDown={(event, slotIndex) => beginDrag(event, { kind: 'pitch', index: slotIndex })}
@@ -595,7 +663,7 @@ export function SquadPage() {
           onLostPointerCapture={cancelDrag}
           onClick={openSlot}
         />)}
-        {drag && !drag.returning && <div className={cn('pointer-events-none absolute left-1/2 top-3 z-30 -translate-x-1/2 rounded-full border px-2.5 py-1 text-[7px] font-black', drag.valid ? 'border-emerald-200/30 bg-emerald-950/95 text-emerald-100' : 'border-rose-200/30 bg-rose-950/95 text-rose-100')}>{drag.valid ? drag.target && !sameDragLocation(drag.source, drag.target) ? 'رها کن تا بازیکن‌ها جابه‌جا شوند' : 'بازیکن را روی مقصد رها کن' : 'این مقصد با قوانین ترکیب سازگار نیست'}</div>}
+        {drag && !drag.returning && <div className={cn('pointer-events-none absolute left-1/2 top-3 z-30 -translate-x-1/2 rounded-full border px-2.5 py-1 text-[7px] font-black', drag.valid ? 'border-emerald-200/30 bg-emerald-950/95 text-emerald-100' : 'border-rose-200/30 bg-rose-950/95 text-rose-100')}>{drag.freePositioning && drag.valid ? 'رها کن تا جایگاه آزاد بازیکن ثبت شود' : drag.valid ? drag.target && !sameDragLocation(drag.source, drag.target) ? 'رها کن تا بازیکن‌ها جابه‌جا شوند' : 'بازیکن را روی مقصد رها کن' : 'این مقصد با قوانین ترکیب سازگار نیست'}</div>}
       </FormationPitch>
 
       {validationMessage && !demoMode && <div className="mt-3 flex items-start gap-2 rounded-2xl border border-amber-300/15 bg-amber-300/[.06] p-2.5 text-[8px] leading-5 text-amber-100/80"><CircleAlert size={15} className="mt-0.5 shrink-0 text-amber-300"/><span>{validationMessage}</span></div>}
@@ -652,12 +720,12 @@ export function SquadPage() {
       onDelete={() => setSelectedBenchPlayer(null)}
       onReplace={_player => setSelectedBenchPlayer(null)}
     />}
-    {drag && createPortal(<FloatingDragPlayer drag={drag}/>, document.body)}
+    {drag && !drag.freePositioning && createPortal(<FloatingDragPlayer drag={drag}/>, document.body)}
   </div>;
 }
 
-const PitchSlot = memo(function PitchSlot({ position, player, index, selected, dragging, dropTarget, dropValid, onPointerDown, onPointerMove, onPointerUp, onPointerCancel, onLostPointerCapture, onClick }: {
-  position: SquadPosition; player: DisplayPlayer|null; index: number; selected: boolean; dragging: boolean; dropTarget: boolean; dropValid: boolean;
+const PitchSlot = memo(function PitchSlot({ position, player, index, selected, dragging, freeDragging, returning, dropTarget, dropValid, onPointerDown, onPointerMove, onPointerUp, onPointerCancel, onLostPointerCapture, onClick }: {
+  position: SquadPosition; player: DisplayPlayer|null; index: number; selected: boolean; dragging: boolean; freeDragging: boolean; returning: boolean; dropTarget: boolean; dropValid: boolean;
   onPointerDown: (event: ReactPointerEvent<HTMLButtonElement>, index: number) => void; onPointerMove: (event: ReactPointerEvent<HTMLButtonElement>) => void;
   onPointerUp: (event: ReactPointerEvent<HTMLButtonElement>) => void; onPointerCancel: (event: ReactPointerEvent<HTMLButtonElement>) => void; onClick: (index: number) => void;
   onLostPointerCapture: (event: ReactPointerEvent<HTMLButtonElement>) => void;
@@ -675,7 +743,7 @@ const PitchSlot = memo(function PitchSlot({ position, player, index, selected, d
     'aria-label': player ? `${player.name}، ${player.position}` : `افزودن بازیکن به پست ${position.role}`,
   };
   const markerStyle = { zIndex: dragging ? 40 : dropTarget ? 30 : 10, animationDelay: `${index * 22}ms`, viewTransitionName: player ? transitionName(player) : undefined };
-  const markerClassName = cn('lineup-player transition-[opacity,filter] duration-200', dragging && 'is-dragging cursor-grabbing opacity-25 grayscale', selected && !dragging && 'is-selected');
+  const markerClassName = cn('lineup-player transition-[opacity,filter] duration-200', dragging && 'is-dragging cursor-grabbing', dragging && !freeDragging && !returning && 'opacity-25 grayscale', freeDragging && 'is-free-dragging', returning && 'is-custom-returning', selected && !dragging && 'is-selected');
   const overlay = dropTarget ? <span className={cn('pointer-events-none absolute -inset-2 -z-10 rounded-[1.35rem] border-2 border-dashed', dropValid ? 'border-emerald-200 bg-emerald-300/15' : 'border-rose-200 bg-rose-300/15')}/> : undefined;
 
   return player ? <FormationPitchPlayer
@@ -768,7 +836,7 @@ function PlayerInfoCard({ icon, label, value }: { icon: ReactNode; label: string
 
 function draftFromData(data: SquadData): LineupDraft {
   const positions = data.formation === 'custom' && data.customPositions.length === 11
-    ? separateOverlappingPositions(data.customPositions)
+    ? normalizeCustomPositions(data.customPositions)
     : formations[data.formation === 'custom' ? '4-3-3' : data.formation];
   return { formation: data.formation, starters: [...data.starters], substitutes: [...data.substitutes], positions: clonePositions(positions) };
 }
@@ -787,7 +855,8 @@ function restoreDraft(data: SquadData): LineupDraft|null {
     if (stored.starterIds.some(id => id && !byId.has(id))) return null;
     const starters = stored.starterIds.map(id => id ? byId.get(id) ?? null : null);
     const selected = new Set(stored.starterIds.filter(Boolean));
-    return { formation: stored.formation!, starters, substitutes: pool.filter(player => !selected.has(player._id)), positions: separateOverlappingPositions(stored.positions) };
+    const positions = stored.formation === 'custom' ? normalizeCustomPositions(stored.positions) : separateOverlappingPositions(stored.positions);
+    return { formation: stored.formation!, starters, substitutes: pool.filter(player => !selected.has(player._id)), positions };
   } catch {
     localStorage.removeItem(DRAFT_KEY);
     return null;
@@ -853,8 +922,10 @@ function validateDraft(draft: LineupDraft): string|null {
   const goalkeepers = draft.starters.filter(player => player?.position === 'GK').length;
   if (goalkeepers !== 1) return 'ترکیب باید دقیقاً یک دروازه‌بان و ۱۰ بازیکن غیر دروازه‌بان داشته باشد.';
   if (draft.positions.length !== 11) return 'آرایش باید دقیقاً ۱۱ جایگاه داشته باشد.';
-  for (let first = 0; first < draft.positions.length; first += 1) for (let second = first + 1; second < draft.positions.length; second += 1) {
-    if (slotsOverlap(draft.positions[first], draft.positions[second])) return 'بازیکن‌ها بیش از حد به هم نزدیک‌اند؛ جایگاه‌ها را کمی دورتر کن.';
+  if (draft.formation !== 'custom') {
+    for (let first = 0; first < draft.positions.length; first += 1) for (let second = first + 1; second < draft.positions.length; second += 1) {
+      if (slotsOverlap(draft.positions[first], draft.positions[second])) return 'بازیکن‌ها بیش از حد به هم نزدیک‌اند؛ جایگاه‌ها را کمی دورتر کن.';
+    }
   }
   return null;
 }
@@ -877,13 +948,6 @@ function slotsOverlap(first: Pick<SquadPosition, 'x'|'y'>, second: Pick<SquadPos
   return Math.abs(first.x - second.x) < MIN_SLOT_X_GAP && Math.abs(first.y - second.y) < MIN_SLOT_Y_GAP;
 }
 
-function slotsOverlapInPitch(first: Pick<SquadPosition, 'x'|'y'>, second: Pick<SquadPosition, 'x'|'y'>, rect: DOMRect) {
-  const xGap = Math.min(54, rect.width * (MIN_SLOT_X_GAP / 100));
-  const yGap = Math.min(72, rect.height * (MIN_SLOT_Y_GAP / 100));
-  return Math.abs(first.x - second.x) / 100 * rect.width < xGap
-    && Math.abs(first.y - second.y) / 100 * rect.height < yGap;
-}
-
 function separateOverlappingPositions(positions: SquadPosition[]): SquadPosition[] {
   const candidates = [8, 24, 40, 56, 72, 88].flatMap(y => [10, 30, 50, 70, 90].map(x => ({ x, y })));
   const separated: SquadPosition[] = [];
@@ -900,6 +964,14 @@ function separateOverlappingPositions(positions: SquadPosition[]): SquadPosition
     separated.push({ ...position, x: replacement?.x ?? fallback.x, y: replacement?.y ?? fallback.y });
   }
   return separated;
+}
+
+function normalizeCustomPositions(positions: SquadPosition[]): SquadPosition[] {
+  return positions.map(position => ({
+    ...position,
+    x: clamp(position.x, CUSTOM_MIN_X, CUSTOM_MAX_X),
+    y: clamp(position.y, CUSTOM_MIN_Y, CUSTOM_MAX_Y),
+  }));
 }
 
 function clonePositions(positions: SquadPosition[]): SquadPosition[] { return positions.map(position => ({ ...position })); }

@@ -96,7 +96,7 @@ router.get('/squad', asyncHandler(async (req, res) => {
 // but only a complete, football-valid eleven can become the persisted lineup.
 router.put('/squad', asyncHandler(async (req, res) => {
   const input = completeLineupSchema.extend({ formation: formationSchema }).parse(req.body);
-  const positionsError = validateSquadPositions(input.positions);
+  const positionsError = validateSquadPositions(input.positions, { allowOverlap: input.formation === 'custom' });
   if (positionsError) throw new AppError(422, positionsError, 'INVALID_FORMATION_POSITIONS');
   const starterIds = await validateCompleteLineup(req.authUser!._id, input.starterIds);
 
@@ -151,7 +151,7 @@ router.patch('/squad/slot', asyncHandler(async (req, res) => {
 
 router.post('/squad/custom-formations', asyncHandler(async (req, res) => {
   const input = completeLineupSchema.extend({ name: z.string().trim().min(2).max(30) }).parse(req.body);
-  const positionsError = validateSquadPositions(input.positions);
+  const positionsError = validateSquadPositions(input.positions, { allowOverlap: true });
   if (positionsError) throw new AppError(422, positionsError, 'INVALID_FORMATION_POSITIONS');
   const starterIds = await validateCompleteLineup(req.authUser!._id, input.starterIds);
   let squad = await Squad.findOne({ userId: req.authUser!._id });

@@ -5,13 +5,14 @@ export interface SquadPosition { role: string; x: number; y: number }
 const MIN_SLOT_X_GAP = 18;
 const MIN_SLOT_Y_GAP = 15;
 
-export function validateSquadPositions(positions: SquadPosition[]): string|null {
+export function validateSquadPositions(positions: SquadPosition[], { allowOverlap = false }: { allowOverlap?: boolean } = {}): string|null {
   if (positions.length !== 11) return 'آرایش باید دقیقاً ۱۱ جایگاه داشته باشد.';
   for (const position of positions) {
     if (!Number.isFinite(position.x) || !Number.isFinite(position.y) || position.x < 5 || position.x > 95 || position.y < 5 || position.y > 95) {
       return 'همه جایگاه‌ها باید داخل محدوده زمین باشند.';
     }
   }
+  if (allowOverlap) return null;
   for (let first = 0; first < positions.length; first += 1) {
     for (let second = first + 1; second < positions.length; second += 1) {
       const dx = Math.abs(positions[first].x - positions[second].x);
