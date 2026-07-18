@@ -5,13 +5,12 @@ import {
   ArrowLeft,
   Award,
   Check,
-  ChevronLeft,
   Coins,
   Copy,
   Flame,
   Gem,
+  Headset,
   Medal,
-  MessageCircleMore,
   Pencil,
   Rocket,
   Share2,
@@ -22,7 +21,9 @@ import {
   Trophy,
   UserPlus,
   Users,
-  UsersRound
+  UsersRound,
+  Wrench,
+  X
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { Link } from 'react-router-dom';
@@ -32,7 +33,7 @@ import { WalletShortcut } from '@/components/WalletShortcut';
 import { Card, ErrorState, LoadingButton, PageSkeleton } from '@/components/ui';
 import { useBootstrap } from '@/hooks/useBootstrap';
 import { api } from '@/lib/api';
-import { impact, openTelegramProfile } from '@/lib/telegram';
+import { impact, notify, openTelegramProfile } from '@/lib/telegram';
 import { cn, faNumber, tehranDate } from '@/lib/utils';
 import type { Badge, User } from '@/types/api';
 
@@ -90,6 +91,40 @@ interface ProfileClubView {
 }
 
 const badgeIcons: Record<string, typeof Award> = { rocket: Rocket, target: Target, users: Users, flame: Flame };
+
+function showSupportPendingToast() {
+  notify('warning');
+  toast.custom((t) => (
+    <div
+      dir="rtl"
+      role="status"
+      className={cn(
+        'pointer-events-auto flex w-[min(92vw,360px)] items-start gap-3 overflow-hidden rounded-[1.15rem] border border-amber-300/[.16] bg-ink-900/95 p-3 shadow-[0_18px_40px_rgba(1,2,13,.4)] backdrop-blur-xl',
+        t.visible ? 'animate-[toast-in_.28s_cubic-bezier(.16,1,.3,1)]' : 'animate-[toast-out_.2s_ease-in_forwards]'
+      )}
+    >
+      <span className="absolute inset-x-0 top-0 h-px bg-gradient-to-l from-transparent via-amber-300/40 to-transparent" aria-hidden="true"/>
+      <span className="relative mt-0.5 grid h-11 w-11 shrink-0 place-items-center rounded-2xl border border-amber-300/[.18] bg-amber-300/[.1] text-amber-300 shadow-[inset_0_1px_rgba(255,255,255,.08)]">
+        <Wrench size={19} strokeWidth={2.2}/>
+        <span className="absolute -bottom-0.5 -left-0.5 h-3 w-3 rounded-full border-2 border-ink-900 bg-amber-400">
+          <span className="absolute inset-[-3px] animate-ping rounded-full bg-amber-400/50"/>
+        </span>
+      </span>
+      <div className="min-w-0 flex-1 pt-0.5">
+        <p className="text-[12px] font-black text-white">راه ارتباطی هنوز آماده نشده</p>
+        <p className="mt-1 text-[9.5px] leading-5 text-slate-400">تیم پشتیبانی در حال راه‌اندازی این بخش است. کمی بعد دوباره سر بزن.</p>
+      </div>
+      <button
+        type="button"
+        onClick={() => toast.dismiss(t.id)}
+        aria-label="بستن"
+        className="grid h-7 w-7 shrink-0 place-items-center rounded-lg text-slate-500 transition active:scale-90 active:bg-white/[.06]"
+      >
+        <X size={15}/>
+      </button>
+    </div>
+  ), { duration: 4200 });
+}
 
 function Avatar({ user }: { user: User }) {
   return user.photoUrl ? (
@@ -295,7 +330,7 @@ export function ProfilePage() {
   const contactAdmin = () => {
     const username = bootstrap.data?.supportTelegramUsername;
     if (!username) {
-      toast.error('راه ارتباطی پشتیبانی هنوز تنظیم نشده است');
+      showSupportPendingToast();
       return;
     }
     impact('light');
@@ -310,7 +345,18 @@ export function ProfilePage() {
         <div className="absolute -right-20 top-28 h-52 w-52 rounded-full border border-emerald-300/[.07]"/>
         <div className="relative flex items-center justify-between">
           <div className="flex items-center gap-3"><BrandMark className="h-11 w-11"/><div><p className="text-[9px] font-bold text-emerald-300">حساب کاربری</p><h1 className="mt-0.5 text-lg font-black">پروفایل من</h1></div></div>
-          <div className="flex items-center gap-2"><WalletShortcut/><button type="button" onClick={openEditor} aria-label="ویرایش پروفایل" className="grid h-11 w-11 place-items-center rounded-2xl border border-white/[.08] bg-white/[.05] text-slate-300 transition duration-300 active:scale-90 active:bg-white/10"><Pencil size={17}/></button></div>
+          <div className="flex items-center gap-2">
+            <WalletShortcut/>
+            <button type="button" onClick={contactAdmin} aria-label="ارتباط با پشتیبانی" title="ارتباط با پشتیبانی" className="relative grid h-11 w-11 place-items-center rounded-2xl border border-cyan-200/[.14] bg-cyan-300/[.08] text-cyan-200 shadow-[inset_0_1px_rgba(255,255,255,.06)] transition duration-300 active:scale-90 active:bg-cyan-300/[.15]">
+              <Headset size={17}/>
+              {bootstrap.data?.supportTelegramUsername && (
+                <span className="absolute -left-0.5 -top-0.5 h-2.5 w-2.5 rounded-full border-2 border-ink-950 bg-emerald-400" aria-hidden="true">
+                  <span className="absolute inset-[-2px] animate-ping rounded-full bg-emerald-400/50"/>
+                </span>
+              )}
+            </button>
+            <button type="button" onClick={openEditor} aria-label="ویرایش پروفایل" className="grid h-11 w-11 place-items-center rounded-2xl border border-white/[.08] bg-white/[.05] text-slate-300 transition duration-300 active:scale-90 active:bg-white/10"><Pencil size={17}/></button>
+          </div>
         </div>
 
         <div className="profile-animate relative mt-7 flex items-center gap-4">
@@ -399,29 +445,6 @@ export function ProfilePage() {
               </div>
             )) : <div className="py-8 text-center"><Sparkles className="mx-auto text-slate-600"/><h3 className="mt-3 text-xs font-black">شروع ماجراجویی</h3><p className="mt-1 text-[9px] text-slate-500">اولین فعالیتت اینجا ثبت می‌شود.</p></div>}
           </Card>
-        </section>
-
-        <section className="profile-animate" style={{ animationDelay: '370ms' }} aria-labelledby="admin-support-title">
-          <button
-            type="button"
-            onClick={contactAdmin}
-            className="group relative flex min-h-[84px] w-full items-center gap-3 overflow-hidden rounded-[1.3rem] border border-cyan-200/[.11] bg-gradient-to-l from-cyan-300/[.075] via-white/[.025] to-fuchsia-300/[.055] p-3.5 text-right shadow-[0_16px_34px_rgba(1,2,13,.2)] transition duration-300 active:scale-[.985]"
-          >
-            <span className="absolute -left-6 -top-9 h-24 w-24 rounded-full border-[16px] border-cyan-300/[.025]" aria-hidden="true"/>
-            <span className="relative grid h-12 w-12 shrink-0 place-items-center rounded-2xl border border-cyan-200/[.15] bg-cyan-300/[.11] text-cyan-200 shadow-[inset_0_1px_rgba(255,255,255,.07)]">
-              <MessageCircleMore size={21} strokeWidth={2.2}/>
-            </span>
-            <span className="relative min-w-0 flex-1">
-              <span className="flex items-center gap-2">
-                <strong id="admin-support-title" className="text-[12px] font-black text-white">ارتباط با پشتیبانی</strong>
-                <span className="rounded-full border border-emerald-300/[.14] bg-emerald-300/[.07] px-2 py-0.5 text-[6px] font-black text-emerald-200">تلگرام</span>
-              </span>
-              <span className="mt-1 block truncate text-[8.5px] leading-5 text-slate-400">
-                {bootstrap.data?.supportTelegramUsername ? 'سؤال یا مشکلت را مستقیماً با مدیر در میان بگذار' : 'راه ارتباطی پشتیبانی در حال راه‌اندازی است'}
-              </span>
-            </span>
-            <ChevronLeft size={18} className="relative shrink-0 text-slate-500 transition-transform duration-300 group-active:-translate-x-1" aria-hidden="true"/>
-          </button>
         </section>
       </div>
     </main>

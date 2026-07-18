@@ -512,6 +512,8 @@ html.lineup-drag-active,html.lineup-drag-active body { overflow:hidden!important
 @keyframes fun-orbit { from { opacity: .65; transform: translate(-8px,-5px) scale(.92); } to { opacity: 1; transform: translate(12px,8px) scale(1.08); } }
 @keyframes fun-heart { 0% { transform: scale(.7); } 65% { transform: scale(1.22) rotate(-8deg); } 100% { transform: scale(1); } }
 @keyframes fun-sort-pulse { 0% { transform: scale(.85); } 60% { transform: scale(1.12); } 100% { transform: scale(1); } }
+@keyframes toast-in { from { opacity: 0; transform: translateY(-14px) scale(.96); } to { opacity: 1; transform: translateY(0) scale(1); } }
+@keyframes toast-out { from { opacity: 1; transform: translateY(0) scale(1); } to { opacity: 0; transform: translateY(-10px) scale(.97); } }
 @media (prefers-reduced-motion: reduce) {
   .profile-animate,.profile-hero-glow,.fun-orb,.fun-card,.fun-sheet,.fun-like[aria-pressed="true"] svg,.fun-sort-tab[aria-selected="true"] svg,.matches-orb,.match-card,.match-panel-animate,.exact-score-reveal,.home-cup-card,.competition-hero,.quiz-start,.quiz-question,.quiz-result,.store-hero,.squad-player,.lineup-player,.squad-backdrop,.squad-sheet,.player-modal-backdrop,.player-modal-panel,.player-collection-card,.offer-card { animation: none; }
   .referral-card { transition: none; }
