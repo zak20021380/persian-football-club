@@ -2,23 +2,19 @@ import { useEffect, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   CheckCircle2,
-  Clock3,
-  Coins,
   Gift,
   LockKeyhole,
   ShieldCheck,
-  ShoppingBag,
-  Sparkles,
   X,
   Zap,
-  type LucideIcon,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
+import { CoinIcon } from '@/components/CoinIcon';
 import { PageHeader } from '@/components/PageHeader';
 import { ErrorState, LoadingButton, PageSkeleton } from '@/components/ui';
 import { api } from '@/lib/api';
 import { isDemoDataEnabled } from '@/lib/featureFlags';
-import { cn, faNumber } from '@/lib/utils';
+import { cn } from '@/lib/utils';
 import type { CoinPackage, CoinTransaction, StoreData } from '@/types/api';
 
 interface PurchaseIntentResponse {
@@ -40,7 +36,8 @@ const demoCoinPackages: DemoCoinPackage[] = [
   { coins: 1200, title: 'خزانه قهرمان', description: 'بیشترین سکه با قیمت نمایشی بهتر', demoPrice: 349_000 },
 ];
 
-const toman = (value: number) => `${faNumber(value)} تومان`;
+const enNumber = (value: number) => value.toLocaleString('en-US');
+const toman = (value: number) => `${enNumber(value)} تومان`;
 
 function countdown(target: string | null, now: number): string {
   if (!target) return 'آماده دریافت';
@@ -49,8 +46,8 @@ function countdown(target: string | null, now: number): string {
   const hours = Math.floor(difference / 3_600_000);
   const minutes = Math.floor((difference % 3_600_000) / 60_000);
   const seconds = Math.floor((difference % 60_000) / 1000);
-  const twoDigits = new Intl.NumberFormat('fa-IR', { minimumIntegerDigits: 2, useGrouping: false });
-  return `${twoDigits.format(hours)}:${twoDigits.format(minutes)}:${twoDigits.format(seconds)}`;
+  const twoDigits = (unit: number) => String(unit).padStart(2, '0');
+  return `${twoDigits(hours)}:${twoDigits(minutes)}:${twoDigits(seconds)}`;
 }
 
 export function StorePage() {
@@ -98,43 +95,64 @@ export function StorePage() {
         demoPackage: { coins: availablePackage.coins, title: availablePackage.title, description: availablePackage.badge ?? '', demoPrice: availablePackage.price },
         availablePackage
       }));
-  const rewardReady = data.dailyReward.claimable || !data.dailyReward.nextClaimAt || new Date(data.dailyReward.nextClaimAt).getTime() <= now;
+  const nextClaimTime = data.dailyReward.nextClaimAt ? new Date(data.dailyReward.nextClaimAt).getTime() : 0;
+  const rewardReady = data.dailyReward.claimable || !nextClaimTime || nextClaimTime <= now;
+  const rewardProgress = rewardReady || !now ? 1 : Math.max(0.03, Math.min(1, 1 - (nextClaimTime - now) / 86_400_000));
   return <>
     <PageHeader title="فروشگاه" subtitle="سکه و کیف پول باشگاه" tone="mint" eyebrow="FFN STORE / CLUB SHOP"/>
     <main className="store-page space-y-5 overflow-x-hidden p-4 pb-8">
-      <section className="store-hero" aria-labelledby="store-balance-title">
-        <div className="store-hero-grid" aria-hidden="true"/>
-        <div className="relative z-[1] flex items-center justify-between gap-3">
-          <div className="min-w-0">
-            <span className="store-kicker" dir="ltr">MATCHDAY WALLET</span>
-            <h1 id="store-balance-title" className="mt-1 text-xs font-black text-slate-100">کیف پول باشگاه</h1>
-          </div>
-          {demoMode && <span className="store-dev-chip"><Zap size={10}/>پیش‌نمایش توسعه</span>}
+      <section className="store-wallet" aria-labelledby="store-balance-title">
+        <div className="store-wallet-glow" aria-hidden="true"/>
+        <div className="relative flex items-center justify-between gap-3">
+          <h1 id="store-balance-title" className="flex items-center gap-2 text-[10px] font-bold text-slate-400">
+            <span className="h-1 w-1 rounded-full bg-amber-300"/>کیف پول باشگاه
+          </h1>
+          {demoMode
+            ? <span className="store-dev-chip"><Zap size={10}/>پیش‌نمایش توسعه</span>
+            : <span className="store-wallet-mark" dir="ltr">FFN&nbsp;PAY</span>}
         </div>
 
-        <div className="relative z-[1] mt-4 flex items-center gap-3">
-          <span className="store-balance-icon grid h-12 w-12 shrink-0 place-items-center rounded-2xl"><Coins size={23}/></span>
+        <div className="relative mt-6 flex items-center gap-4">
+          <span className="store-coin-halo relative grid shrink-0 place-items-center"><CoinIcon size={44}/></span>
           <div className="min-w-0 flex-1">
-            <span className="block text-[7px] font-bold text-slate-400">موجودی فعلی</span>
-            <div className="mt-1 flex items-baseline gap-1.5"><strong className="text-[1.75rem] font-black leading-none tracking-tight text-white">{faNumber(data.balance)}</strong><span className="text-[9px] font-black text-amber-300">سکه</span></div>
+            <span className="block text-[8px] font-bold text-slate-500">موجودی فعلی</span>
+            <div className="mt-1 flex items-baseline gap-2" dir="ltr">
+              <strong className="store-balance-figure text-[2.6rem] font-black leading-none tracking-tight tabular-nums">{enNumber(data.balance)}</strong>
+              <span className="text-[10px] font-bold text-amber-200/70">COIN</span>
+            </div>
           </div>
-          <ShieldCheck size={19} className="shrink-0 text-emerald-300/65"/>
         </div>
 
-        <div className="store-daily-reward relative z-[1] mt-4">
-          <div className="flex min-w-0 items-center gap-2.5">
-            <span className={cn('grid h-9 w-9 shrink-0 place-items-center rounded-xl', rewardReady ? 'bg-emerald-300/[.12] text-emerald-300' : 'bg-white/[.045] text-slate-400')}><Gift size={17}/></span>
-            <div className="min-w-0 flex-1"><span className="block text-[8px] font-black text-slate-200">جایزه روزانه</span><span className="mt-0.5 block truncate text-[6.5px] text-slate-500">{faNumber(data.dailyReward.amount)} سکه رایگان هر ۲۴ ساعت</span></div>
-            <span className={cn('shrink-0 rounded-full px-2 py-1 text-[6px] font-black', rewardReady ? 'bg-emerald-300/[.1] text-emerald-200' : 'bg-white/[.04] text-slate-500')}>{rewardReady ? 'آماده دریافت' : 'در انتظار'}</span>
+        <div className="store-wallet-divider relative mt-6" aria-hidden="true"/>
+
+        <div className="relative mt-4 flex min-w-0 items-center gap-3">
+          <span className={cn('grid h-11 w-11 shrink-0 place-items-center rounded-2xl border transition-colors', rewardReady ? 'border-amber-300/25 bg-gradient-to-b from-amber-300/[.14] to-amber-300/[.03] text-amber-300' : 'border-white/[.07] bg-white/[.03] text-slate-500')}>
+            <Gift size={18}/>
+          </span>
+          <div className="min-w-0 flex-1">
+            <span className="block text-[9.5px] font-black text-slate-100">جایزه روزانه</span>
+            <span className="mt-1 block truncate text-[8px] text-slate-500"><span dir="ltr" className="tabular-nums">{enNumber(data.dailyReward.amount)}</span> سکه رایگان، هر ۲۴ ساعت</span>
           </div>
-          <LoadingButton disabled={!rewardReady} loading={claim.isPending} onClick={() => claim.mutate()} className={cn('store-daily-cta mt-3 w-full', !rewardReady && 'bg-white/[.055] text-slate-400')}>
-            {rewardReady ? <><Sparkles size={15}/>دریافت جایزه روزانه</> : <><Clock3 size={14}/>جایزه بعدی: {countdown(data.dailyReward.nextClaimAt, now)}</>}
-          </LoadingButton>
+          {rewardReady ? (
+            <LoadingButton loading={claim.isPending} onClick={() => claim.mutate()} className="store-claim-button shrink-0">دریافت</LoadingButton>
+          ) : (
+            <span className="store-countdown-chip shrink-0" dir="ltr">
+              <span className="block text-center text-[6.5px] font-bold tracking-[.14em] text-slate-500">NEXT CLAIM</span>
+              <span className="mt-0.5 block text-center text-[12px] font-black tabular-nums text-slate-100">{countdown(data.dailyReward.nextClaimAt, now)}</span>
+            </span>
+          )}
         </div>
+        {!rewardReady && (
+          <div className="store-reward-track relative mt-3.5" role="progressbar" aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.round(rewardProgress * 100)} aria-label="زمان باقی‌مانده تا جایزه بعدی">
+            <span className="store-reward-fill" style={{ width: `${rewardProgress * 100}%` }}/>
+          </div>
+        )}
+
+        <p className="relative mt-5 flex items-center gap-1.5 text-[8px] text-slate-600"><ShieldCheck size={12} className="text-emerald-400/60"/>پرداخت‌ها از مسیر امن انجام می‌شود</p>
       </section>
 
       <section aria-labelledby="coin-packages-title">
-        <StoreSectionHeading id="coin-packages-title" icon={Coins} title="بسته‌های سکه" description={demoMode ? 'قیمت‌ها نمایشی‌اند؛ فقط بستهٔ فعال قابل خرید آزمایشی است' : 'بسته‌های فعال فروشگاه'} demo={demoMode}/>
+        <StoreSectionHeading id="coin-packages-title" title="بسته‌های سکه" description={demoMode ? 'قیمت‌ها نمایشی‌اند؛ فقط بستهٔ فعال قابل خرید آزمایشی است' : 'بسته‌های فعال فروشگاه'} demo={demoMode}/>
         <div className="store-coin-grid mt-3 grid grid-cols-2 gap-2.5">
           {packageCards.map(({ demoPackage, availablePackage }) => {
             return <CoinPackageCard
@@ -156,7 +174,7 @@ export function StorePage() {
           <div className="flex items-start justify-between gap-3"><div className="grid h-12 w-12 place-items-center rounded-2xl bg-sky-400/10 text-sky-300"><LockKeyhole size={22}/></div><button type="button" onClick={() => setPendingPurchase(null)} className="grid h-11 w-11 place-items-center rounded-2xl bg-white/[.05]" aria-label="بستن"><X size={18}/></button></div>
           <h2 className="mt-4 text-lg font-black">تأیید پرداخت آزمایشی</h2>
           <p className="mt-2 text-xs leading-6 text-slate-400">{pendingPurchase.payment.message}</p>
-          <div className="mt-4 flex items-center justify-between rounded-2xl border border-white/[.07] bg-white/[.035] p-4"><span className="text-xs text-slate-400">{pendingPurchase.transaction.packageTitle}</span><strong className="text-amber-300">+{faNumber(pendingPurchase.transaction.coins)} سکه</strong></div>
+          <div className="mt-4 flex items-center justify-between rounded-2xl border border-white/[.07] bg-white/[.035] p-4"><span className="text-xs text-slate-400">{pendingPurchase.transaction.packageTitle}</span><strong className="flex items-center gap-1.5 text-amber-300" dir="ltr"><CoinIcon size={16}/><span className="tabular-nums">+{enNumber(pendingPurchase.transaction.coins)}</span></strong></div>
           <LoadingButton loading={confirm.isPending} onClick={() => confirm.mutate(pendingPurchase.transaction._id)} className="mt-4 w-full"><CheckCircle2 size={18}/>تکمیل خرید آزمایشی</LoadingButton>
           <p className="mt-3 text-center text-[9px] text-slate-500">هیچ وجه واقعی جابه‌جا نمی‌شود</p>
         </div>
@@ -165,25 +183,40 @@ export function StorePage() {
   </>;
 }
 
-function StoreSectionHeading({ id, icon: Icon, title, description, demo }: { id: string; icon: LucideIcon; title: string; description: string; demo: boolean }) {
-  return <div className="flex items-end justify-between gap-3 px-0.5">
-    <div className="min-w-0">{demo && <span className="store-kicker" dir="ltr">DEVELOPMENT SHOWCASE</span>}<h2 id={id} className="mt-1 text-sm font-black tracking-tight">{title}</h2><p className="mt-1 truncate text-[7.5px] text-slate-500">{description}</p></div>
-    <span className="grid h-9 w-9 shrink-0 place-items-center rounded-xl border border-cyan-300/[.1] bg-cyan-300/[.055] text-cyan-200"><Icon size={16}/></span>
+function StoreSectionHeading({ id, title, description, demo }: { id: string; title: string; description: string; demo: boolean }) {
+  return <div className="min-w-0 px-0.5">
+    <div className="flex items-baseline justify-between gap-3">
+      <h2 id={id} className="text-sm font-black tracking-tight">{title}</h2>
+      {demo && <span className="text-[6.5px] font-bold tracking-[.14em] text-slate-600" dir="ltr">DEV PREVIEW</span>}
+    </div>
+    <p className="mt-1 truncate text-[8px] text-slate-500">{description}</p>
   </div>;
 }
 
 function CoinPackageCard({ demoPackage, availablePackage, featured = demoPackage.featured ?? false, paymentMode, pending, onPurchase }: { demoPackage: DemoCoinPackage; availablePackage?: CoinPackage; featured?: boolean; paymentMode: StoreData['paymentMode']; pending: boolean; onPurchase: (coinPackage: CoinPackage) => void }) {
   const purchasable = Boolean(availablePackage && paymentMode === 'test');
   const displayPrice = availablePackage?.price ?? demoPackage.demoPrice;
-  return <article className={cn('store-coin-card relative min-w-0', featured && 'store-coin-featured col-span-2')}>
-    <div className="flex items-start justify-between gap-2">
-      <span className="store-coin-icon grid h-10 w-10 shrink-0 place-items-center rounded-xl"><Coins size={19}/></span>
-      <span className={cn('rounded-full px-2 py-1 text-[6px] font-black', featured ? 'bg-amber-300 text-amber-950' : purchasable ? 'bg-emerald-300/[.1] text-emerald-200' : 'bg-white/[.045] text-slate-500')}>{featured ? 'پرفروش‌ترین' : purchasable ? 'خرید آزمایشی' : 'به‌زودی'}</span>
+  const perCoin = Math.round(displayPrice / demoPackage.coins);
+  return <article className={cn('store-coin-card group relative flex min-w-0 flex-col', featured && 'store-coin-featured col-span-2')}>
+    <div className="relative flex items-center justify-between gap-2">
+      <span className="text-[8.5px] font-bold text-slate-400">{demoPackage.title}</span>
+      {featured
+        ? <span className="store-tag store-tag-gold">پیشنهاد ویژه</span>
+        : !purchasable && <span className="store-tag">به‌زودی</span>}
     </div>
-    <div className="mt-3"><h3 className="text-[9px] font-black text-slate-200">{demoPackage.title}</h3><div className="mt-1 flex items-baseline gap-1"><strong className="text-xl font-black leading-none text-white">{faNumber(demoPackage.coins)}</strong><span className="text-[7px] font-black text-amber-300">سکه</span></div><p className="mt-2 line-clamp-2 min-h-8 text-[6.5px] leading-4 text-slate-500">{demoPackage.description}</p></div>
-    <div className="mt-2 flex items-end justify-between gap-2"><span><small className="block text-[5.5px] text-slate-600">قیمت {availablePackage ? 'فعلی' : 'نمایشی'}</small><strong className="mt-0.5 block whitespace-nowrap text-[8px] text-slate-200">{toman(displayPrice)}</strong></span><ShoppingBag size={13} className="shrink-0 text-amber-300/60"/></div>
-    <button type="button" disabled={!purchasable || pending} onClick={() => availablePackage && onPurchase(availablePackage)} className={cn('store-buy-button mt-3 min-h-9 w-full rounded-xl text-[8px] font-black', purchasable && 'is-available')}>
-      {purchasable ? 'خرید آزمایشی' : 'به‌زودی'}
+    <div className="relative mt-3.5 flex flex-1 items-center gap-3" dir="ltr">
+      <span className={cn('store-card-coin grid shrink-0 place-items-center', featured && 'is-gold')}><CoinIcon size={featured ? 26 : 22}/></span>
+      <span className="flex min-w-0 items-baseline gap-1.5">
+        <strong className={cn('font-black leading-none text-white tabular-nums tracking-tight', featured ? 'text-[2rem]' : 'text-[1.45rem]')}>{enNumber(demoPackage.coins)}</strong>
+        <span className="text-[7.5px] font-bold uppercase tracking-[.12em] text-slate-500">Coins</span>
+      </span>
+    </div>
+    <div className="relative mt-4 flex items-center justify-between gap-2">
+      <span className="text-[7px] text-slate-500" dir="ltr"><span className="tabular-nums">{enNumber(perCoin)}</span> T / coin</span>
+      {!availablePackage && <span className="text-[7px] text-slate-600">قیمت نمایشی</span>}
+    </div>
+    <button type="button" disabled={!purchasable || pending} onClick={() => availablePackage && onPurchase(availablePackage)} className={cn('store-buy-button relative mt-2.5 flex min-h-10 w-full items-center justify-center gap-1.5 rounded-xl text-[9px] font-black', purchasable && 'is-available', featured && purchasable && 'is-featured')}>
+      {purchasable ? <>خرید<span className={cn('tabular-nums', featured ? 'opacity-90' : 'text-white')} dir="ltr">{enNumber(displayPrice)}</span>تومان</> : 'به‌زودی'}
     </button>
   </article>;
 }
