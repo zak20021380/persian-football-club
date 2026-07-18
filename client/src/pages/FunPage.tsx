@@ -1,20 +1,18 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { keepPreviousData, useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useSearchParams } from 'react-router-dom';
 import {
   AlertTriangle,
   ArrowDownNarrowWide,
   ArrowUpNarrowWide,
-  Camera,
   Copy,
   Eye,
   Flag,
   Heart,
-  ImagePlus,
   LoaderCircle,
   MessageCircle,
   MoreHorizontal,
-  Plus,
+  PenLine,
   Send,
   Share2,
   Sparkles,
@@ -23,11 +21,10 @@ import {
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { BrandMark } from '@/components/BrandMark';
-import { isDemoDataEnabled } from '@/lib/featureFlags';
 import { WalletShortcut } from '@/components/WalletShortcut';
 import { Card, EmptyState, ErrorState, Skeleton } from '@/components/ui';
 import { api } from '@/lib/api';
-import { FUN_IMAGE_ACCEPT, validateFunImageFile } from '@/lib/funImage';
+import { isDemoDataEnabled } from '@/lib/featureFlags';
 import { copyText, shareMemeFallback } from '@/lib/share';
 import { canUseNativeTelegramShare, impact, notify, sharePreparedTelegramMessage } from '@/lib/telegram';
 import { cn, faNumber } from '@/lib/utils';
@@ -39,7 +36,7 @@ type FunSort = 'newest' | 'mostLiked' | 'oldest';
 
 const FUN_SORT_OPTIONS: ReadonlyArray<{ value: FunSort; label: string; icon: typeof ArrowDownNarrowWide }> = [
   { value: 'newest', label: 'جدیدترین', icon: ArrowDownNarrowWide },
-  { value: 'mostLiked', label: 'بیشترین لایک', icon: Heart },
+  { value: 'mostLiked', label: 'محبوب‌ترین', icon: Heart },
   { value: 'oldest', label: 'قدیمی‌ترین', icon: ArrowUpNarrowWide }
 ];
 
@@ -76,29 +73,23 @@ function formatCount(value: number): string {
   return faNumber(value);
 }
 
-type MemePost = FunPost & {
-  category: MemeCategory;
+type FunCategory = 'فوتبال ایران' | 'فان' | 'تیم ملی' | 'دربی' | 'بازیکنان' | 'لیگ برتر';
+
+type FunPostWithMeta = FunPost & {
+  category: FunCategory;
   commentCount: number;
   shareCount: number;
   viewCount: number;
 };
 
-type MemeCategory = 'فوتبال ایران' | 'فان' | 'تیم ملی' | 'دربی' | 'بازیکنان' | 'لیگ برتر';
-
-const categoryStyles: Record<MemeCategory, string> = {
-  'فوتبال ایران': 'border-pitch-400/30 bg-pitch-500/10 text-pitch-300',
-  'فان': 'border-fuchsia-300/30 bg-fuchsia-400/10 text-fuchsia-200',
-  'تیم ملی': 'border-amber-300/30 bg-amber-400/10 text-amber-200',
-  'دربی': 'border-rose-300/30 bg-rose-400/10 text-rose-200',
-  'بازیکنان': 'border-sky-300/30 bg-sky-400/10 text-sky-200',
-  'لیگ برتر': 'border-violet-300/30 bg-violet-400/10 text-violet-200',
+const categoryStyles: Record<FunCategory, string> = {
+  'فوتبال ایران': 'border-emerald-300/25 bg-emerald-400/[.08] text-emerald-200',
+  'فان': 'border-fuchsia-300/25 bg-fuchsia-400/[.08] text-fuchsia-200',
+  'تیم ملی': 'border-amber-300/25 bg-amber-400/[.08] text-amber-200',
+  'دربی': 'border-rose-300/25 bg-rose-400/[.08] text-rose-200',
+  'بازیکنان': 'border-sky-300/25 bg-sky-400/[.08] text-sky-200',
+  'لیگ برتر': 'border-violet-300/25 bg-violet-400/[.08] text-violet-200',
 };
-
-const imagePrompt = (text: string) =>
-  encodeURIComponent(`${text}, Persian football meme illustration, vibrant colors, clean cartoon style, dramatic stadium lighting, no text overlay, high quality`);
-
-const memeImage = (prompt: string) =>
-  `https://coresg-normal.trae.ai/api/ide/v1/text_to_image?prompt=${imagePrompt(prompt)}&image_size=portrait_4_3`;
 
 function mockMemeLink(id: string): string {
   const link = new URL('/fun', window.location.origin);
@@ -106,13 +97,12 @@ function mockMemeLink(id: string): string {
   return link.toString();
 }
 
-const mockMemes: MemePost[] = [
+const mockMemes: FunPostWithMeta[] = [
   {
-    _id: 'mock-meme-1' as Id,
-    caption: 'وقتی تیمت دقیقه ۹۰ گل می‌خوره 😭',
-    imageUrl: memeImage('A Persian football fan holding head in both hands crying at a stadium, dramatic night lights, teammates losing in background, cartoon meme style, vibrant colors'),
+    _id: 'mock-fun-1' as Id,
+    caption: 'وقتی تیمت دقیقه ۹۰ گل می‌خوره و تو از تلویزیون فقط نگاه می‌کنی 😭\nهیچ کاری نمی‌تونی بکنی، فقط می‌شینی و تماشا می‌کنی چطور همه چیز خراب می‌شه. این حس رو فقط یه هوادار واقعی درکش می‌کنه.',
     likeCount: 1284,
-    shareUrl: mockMemeLink('mock-meme-1'),
+    shareUrl: mockMemeLink('mock-fun-1'),
     liked: false,
     isOwner: false,
     createdAt: new Date(Date.now() - 7 * 60_000).toISOString(),
@@ -123,11 +113,10 @@ const mockMemes: MemePost[] = [
     viewCount: 8420,
   },
   {
-    _id: 'mock-meme-2' as Id,
-    caption: 'من بعد از بستن میکس ۲۰ تایی 🤡',
-    imageUrl: memeImage('A person sitting on a couch staring at a phone with a shocked and devastated expression, dark living room, single lamp light, Persian meme cartoon style, vibrant colors'),
+    _id: 'mock-fun-2' as Id,
+    caption: 'من بعد از بستن میکس ۲۰ تایی 🤡\nیه لحظه فکر می‌کنی همه چیز روبلدی، یه لحظه بعد می‌بینی ۱۸ تاش غلط بوده و تنها دو تاش درست.',
     likeCount: 942,
-    shareUrl: mockMemeLink('mock-meme-2'),
+    shareUrl: mockMemeLink('mock-fun-2'),
     liked: true,
     isOwner: true,
     createdAt: new Date(Date.now() - 38 * 60_000).toISOString(),
@@ -138,11 +127,10 @@ const mockMemes: MemePost[] = [
     viewCount: 5210,
   },
   {
-    _id: 'mock-meme-3' as Id,
-    caption: 'داور وقتی VAR به نفع تیم ماست 😎',
-    imageUrl: memeImage('A referee in a black uniform pointing at a VAR monitor with a confident thumbs up, Iranian football stadium with cheering fans, cartoon meme style, vibrant colors, dynamic pose'),
+    _id: 'mock-fun-3' as Id,
+    caption: 'داور وقتی VAR به نفع تیم ماست 😎\nمعلوم نیست چرا همیشه وقتی سود ما توش نیست، صدای اعتراض همه بلنده. ولی وقتی به نفع ماست، همه چیز کاملا قانونیه.',
     likeCount: 2104,
-    shareUrl: mockMemeLink('mock-meme-3'),
+    shareUrl: mockMemeLink('mock-fun-3'),
     liked: false,
     isOwner: false,
     createdAt: new Date(Date.now() - 2 * 60 * 60_000).toISOString(),
@@ -153,11 +141,10 @@ const mockMemes: MemePost[] = [
     viewCount: 12130,
   },
   {
-    _id: 'mock-meme-4' as Id,
-    caption: 'هوادار قبل و بعد از بازی 😅',
-    imageUrl: memeImage('Split scene comic: left side a cheerful Persian football fan with team scarf smiling confidently before match, right side the same fan sitting alone looking heartbroken and tired after match, cartoon meme style, vibrant colors'),
+    _id: 'mock-fun-4' as Id,
+    caption: 'هوادار قبل و بعد از بازی 😅\nقبلش پر از انرژی و شعار. بعدش ساکت، خسته و فقط امیدوار به بازی بعد. هواداری یعنی همین رفت و برگشت بی‌پایان.',
     likeCount: 3567,
-    shareUrl: mockMemeLink('mock-meme-4'),
+    shareUrl: mockMemeLink('mock-fun-4'),
     liked: false,
     isOwner: false,
     createdAt: new Date(Date.now() - 5 * 60 * 60_000).toISOString(),
@@ -168,11 +155,10 @@ const mockMemes: MemePost[] = [
     viewCount: 19840,
   },
   {
-    _id: 'mock-meme-5' as Id,
-    caption: 'وقتی مربی میگه تاکتیک داشتیم 🧠',
-    imageUrl: memeImage('A football coach in a suit drawing chaotic arrows and shapes on a whiteboard, confused players in background scratching their heads, locker room setting, cartoon meme style, vibrant colors'),
+    _id: 'mock-fun-5' as Id,
+    caption: 'وقتی مربی میگه تاکتیک داشتیم 🧠\nیعنی نقشه‌هایی کشیده که هیچ‌کس توی زمین نمی‌فهمه. بعد بازی همه با تعجب به هم نگاه می‌کنن که واقعا چی شد.',
     likeCount: 786,
-    shareUrl: mockMemeLink('mock-meme-5'),
+    shareUrl: mockMemeLink('mock-fun-5'),
     liked: false,
     isOwner: false,
     createdAt: new Date(Date.now() - 22 * 60 * 60_000).toISOString(),
@@ -183,11 +169,10 @@ const mockMemes: MemePost[] = [
     viewCount: 3940,
   },
   {
-    _id: 'mock-meme-6' as Id,
-    caption: 'فقط یه بازی ساده بود... 💥',
-    imageUrl: memeImage('Dramatic football match scene with the ball just crossing the goal line, goalkeeper diving, players celebrating, confetti, Persian football style cartoon illustration, vibrant colors, dynamic action'),
+    _id: 'mock-fun-6' as Id,
+    caption: 'فقط یه بازی ساده بود… 💥\nولی هر دفعه که فکر می‌کنی همه چیز عادیه، یه اتفاق می‌افته که تا هفته بعد زبانزد همه می‌شه.',
     likeCount: 1640,
-    shareUrl: mockMemeLink('mock-meme-6'),
+    shareUrl: mockMemeLink('mock-fun-6'),
     liked: false,
     isOwner: false,
     createdAt: new Date(Date.now() - 2 * 24 * 60 * 60_000).toISOString(),
@@ -199,7 +184,22 @@ const mockMemes: MemePost[] = [
   },
 ];
 
-function MemeCard({
+const avatarPalette = [
+  'from-fuchsia-400 to-violet-600',
+  'from-sky-400 to-cyan-600',
+  'from-emerald-400 to-teal-600',
+  'from-amber-400 to-orange-600',
+  'from-rose-400 to-pink-600',
+  'from-indigo-400 to-blue-600',
+];
+
+function avatarTone(seed: string): string {
+  let hash = 0;
+  for (let i = 0; i < seed.length; i += 1) hash = (hash * 31 + seed.charCodeAt(i)) >>> 0;
+  return avatarPalette[hash % avatarPalette.length];
+}
+
+function FunPostCard({
   post,
   index,
   onLike,
@@ -212,7 +212,7 @@ function MemeCard({
   sharing,
   highlighted,
 }: {
-  post: MemePost;
+  post: FunPostWithMeta;
   index: number;
   onLike: () => void;
   liking: boolean;
@@ -226,6 +226,7 @@ function MemeCard({
 }) {
   const [menuOpen, setMenuOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
+  const tone = useMemo(() => avatarTone(`${post._id}:${post.owner._id}`), [post._id, post.owner._id]);
 
   useEffect(() => {
     if (!menuOpen) return;
@@ -246,23 +247,28 @@ function MemeCard({
     }
   };
 
+  const initial = post.owner.firstName.replace(/\s+/g, '').slice(0, 1) || '؟';
+
   return (
     <article
       id={`fun-post-${post._id}`}
+      aria-label={`پست فان از ${post.owner.firstName}`}
       className={cn(
-        'fun-card rounded-[1.4rem] border bg-ink-900/92 shadow-[0_10px_28px_rgba(0,0,0,.22)] transition',
-        highlighted ? 'border-fuchsia-300/60 ring-2 ring-fuchsia-300/20' : 'border-white/[.08]'
+        'fun-card fun-post-card relative overflow-hidden rounded-[1.35rem] border bg-ink-900/94 transition',
+        highlighted ? 'border-fuchsia-300/55 ring-1 ring-fuchsia-300/25' : 'border-white/[.07]'
       )}
       style={{ animationDelay: `${Math.min(index, 5) * 55}ms` }}
     >
-      <div className="flex items-center gap-2.5 px-3 py-2.5">
-        <PostAvatar post={post} />
+      <header className="fun-post-header flex items-center gap-2.5 px-3.5 py-2.5">
+        <span aria-hidden="true" className={cn('grid h-9 w-9 shrink-0 place-items-center rounded-2xl border border-white/[.08] bg-gradient-to-br text-[12px] font-black text-ink-950', tone)}>
+          {initial}
+        </span>
         <div className="min-w-0 flex-1">
-          <h2 className="truncate text-[11.5px] font-black leading-4 text-white">{post.owner.firstName}</h2>
+          <h2 className="truncate text-[12px] font-black leading-4 text-white">{post.owner.firstName}</h2>
           <p className="mt-0.5 flex min-w-0 items-center gap-1 truncate text-[8.5px] text-slate-500">
             <span className="truncate">{post.owner.clubName || 'باشگاه فوتبالی'}</span>
-            <span className="text-white/15">·</span>
-            <span className="shrink-0">{relativeTime(post.createdAt)}</span>
+            <span aria-hidden="true" className="h-1 w-1 shrink-0 rounded-full bg-white/20"/>
+            <time dateTime={post.createdAt} className="shrink-0">{relativeTime(post.createdAt)}</time>
           </p>
         </div>
         <span className={cn('hidden shrink-0 items-center gap-1 rounded-full border px-2 py-0.5 text-[7.5px] font-black sm:inline-flex', categoryStyles[post.category])}>
@@ -273,31 +279,32 @@ function MemeCard({
             type="button"
             onClick={() => setMenuOpen(open => !open)}
             aria-label="منوی بیشتر"
+            aria-haspopup="menu"
             aria-expanded={menuOpen}
-            className="grid h-9 w-9 place-items-center rounded-2xl text-slate-400 transition active:scale-90 active:bg-white/[.06]"
+            className="grid h-9 w-9 place-items-center rounded-2xl text-slate-400 transition hover:bg-white/[.05] hover:text-slate-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-fuchsia-300/40 active:scale-90"
           >
             <MoreHorizontal size={17} />
           </button>
           {menuOpen && (
             <div
               role="menu"
-              className="absolute left-0 top-[calc(100%+4px)] z-20 w-40 origin-top-left overflow-hidden rounded-2xl border border-white/10 bg-ink-900/98 p-1 shadow-[0_18px_40px_rgba(0,0,0,.35)] backdrop-blur"
+              className="absolute left-0 top-[calc(100%+4px)] z-20 w-44 origin-top-left overflow-hidden rounded-2xl border border-white/10 bg-ink-900/98 p-1 shadow-[0_18px_40px_rgba(0,0,0,.35)] backdrop-blur"
             >
               <button
                 type="button"
                 role="menuitem"
                 disabled={sharing}
                 onClick={() => { setMenuOpen(false); onShare(); }}
-                className="flex w-full items-center gap-2 rounded-xl px-2.5 py-2 text-[9.5px] font-bold text-slate-200 transition active:scale-[.98] active:bg-white/[.06] disabled:opacity-50"
+                className="flex w-full items-center gap-2 rounded-xl px-2.5 py-2 text-[9.5px] font-bold text-slate-200 transition hover:bg-white/[.05] focus-visible:outline-none focus-visible:bg-white/[.06] active:scale-[.98] disabled:opacity-50"
               >
-                {sharing ? <LoaderCircle size={13} className="animate-spin text-pitch-300" /> : <Share2 size={13} className="text-pitch-300" />}
+                {sharing ? <LoaderCircle size={13} className="animate-spin text-fuchsia-300" /> : <Share2 size={13} className="text-fuchsia-300" />}
                 {sharing ? 'در حال آماده‌سازی...' : 'اشتراک‌گذاری'}
               </button>
               <button
                 type="button"
                 role="menuitem"
                 onClick={() => { void handleCopy(); }}
-                className="flex w-full items-center gap-2 rounded-xl px-2.5 py-2 text-[9.5px] font-bold text-slate-200 transition active:scale-[.98] active:bg-white/[.06]"
+                className="flex w-full items-center gap-2 rounded-xl px-2.5 py-2 text-[9.5px] font-bold text-slate-200 transition hover:bg-white/[.05] focus-visible:outline-none focus-visible:bg-white/[.06] active:scale-[.98]"
               >
                 <Copy size={13} className="text-sky-300" />
                 کپی متن
@@ -308,7 +315,7 @@ function MemeCard({
                   role="menuitem"
                   disabled={deleting}
                   onClick={() => { setMenuOpen(false); onDelete(); }}
-                  className="flex w-full items-center gap-2 rounded-xl px-2.5 py-2 text-[9.5px] font-bold text-rose-300 transition active:scale-[.98] active:bg-rose-400/10 disabled:opacity-50"
+                  className="flex w-full items-center gap-2 rounded-xl px-2.5 py-2 text-[9.5px] font-bold text-rose-300 transition hover:bg-rose-400/10 focus-visible:outline-none focus-visible:bg-rose-400/15 active:scale-[.98] disabled:opacity-50"
                 >
                   {deleting ? <LoaderCircle size={13} className="animate-spin" /> : <Trash2 size={13} />}
                   حذف پست
@@ -319,7 +326,7 @@ function MemeCard({
                   role="menuitem"
                   disabled={reporting}
                   onClick={() => { setMenuOpen(false); onReport(); }}
-                  className="flex w-full items-center gap-2 rounded-xl px-2.5 py-2 text-[9.5px] font-bold text-amber-200 transition active:scale-[.98] active:bg-amber-400/10 disabled:opacity-50"
+                  className="flex w-full items-center gap-2 rounded-xl px-2.5 py-2 text-[9.5px] font-bold text-amber-200 transition hover:bg-amber-400/10 focus-visible:outline-none focus-visible:bg-amber-400/15 active:scale-[.98] disabled:opacity-50"
                 >
                   {reporting ? <LoaderCircle size={13} className="animate-spin" /> : <Flag size={13} />}
                   گزارش پست
@@ -328,40 +335,32 @@ function MemeCard({
             </div>
           )}
         </div>
-      </div>
+      </header>
 
-      {post.imageUrl && (
-        <div className="relative overflow-hidden border-y border-white/[.06] bg-black/35">
-          <div className="relative h-[200px] w-full overflow-hidden sm:h-[230px]">
-            <img
-              src={post.imageUrl}
-              alt={post.caption || 'تصویر میم'}
-              loading="lazy"
-              className="h-full w-full object-cover object-center"
-            />
-            <span className={cn('absolute right-2 top-2 inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[7.5px] font-black backdrop-blur-md sm:hidden', categoryStyles[post.category])}>
-              {post.category}
-            </span>
-          </div>
+      {post.caption && (
+        <div className="fun-post-body px-4 pt-1 pb-3">
+          <span className={cn('mb-2 inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[7.5px] font-black sm:hidden', categoryStyles[post.category])}>
+            {post.category}
+          </span>
+          <p className="fun-post-caption break-words whitespace-pre-wrap text-[12.5px] font-medium leading-[1.85] text-slate-100">
+            {post.caption}
+          </p>
         </div>
       )}
 
-      {post.caption && (
-        <p className="break-words whitespace-pre-wrap px-3.5 py-3 text-[11.5px] leading-6 text-slate-100">
-          {post.caption}
-        </p>
-      )}
-
-      <div className="flex items-center justify-between border-t border-white/[.06] px-2 py-1.5">
+      <div className="fun-post-actions flex items-center justify-between border-t border-white/[.06] px-1.5 py-1.5">
         <div className="flex items-center gap-0.5">
           <button
             type="button"
             onClick={onLike}
             disabled={liking}
             aria-pressed={post.liked}
+            aria-label={post.liked ? 'برداشتن لایک' : 'لایک کردن'}
             className={cn(
-              'fun-like flex min-h-9 items-center gap-1.5 rounded-xl px-2.5 text-[10px] font-black transition active:scale-90',
-              post.liked ? 'bg-rose-400/[.12] text-rose-300' : 'text-slate-300 active:bg-white/[.05]'
+              'fun-like flex min-h-9 items-center gap-1.5 rounded-xl px-2.5 text-[10px] font-black transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-300/35 active:scale-90',
+              post.liked
+                ? 'bg-rose-400/[.14] text-rose-200 hover:bg-rose-400/[.18]'
+                : 'text-slate-300 hover:bg-white/[.05] hover:text-rose-200'
             )}
           >
             {liking
@@ -372,8 +371,8 @@ function MemeCard({
           <button
             type="button"
             onClick={() => toast('به‌زودی فعال می‌شود', { icon: '💬' })}
-            className="flex min-h-9 items-center gap-1.5 rounded-xl px-2.5 text-[10px] font-black text-slate-300 transition active:scale-90 active:bg-white/[.05]"
             aria-label="نمایش نظرات"
+            className="flex min-h-9 items-center gap-1.5 rounded-xl px-2.5 text-[10px] font-black text-slate-300 transition hover:bg-white/[.05] hover:text-slate-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-300/35 active:scale-90"
           >
             <MessageCircle size={15} strokeWidth={1.8} />
             <span>{formatCount(post.commentCount)}</span>
@@ -382,8 +381,8 @@ function MemeCard({
             type="button"
             onClick={onShare}
             disabled={sharing}
-            className="flex min-h-9 items-center gap-1.5 rounded-xl px-2.5 text-[10px] font-black text-slate-300 transition active:scale-90 active:bg-white/[.05] disabled:cursor-wait disabled:opacity-60"
             aria-label="اشتراک‌گذاری"
+            className="flex min-h-9 items-center gap-1.5 rounded-xl px-2.5 text-[10px] font-black text-slate-300 transition hover:bg-white/[.05] hover:text-fuchsia-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-fuchsia-300/35 active:scale-90 disabled:cursor-wait disabled:opacity-60"
           >
             {sharing ? <LoaderCircle size={14} className="animate-spin" /> : <Share2 size={14} strokeWidth={1.8} />}
             <span>{formatCount(post.shareCount)}</span>
@@ -398,17 +397,9 @@ function MemeCard({
   );
 }
 
-function PostAvatar({ post }: { post: FunPost }) {
-  return post.owner.photoUrl
-    ? <img src={post.owner.photoUrl} alt="" className="h-9 w-9 shrink-0 rounded-2xl border border-white/10 object-cover" />
-    : <div className="grid h-9 w-9 shrink-0 place-items-center rounded-2xl border border-white/10 bg-gradient-to-br from-fuchsia-300 to-violet-600 text-[12px] font-black text-ink-950">
-        {post.owner.firstName.slice(0, 1)}
-      </div>;
-}
-
 function FeedSkeleton() {
   return (
-    <div className="space-y-4">
+    <div className="space-y-4" role="status" aria-live="polite" aria-label="در حال بارگذاری پست‌ها">
       {[0, 1].map(item => (
         <Card key={item} className="space-y-3 p-3">
           <div className="flex items-center gap-3">
@@ -418,8 +409,9 @@ function FeedSkeleton() {
               <Skeleton className="h-2 w-16" />
             </div>
           </div>
-          <Skeleton className="h-[200px] w-full sm:h-[230px]" />
-          <Skeleton className="h-9 w-full" />
+          <Skeleton className="h-4 w-full" />
+          <Skeleton className="h-4 w-11/12" />
+          <Skeleton className="h-4 w-10/12" />
         </Card>
       ))}
     </div>
@@ -428,15 +420,11 @@ function FeedSkeleton() {
 
 function CreatePostSheet({ onClose, onPublished }: { onClose: () => void; onPublished: () => Promise<void> }) {
   const [caption, setCaption] = useState('');
-  const [image, setImage] = useState<File | null>(null);
-  const [preview, setPreview] = useState<string | null>(null);
   const [requestId] = useState(() => crypto.randomUUID());
-  const inputRef = useRef<HTMLInputElement>(null);
   const publish = useMutation({
     mutationFn: async () => {
       const body = new FormData();
       if (caption.trim()) body.append('caption', caption.trim());
-      if (image) body.append('image', image);
       body.append('clientRequestId', requestId);
       return (await api.post<FunPost>('/fun/posts', body)).data;
     },
@@ -444,77 +432,51 @@ function CreatePostSheet({ onClose, onPublished }: { onClose: () => void; onPubl
     onError: (error) => { notify('error'); toast.error((error as Error).message); }
   });
 
-  useEffect(() => () => { if (preview) URL.revokeObjectURL(preview); }, [preview]);
-  const chooseImage = async (file?: File) => {
-    if (!file) return;
-    const error = await validateFunImageFile(file);
-    if (error) { notify('error'); toast.error(error); if (inputRef.current) inputRef.current.value = ''; return; }
-    if (preview) URL.revokeObjectURL(preview);
-    setImage(file);
-    setPreview(URL.createObjectURL(file));
-  };
-  const removeImage = () => {
-    if (preview) URL.revokeObjectURL(preview);
-    setImage(null); setPreview(null);
-    if (inputRef.current) inputRef.current.value = '';
-  };
-  const canPublish = Boolean(caption.trim() || image) && caption.length <= captionLimit;
+  const remaining = captionLimit - caption.length;
+  const canPublish = caption.trim().length > 0 && remaining >= 0;
+  const close = () => { if (!publish.isPending) onClose(); };
 
   return (
-    <div className="fixed inset-0 z-[80] flex items-end bg-black/75 backdrop-blur-sm" role="dialog" aria-modal="true" aria-label="ارسال پست فان" onMouseDown={(event) => { if (event.target === event.currentTarget && !publish.isPending) onClose(); }}>
+    <div className="fixed inset-0 z-[80] flex items-end bg-black/75 backdrop-blur-sm" role="dialog" aria-modal="true" aria-labelledby="fun-create-title" onMouseDown={(event) => { if (event.target === event.currentTarget) close(); }}>
       <div className="fun-sheet safe-bottom max-h-[92vh] w-full overflow-y-auto rounded-t-[2rem] border-t border-white/10 bg-ink-900 px-4 pb-4 pt-3">
         <div className="mx-auto max-w-xl">
-          <div className="mx-auto mb-3 h-1 w-10 rounded-full bg-white/15" />
+          <div className="mx-auto mb-3 h-1 w-10 rounded-full bg-white/15" aria-hidden="true"/>
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-[9px] font-black text-fuchsia-300">یه چیزی برای خندیدن داری؟</p>
-              <h2 className="mt-1 text-lg font-black">ارسال پست فان</h2>
+              <p className="text-[9px] font-black text-fuchsia-300">یه چیزی برای گفتن داری؟</p>
+              <h2 id="fun-create-title" className="mt-1 text-lg font-black">ارسال پست فان</h2>
             </div>
-            <button type="button" disabled={publish.isPending} onClick={onClose} className="grid h-11 w-11 place-items-center rounded-2xl bg-white/[.055] text-slate-400 active:scale-90">
+            <button type="button" disabled={publish.isPending} onClick={close} aria-label="بستن" className="grid h-11 w-11 place-items-center rounded-2xl bg-white/[.055] text-slate-400 transition hover:bg-white/[.08] hover:text-slate-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-fuchsia-300/40 active:scale-90">
               <X size={19} />
             </button>
           </div>
 
           <label className="mt-5 block">
-            <span className="label">متن یا کپشن <span className="font-normal text-slate-600">(اختیاری)</span></span>
-            <textarea value={caption} onChange={(event) => setCaption(event.target.value.slice(0, captionLimit))} className="input min-h-28 resize-none leading-6" placeholder="چی شده؟ هوادارا رو بخندون..." />
-            <span className={cn('mt-1.5 block text-left text-[9px]', caption.length >= captionLimit ? 'text-amber-300' : 'text-slate-600')} dir="ltr">{faNumber(caption.length)} / {faNumber(captionLimit)}</span>
+            <span className="block text-[8.5px] font-black uppercase tracking-wider text-slate-400">متن پست</span>
+            <textarea
+              value={caption}
+              onChange={(event) => setCaption(event.target.value.slice(0, captionLimit))}
+              className="input mt-1.5 min-h-32 resize-none leading-7 text-[12px]"
+              placeholder="چی شده؟ هوادارا رو سرگرم کن…"
+              maxLength={captionLimit}
+            />
+            <span className={cn('mt-1.5 block text-left text-[9px]', remaining <= 30 ? 'text-amber-300' : 'text-slate-500')} dir="ltr">
+              {faNumber(caption.length)} / {faNumber(captionLimit)}
+            </span>
           </label>
 
-          {preview ? (
-            <div className="relative mt-3 overflow-hidden rounded-[1.4rem] border border-white/10 bg-black/25">
-              <div className="w-full" style={{ aspectRatio: '4 / 5' }}>
-                <img src={preview} alt="پیش‌نمایش تصویر" className="h-full w-full object-cover" />
-              </div>
-              <button type="button" onClick={removeImage} className="absolute left-2 top-2 flex min-h-10 items-center gap-1.5 rounded-2xl bg-black/70 px-3 text-[9px] font-bold text-white backdrop-blur">
-                <Trash2 size={14} />حذف تصویر
-              </button>
-              <label className="absolute bottom-2 right-2 flex min-h-10 cursor-pointer items-center gap-1.5 rounded-2xl bg-white/90 px-3 text-[9px] font-black text-ink-950">
-                <Camera size={14} />تعویض
-                <input ref={inputRef} type="file" accept={FUN_IMAGE_ACCEPT} className="hidden" onChange={(event) => void chooseImage(event.target.files?.[0])} />
-              </label>
-            </div>
-          ) : (
-            <label className="mt-3 flex min-h-24 cursor-pointer flex-col items-center justify-center rounded-[1.4rem] border border-dashed border-fuchsia-300/20 bg-fuchsia-300/[.035] text-center transition active:scale-[.99] active:bg-fuchsia-300/[.07]">
-              <ImagePlus size={22} className="text-fuchsia-300" />
-              <span className="mt-2 text-[11px] font-black">افزودن یک تصویر</span>
-              <span className="mt-1 text-[8px] text-slate-500">JPG، PNG یا WEBP · حداکثر ۵ مگابایت</span>
-              <input ref={inputRef} type="file" accept={FUN_IMAGE_ACCEPT} className="hidden" onChange={(event) => void chooseImage(event.target.files?.[0])} />
-            </label>
-          )}
-
-          <div className="mt-4 flex items-start gap-2 rounded-2xl bg-amber-300/[.055] p-3 text-[9px] leading-5 text-amber-100/70">
-            <AlertTriangle size={15} className="mt-0.5 shrink-0 text-amber-300" />
-            فقط عکس و متن مجاز است؛ ویدیو، GIF، صدا و فایل پذیرفته نمی‌شود.
+          <div className="mt-4 flex items-start gap-2 rounded-2xl border border-sky-300/[.12] bg-sky-400/[.04] p-3 text-[9px] leading-5 text-sky-100/75">
+            <AlertTriangle size={15} className="mt-0.5 shrink-0 text-sky-300" />
+            پست‌های فان فقط متنی هستند. لطفاً متنی محترمانه و مرتبط با فضای فوتبالی منتشر کنید.
           </div>
           <button
             type="button"
             disabled={!canPublish || publish.isPending}
             onClick={() => publish.mutate()}
-            className="btn-primary mt-4 w-full bg-gradient-to-l from-fuchsia-400 to-violet-500 text-white shadow-lg shadow-fuchsia-500/10"
+            className="fun-create-cta mt-4 inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-xl text-[10.5px] font-black text-white transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-fuchsia-300/40 disabled:cursor-not-allowed disabled:from-slate-700 disabled:to-slate-700 disabled:text-slate-300 disabled:shadow-none"
           >
             {publish.isPending ? <LoaderCircle size={18} className="animate-spin" /> : <Send size={18} />}
-            {publish.isPending ? 'در حال انتشار...' : 'انتشار در فان'}
+            <span>{publish.isPending ? 'در حال انتشار…' : 'انتشار در فان'}</span>
           </button>
         </div>
       </div>
@@ -526,7 +488,7 @@ function FunSortBar({ value, onChange, disabled }: { value: FunSort; onChange: (
   return (
     <div
       role="tablist"
-      aria-label="مرتب‌سازی میم‌ها"
+      aria-label="مرتب‌سازی پست‌ها"
       className="flex min-w-0 items-center gap-1 rounded-2xl border border-white/[.07] bg-ink-900/85 p-1 shadow-[0_6px_18px_rgba(0,0,0,.18)] backdrop-blur"
     >
       {FUN_SORT_OPTIONS.map(({ value: option, label, icon: Icon }) => {
@@ -540,13 +502,13 @@ function FunSortBar({ value, onChange, disabled }: { value: FunSort; onChange: (
             disabled={disabled}
             onClick={() => { if (!isActive) onChange(option); }}
             className={cn(
-              'fun-sort-tab flex min-h-8 min-w-0 flex-1 items-center justify-center gap-1 rounded-xl px-2 py-1.5 text-[9px] font-black transition active:scale-95 disabled:cursor-not-allowed disabled:opacity-60',
+              'fun-sort-tab flex min-h-9 min-w-0 flex-1 items-center justify-center gap-1 rounded-xl px-2 py-1.5 text-[9.5px] font-black transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-fuchsia-300/40 active:scale-95 disabled:cursor-not-allowed disabled:opacity-60',
               isActive
                 ? 'bg-gradient-to-b from-fuchsia-400/25 to-violet-500/10 text-white shadow-[inset_0_1px_0_rgba(244,114,182,.18),0_4px_14px_rgba(217,70,239,.18)]'
-                : 'text-slate-400 hover:text-slate-200'
+                : 'text-slate-400 hover:bg-white/[.04] hover:text-slate-200'
             )}
           >
-            <Icon size={12} className={cn('shrink-0', isActive ? 'text-fuchsia-200' : 'text-slate-500')} strokeWidth={isActive ? 2.4 : 1.8} />
+            <Icon size={13} className={cn('shrink-0', isActive ? 'text-fuchsia-200' : 'text-slate-500')} strokeWidth={isActive ? 2.4 : 1.8} />
             <span className="truncate">{label}</span>
           </button>
         );
@@ -617,7 +579,7 @@ export function FunPage() {
   useEffect(() => {
     if (!validDeepLinkedPostId || !deepLinkedPost.error || deepLinkErrorShown.current === validDeepLinkedPostId) return;
     deepLinkErrorShown.current = validDeepLinkedPostId;
-    toast.error('این میم حذف شده یا دیگر قابل نمایش نیست');
+    toast.error('این پست حذف شده یا دیگر قابل نمایش نیست');
   }, [deepLinkedPost.error, validDeepLinkedPostId]);
 
   const feedPosts = feed.data?.pages.flatMap(page => page.items) ?? [];
@@ -625,7 +587,7 @@ export function FunPage() {
     ? [deepLinkedPost.data, ...feedPosts]
     : feedPosts;
   const useMockFeed = isDemoDataEnabled() && !validDeepLinkedPostId && !feed.isLoading && !feed.error && realPosts.length === 0;
-  const posts: MemePost[] = useMockFeed
+  const posts: FunPostWithMeta[] = useMockFeed
     ? mockMemes
         .map(meme => {
           const local = localLikes[meme._id];
@@ -639,13 +601,13 @@ export function FunPage() {
         .sort((a, b) => compareForSort(a, b, sort))
     : realPosts.map(post => ({
         ...post,
-        category: 'فان' as MemeCategory,
+        category: 'فان' as FunCategory,
         commentCount: 0,
         shareCount: localShareCounts[post._id] ?? post.shareCount,
         viewCount: Math.max(post.likeCount * 8, 24),
       }));
 
-  const toggleLike = (post: MemePost) => {
+  const toggleLike = (post: FunPostWithMeta) => {
     impact();
     if (useMockFeed) {
       setLocalLikes(prev => {
@@ -658,13 +620,13 @@ export function FunPage() {
     like.mutate({ id: post._id, liked: !post.liked });
   };
 
-  const sharePost = async (post: MemePost) => {
+  const sharePost = async (post: FunPostWithMeta) => {
     if (shareLock.current) return;
     shareLock.current = true;
     impact('light');
     setSharingPostId(post._id);
     try {
-      const isMock = post._id.startsWith('mock-meme-');
+      const isMock = post._id.startsWith('mock-fun-');
       if (!isMock && canUseNativeTelegramShare()) {
         const prepared = (await api.post<{ preparedMessageId: string; completionToken: string }>(`/fun/posts/${post._id}/share/prepare`)).data;
         const result = await sharePreparedTelegramMessage(prepared.preparedMessageId);
@@ -674,7 +636,7 @@ export function FunPage() {
         }
         if (result.status === 'failed') {
           notify('error');
-          toast.error('اشتراک‌گذاری میم در تلگرام انجام نشد');
+          toast.error('اشتراک‌گذاری پست در تلگرام انجام نشد');
           return;
         }
 
@@ -688,30 +650,30 @@ export function FunPage() {
         }
         if (completion) setLocalShareCounts(current => ({ ...current, [post._id]: completion.shareCount }));
         notify('success');
-        toast.success('میم با موفقیت در تلگرام به اشتراک گذاشته شد');
+        toast.success('پست با موفقیت در تلگرام به اشتراک گذاشته شد');
         if (!completion) toast.error('اشتراک انجام شد، اما ثبت شمارنده ناموفق بود');
         return;
       }
 
       const shareData = {
         title: 'فان فوتبالی',
-        text: post.caption ?? 'یک میم فوتبالی برای تو',
+        text: post.caption ?? 'یک پست فان فوتبالی برای تو',
         url: post.shareUrl
       };
       const fallbackResult = await shareMemeFallback(shareData);
       if (fallbackResult === 'shared') {
         notify('success');
-        toast.success('اشتراک‌گذاری میم انجام شد');
+        toast.success('اشتراک‌گذاری پست انجام شد');
         return;
       }
       notify('success');
-      toast.success('لینک میم کپی شد');
+      toast.success('لینک پست کپی شد');
     } catch (error) {
       if (error instanceof DOMException && error.name === 'AbortError') {
         toast('اشتراک‌گذاری لغو شد', { icon: 'ℹ️' });
       } else {
         notify('error');
-        toast.error((error as Error).message || 'اشتراک‌گذاری میم انجام نشد');
+        toast.error((error as Error).message || 'اشتراک‌گذاری پست انجام نشد');
       }
     } finally {
       shareLock.current = false;
@@ -737,7 +699,7 @@ export function FunPage() {
         <div className="relative mt-6 flex items-end justify-between gap-4">
           <div>
             <div className="flex items-center gap-1.5 text-[9px] font-black text-amber-300">
-              <Sparkles size={12} /> بخند، بساز، منتشر کن
+              <Sparkles size={12} /> بخند، بنویس، منتشر کن
             </div>
             <h2 className="mt-1 text-xl font-black leading-8">
               فوتبال بدون کری،<br />
@@ -747,9 +709,9 @@ export function FunPage() {
           <button
             type="button"
             onClick={() => { impact(); setCreating(true); }}
-            className="flex min-h-12 shrink-0 items-center gap-2 rounded-2xl bg-gradient-to-l from-fuchsia-400 to-violet-500 px-4 text-[10px] font-black text-white shadow-lg shadow-fuchsia-500/15 transition active:scale-95"
+            className="fun-cta flex min-h-12 shrink-0 items-center gap-2 rounded-2xl bg-gradient-to-l from-fuchsia-400 to-violet-500 px-4 text-[10.5px] font-black text-white shadow-lg shadow-fuchsia-500/15 transition active:scale-95"
           >
-            <Plus size={17} />ارسال پست
+            <PenLine size={16} />ارسال پست
           </button>
         </div>
       </header>
@@ -758,7 +720,7 @@ export function FunPage() {
         {useMockFeed && (
           <div className="flex items-center justify-center gap-1.5 rounded-full border border-amber-300/20 bg-amber-300/[.06] px-3 py-1 text-[8.5px] font-black text-amber-200">
             <Sparkles size={10} />
-            نمایش آزمایشی · ۶ میم نمونه برای ارزیابی ظاهر
+            نمایش آزمایشی · ۶ پست متنی نمونه برای ارزیابی ظاهر
           </div>
         )}
 
@@ -771,7 +733,7 @@ export function FunPage() {
         ) : posts.length ? (
           <>
             {posts.map((post, index) => (
-              <MemeCard
+              <FunPostCard
                 key={post._id}
                 post={post}
                 index={index}
@@ -805,10 +767,10 @@ export function FunPage() {
         ) : (
           <EmptyState
             title="فان هنوز سوت و کوره!"
-            description="اولین میم فوتبالی باشگاه را تو منتشر کن."
+            description="اولین پست متنی فوتبالی باشگاه را تو منتشر کن."
             action={
-              <button type="button" onClick={() => setCreating(true)} className="btn-primary bg-fuchsia-400 text-white">
-                <ImagePlus size={17} />ارسال پست فان
+              <button type="button" onClick={() => setCreating(true)} className="btn-primary bg-gradient-to-l from-fuchsia-400 to-violet-500 text-white">
+                <PenLine size={17} />ارسال پست فان
               </button>
             }
           />

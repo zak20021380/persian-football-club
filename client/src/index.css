@@ -370,6 +370,17 @@ button { touch-action: manipulation; }
 .fun-hero { background: radial-gradient(circle at 12% 24%,rgba(240,79,199,.12),transparent 30%),linear-gradient(145deg,#340640,#170724 52%,#071827); }
 .fun-orb { animation: fun-orbit 6s ease-in-out infinite alternate; }
 .fun-card { animation:fun-card-in .5s cubic-bezier(.22,1,.36,1) both; border-color:rgba(236,95,201,.11); background-image:linear-gradient(145deg,rgba(42,13,52,.75),rgba(7,20,36,.98)); }
+.fun-post-card { box-shadow:0 10px 28px rgba(0,0,0,.22); }
+.fun-post-card::before { content:''; position:absolute; inset:0 0 auto 0; height:1px; background:linear-gradient(90deg,transparent,rgba(244,114,182,.18) 30%,rgba(73,228,242,.18) 70%,transparent); opacity:.6; pointer-events:none; }
+.fun-post-caption { text-wrap:pretty; }
+.fun-create-cta { position:relative; isolation:isolate; overflow:hidden; border:1px solid rgba(239,100,200,.28); border-radius:12px; background:linear-gradient(112deg,#ef64c8 0%,#d946ef 52%,#a78bfa 100%); box-shadow:0 10px 26px rgba(217,70,239,.18),0 0 0 1px rgba(255,255,255,.04),inset 0 1px rgba(255,255,255,.42); transition:transform .18s ease,box-shadow .22s ease,filter .18s ease; }
+.fun-create-cta::before { content:''; position:absolute; inset:0; z-index:0; pointer-events:none; background:linear-gradient(180deg,rgba(255,255,255,.18) 0%,transparent 48%); }
+.fun-create-cta > * { position:relative; z-index:1; }
+.fun-create-cta:not(:disabled):hover { filter:brightness(1.05); box-shadow:0 12px 30px rgba(217,70,239,.24),0 0 0 1px rgba(255,255,255,.07),inset 0 1px rgba(255,255,255,.5); }
+.fun-create-cta:not(:disabled):active { transform:scale(.97)!important; filter:brightness(.96); box-shadow:0 4px 14px rgba(217,70,239,.18),0 0 0 1px rgba(255,255,255,.03),inset 0 1px rgba(255,255,255,.3); }
+.fun-cta { position:relative; isolation:isolate; overflow:hidden; }
+.fun-cta::before { content:''; position:absolute; inset:0; z-index:0; pointer-events:none; background:linear-gradient(180deg,rgba(255,255,255,.18) 0%,transparent 48%); border-radius:inherit; }
+.fun-cta > * { position:relative; z-index:1; }
 .fun-sheet { animation: fun-sheet-in .38s cubic-bezier(.22,1,.36,1) both; }
 .fun-like[aria-pressed="true"] svg { animation: fun-heart .35s cubic-bezier(.22,1,.36,1); }
 .fun-sort-tab[aria-selected="true"] svg { animation: fun-sort-pulse .35s cubic-bezier(.22,1,.36,1); }
