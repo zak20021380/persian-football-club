@@ -369,15 +369,14 @@ button { touch-action: manipulation; }
 .referral-card:active { transform: scale(.99); border-color: rgba(125,211,252,.28); }
 .fun-hero { background: radial-gradient(circle at 12% 24%,rgba(240,79,199,.12),transparent 30%),linear-gradient(145deg,#340640,#170724 52%,#071827); }
 .fun-orb { animation: fun-orbit 6s ease-in-out infinite alternate; }
-.fun-card { animation:fun-card-in .5s cubic-bezier(.22,1,.36,1) both; border-color:rgba(236,95,201,.13); background-image:radial-gradient(circle at 88% -12%,rgba(239,100,200,.09),transparent 38%),radial-gradient(circle at -6% 110%,rgba(73,228,242,.06),transparent 34%),linear-gradient(150deg,rgba(44,14,56,.86),rgba(9,14,32,.98) 58%,rgba(7,20,36,.99)); }
-.fun-post-card { box-shadow:inset 0 1px rgba(255,255,255,.05),0 14px 34px rgba(1,2,12,.32),0 0 26px rgba(217,70,239,.035); -webkit-backdrop-filter:blur(12px); backdrop-filter:blur(12px); }
-.fun-post-card::before { content:''; position:absolute; inset:0 0 auto 0; height:2px; background:linear-gradient(90deg,transparent,rgba(244,114,182,.4) 30%,rgba(73,228,242,.35) 70%,transparent); opacity:.75; box-shadow:0 0 14px rgba(239,100,200,.22); pointer-events:none; }
-.fun-post-glow { position:absolute; z-index:0; left:-58px; top:-64px; width:170px; height:170px; border-radius:50%; background:rgba(239,100,200,.075); filter:blur(46px); pointer-events:none; }
-.fun-avatar-ring { box-shadow:0 8px 20px rgba(217,70,239,.16),inset 0 1px rgba(255,255,255,.25); }
+.fun-card { animation:fun-card-in .5s cubic-bezier(.22,1,.36,1) both; border-color:rgba(236,95,201,.11); background-image:radial-gradient(120% 90% at 85% -20%,rgba(239,100,200,.08),transparent 44%),radial-gradient(90% 70% at -10% 115%,rgba(73,228,242,.05),transparent 40%),linear-gradient(165deg,rgba(38,13,50,.92),rgba(10,14,32,.98) 52%,rgba(7,19,35,.99)); }
+.fun-post-card { --fun-accent:232,121,249; box-shadow:inset 0 1px rgba(255,255,255,.055),0 18px 40px rgba(1,2,12,.4); -webkit-backdrop-filter:blur(14px); backdrop-filter:blur(14px); transition:border-color .28s ease,box-shadow .28s ease,transform .28s ease; }
+.fun-post-card:hover { border-color:rgba(var(--fun-accent),.26); box-shadow:inset 0 1px rgba(255,255,255,.07),0 24px 52px rgba(1,2,12,.48),0 0 34px rgba(var(--fun-accent),.07); }
+.fun-post-card::after { content:''; position:absolute; inset:0; border-radius:inherit; background:linear-gradient(180deg,rgba(255,255,255,.035),transparent 20%); pointer-events:none; }
+.fun-post-rail { position:absolute; z-index:1; top:16px; bottom:16px; inset-inline-start:0; width:3px; border-radius:99px; background:linear-gradient(180deg,rgba(var(--fun-accent),.9),rgba(var(--fun-accent),.25)); box-shadow:0 0 16px rgba(var(--fun-accent),.4); }
+.fun-post-glow { position:absolute; z-index:0; left:-64px; top:-72px; width:190px; height:190px; border-radius:50%; background:rgba(var(--fun-accent),.07); filter:blur(52px); pointer-events:none; }
+.fun-avatar-ring { box-shadow:0 6px 18px rgba(var(--fun-accent),.24),0 0 0 1px rgba(255,255,255,.05),inset 0 1px rgba(255,255,255,.28); }
 .fun-post-caption { text-wrap:pretty; }
-.fun-action-btn { color:inherit; }
-.fun-action-btn:not(:disabled):hover { background:rgba(255,255,255,.045); }
-.fun-action-btn:not(:disabled):active { background:rgba(255,255,255,.02); }
 .fun-create-cta { position:relative; isolation:isolate; overflow:hidden; border:1px solid rgba(239,100,200,.28); border-radius:12px; background:linear-gradient(112deg,#ef64c8 0%,#d946ef 52%,#a78bfa 100%); box-shadow:0 10px 26px rgba(217,70,239,.18),0 0 0 1px rgba(255,255,255,.04),inset 0 1px rgba(255,255,255,.42); transition:transform .18s ease,box-shadow .22s ease,filter .18s ease; }
 .fun-create-cta::before { content:''; position:absolute; inset:0; z-index:0; pointer-events:none; background:linear-gradient(180deg,rgba(255,255,255,.18) 0%,transparent 48%); }
 .fun-create-cta > * { position:relative; z-index:1; }

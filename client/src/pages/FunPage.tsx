@@ -87,6 +87,15 @@ const categoryStyles: Record<FunCategory, string> = {
   'لیگ برتر': 'border-violet-300/25 bg-violet-400/[.08] text-violet-200',
 };
 
+const categoryAccent: Record<FunCategory, string> = {
+  'فوتبال ایران': '52,211,153',
+  'فان': '232,121,249',
+  'تیم ملی': '251,191,36',
+  'دربی': '251,113,133',
+  'بازیکنان': '56,189,248',
+  'لیگ برتر': '167,139,250',
+};
+
 function mockMemeLink(id: string): string {
   const link = new URL('/fun', window.location.origin);
   link.searchParams.set('mock', id);
@@ -234,35 +243,38 @@ function FunPostCard({
   const initial = post.owner.firstName.replace(/\s+/g, '').slice(0, 1) || '؟';
   const [headline = '', ...restLines] = (post.caption ?? '').split('\n');
   const body = restLines.join('\n').trim();
+  const accent = categoryAccent[post.category];
 
   return (
     <article
       id={`fun-post-${post._id}`}
       aria-label={`پست فان از ${post.owner.firstName}`}
       className={cn(
-        'fun-card fun-post-card relative overflow-hidden rounded-[1.4rem] border transition',
-        highlighted ? 'border-fuchsia-300/55 ring-1 ring-fuchsia-300/25' : 'border-white/[.07]'
+        'fun-card fun-post-card group/card relative overflow-hidden rounded-[1.6rem] border',
+        highlighted ? 'border-fuchsia-300/50 ring-1 ring-fuchsia-300/25' : 'border-white/[.07]'
       )}
-      style={{ animationDelay: `${Math.min(index, 5) * 55}ms` }}
+      style={{ animationDelay: `${Math.min(index, 5) * 55}ms`, ['--fun-accent' as string]: accent }}
     >
+      <span aria-hidden="true" className="fun-post-rail" />
       <div className="fun-post-glow" aria-hidden="true" />
-      <header className="fun-post-header relative flex items-center gap-2.5 px-4 pb-1 pt-4">
-        <span aria-hidden="true" className={cn('fun-avatar-ring grid h-10 w-10 shrink-0 place-items-center rounded-full bg-gradient-to-br p-[1.5px]', tone)}>
-          <span className="grid h-full w-full place-items-center rounded-full bg-ink-950/85 text-[13px] font-black text-white">
+      <header className="fun-post-header relative flex items-center gap-3 px-4 pt-4">
+        <span aria-hidden="true" className={cn('fun-avatar-ring grid h-11 w-11 shrink-0 place-items-center rounded-2xl bg-gradient-to-br p-[1.5px]', tone)}>
+          <span className="grid h-full w-full place-items-center rounded-[14px] bg-ink-950/90 text-[15px] font-black text-white">
             {initial}
           </span>
         </span>
         <div className="min-w-0 flex-1">
-          <div className="flex min-w-0 items-center gap-1.5">
-            <h2 className="truncate text-[12.5px] font-black leading-4 text-white">{post.owner.firstName}</h2>
-            <span className={cn('inline-flex shrink-0 items-center rounded-full border px-1.5 py-[3px] text-[7px] font-black leading-none', categoryStyles[post.category])}>
+          <div className="flex min-w-0 items-center gap-2">
+            <h2 className="truncate text-[13px] font-black leading-4 text-white">{post.owner.firstName}</h2>
+            <span className={cn('inline-flex shrink-0 items-center gap-1 rounded-full border px-2 py-[3.5px] text-[7.5px] font-black leading-none', categoryStyles[post.category])}>
+              <span aria-hidden="true" className="h-[3px] w-[3px] rounded-full bg-current opacity-80" />
               {post.category}
             </span>
           </div>
-          <p className="mt-1 flex min-w-0 items-center gap-1.5 truncate text-[8.5px] font-bold text-slate-500">
+          <p className="mt-1.5 flex min-w-0 items-center gap-1.5 truncate text-[9px] font-bold text-slate-500">
             <span className="truncate">{post.owner.clubName || 'باشگاه فوتبالی'}</span>
-            <span aria-hidden="true" className="h-[3px] w-[3px] shrink-0 rounded-full bg-white/25"/>
-            <time dateTime={post.createdAt} className="shrink-0">{relativeTime(post.createdAt)}</time>
+            <span aria-hidden="true" className="h-[3px] w-[3px] shrink-0 rounded-full bg-white/20"/>
+            <time dateTime={post.createdAt} className="shrink-0 text-slate-500/90">{relativeTime(post.createdAt)}</time>
           </p>
         </div>
         <div className="relative shrink-0" ref={menuRef}>
@@ -329,21 +341,21 @@ function FunPostCard({
       </header>
 
       {post.caption && (
-        <div className="fun-post-body relative px-4 pb-3 pt-2">
+        <div className="fun-post-body relative px-4 pb-4 pt-3.5">
           {headline && (
-            <p className="fun-post-caption break-words text-[14px] font-extrabold leading-[1.75] text-white">
+            <p className="fun-post-caption break-words text-[15px] font-extrabold leading-[1.85] tracking-[-.01em] text-white">
               {headline}
             </p>
           )}
           {body && (
-            <p className={cn('fun-post-caption break-words whitespace-pre-wrap text-[11.5px] font-medium leading-[1.9] text-slate-300/85', headline && 'mt-1.5')}>
+            <p className={cn('fun-post-caption break-words whitespace-pre-wrap text-[11.5px] font-medium leading-[2.05] text-slate-300/75', headline && 'mt-2')}>
               {body}
             </p>
           )}
         </div>
       )}
 
-      <div className="fun-post-actions relative mt-0.5 flex items-center gap-1 border-t border-white/[.055] px-2 py-1.5">
+      <div className="fun-post-actions relative flex items-center gap-2 px-4 pb-4 pt-1">
         <button
           type="button"
           onClick={onLike}
@@ -351,13 +363,15 @@ function FunPostCard({
           aria-pressed={post.liked}
           aria-label={post.liked ? 'برداشتن لایک' : 'لایک کردن'}
           className={cn(
-            'fun-like fun-action-btn flex min-h-9 items-center gap-1.5 rounded-full px-3 text-[10.5px] font-black transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-300/35 active:scale-90',
-            post.liked ? 'text-rose-300' : 'text-slate-400 hover:text-rose-300'
+            'fun-like flex min-h-9 items-center gap-1.5 rounded-xl px-3 text-[10.5px] font-black tabular-nums transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-300/35 active:scale-95',
+            post.liked
+              ? 'bg-rose-400/[.1] text-rose-300'
+              : 'text-slate-400 hover:bg-white/[.04] hover:text-rose-300'
           )}
         >
           {liking
-            ? <LoaderCircle size={17} className="animate-spin" />
-            : <Heart size={17} fill={post.liked ? 'currentColor' : 'none'} strokeWidth={post.liked ? 2 : 1.9} />}
+            ? <LoaderCircle size={16} className="animate-spin" />
+            : <Heart size={16} fill={post.liked ? 'currentColor' : 'none'} strokeWidth={post.liked ? 2 : 1.9} />}
           <span>{formatCount(post.likeCount)}</span>
         </button>
         <button
@@ -365,9 +379,9 @@ function FunPostCard({
           onClick={onShare}
           disabled={sharing}
           aria-label="اشتراک‌گذاری"
-          className="fun-action-btn flex min-h-9 items-center gap-1.5 rounded-full px-3 text-[10.5px] font-black text-slate-400 transition hover:text-fuchsia-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-fuchsia-300/35 active:scale-90 disabled:cursor-wait disabled:opacity-60"
+          className="fun-share flex min-h-9 items-center gap-1.5 rounded-xl px-3 text-[10.5px] font-black tabular-nums text-slate-400 transition hover:bg-white/[.04] hover:text-fuchsia-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-fuchsia-300/35 active:scale-95 disabled:cursor-wait disabled:opacity-60"
         >
-          {sharing ? <LoaderCircle size={16} className="animate-spin" /> : <Share2 size={16} strokeWidth={1.9} />}
+          {sharing ? <LoaderCircle size={15} className="animate-spin" /> : <Share2 size={15} strokeWidth={1.9} />}
           <span>{formatCount(post.shareCount)}</span>
         </button>
       </div>
