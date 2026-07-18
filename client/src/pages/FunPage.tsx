@@ -6,11 +6,9 @@ import {
   ArrowDownNarrowWide,
   ArrowUpNarrowWide,
   Copy,
-  Eye,
   Flag,
   Heart,
   LoaderCircle,
-  MessageCircle,
   MoreHorizontal,
   PenLine,
   Send,
@@ -77,9 +75,7 @@ type FunCategory = 'فوتبال ایران' | 'فان' | 'تیم ملی' | 'د�
 
 type FunPostWithMeta = FunPost & {
   category: FunCategory;
-  commentCount: number;
   shareCount: number;
-  viewCount: number;
 };
 
 const categoryStyles: Record<FunCategory, string> = {
@@ -108,9 +104,7 @@ const mockMemes: FunPostWithMeta[] = [
     createdAt: new Date(Date.now() - 7 * 60_000).toISOString(),
     owner: { _id: 'm-1' as Id, firstName: 'علیرضا پرسپولیسی', clubName: 'پرسپولیس' },
     category: 'فوتبال ایران',
-    commentCount: 56,
     shareCount: 23,
-    viewCount: 8420,
   },
   {
     _id: 'mock-fun-2' as Id,
@@ -122,9 +116,7 @@ const mockMemes: FunPostWithMeta[] = [
     createdAt: new Date(Date.now() - 38 * 60_000).toISOString(),
     owner: { _id: 'm-2' as Id, firstName: 'استقلالی دربی‌کار', clubName: 'استقلال' },
     category: 'فان',
-    commentCount: 31,
     shareCount: 12,
-    viewCount: 5210,
   },
   {
     _id: 'mock-fun-3' as Id,
@@ -136,9 +128,7 @@ const mockMemes: FunPostWithMeta[] = [
     createdAt: new Date(Date.now() - 2 * 60 * 60_000).toISOString(),
     owner: { _id: 'm-3' as Id, firstName: 'سپاهانی قدیمی', clubName: 'سپاهان' },
     category: 'دربی',
-    commentCount: 88,
     shareCount: 41,
-    viewCount: 12130,
   },
   {
     _id: 'mock-fun-4' as Id,
@@ -150,9 +140,7 @@ const mockMemes: FunPostWithMeta[] = [
     createdAt: new Date(Date.now() - 5 * 60 * 60_000).toISOString(),
     owner: { _id: 'm-4' as Id, firstName: 'تراکتوری وفادار', clubName: 'تراکتور' },
     category: 'فوتبال ایران',
-    commentCount: 142,
     shareCount: 87,
-    viewCount: 19840,
   },
   {
     _id: 'mock-fun-5' as Id,
@@ -164,9 +152,7 @@ const mockMemes: FunPostWithMeta[] = [
     createdAt: new Date(Date.now() - 22 * 60 * 60_000).toISOString(),
     owner: { _id: 'm-5' as Id, firstName: 'فولادی خوزستانی', clubName: 'فولاد' },
     category: 'بازیکنان',
-    commentCount: 24,
     shareCount: 9,
-    viewCount: 3940,
   },
   {
     _id: 'mock-fun-6' as Id,
@@ -178,9 +164,7 @@ const mockMemes: FunPostWithMeta[] = [
     createdAt: new Date(Date.now() - 2 * 24 * 60 * 60_000).toISOString(),
     owner: { _id: 'm-6' as Id, firstName: 'ذوب‌آهنی اصفهانی', clubName: 'ذوب‌آهن' },
     category: 'لیگ برتر',
-    commentCount: 67,
     shareCount: 33,
-    viewCount: 9870,
   },
 ];
 
@@ -256,22 +240,22 @@ function FunPostCard({
       id={`fun-post-${post._id}`}
       aria-label={`پست فان از ${post.owner.firstName}`}
       className={cn(
-        'fun-card fun-post-card relative overflow-hidden rounded-[1.6rem] border transition',
+        'fun-card fun-post-card relative overflow-hidden rounded-[1.4rem] border transition',
         highlighted ? 'border-fuchsia-300/55 ring-1 ring-fuchsia-300/25' : 'border-white/[.07]'
       )}
       style={{ animationDelay: `${Math.min(index, 5) * 55}ms` }}
     >
       <div className="fun-post-glow" aria-hidden="true" />
-      <header className="fun-post-header relative flex items-center gap-3 px-4 pb-2 pt-3.5">
-        <span aria-hidden="true" className={cn('fun-avatar-ring grid h-11 w-11 shrink-0 place-items-center rounded-[1.05rem] bg-gradient-to-br p-[1.5px]', tone)}>
-          <span className="grid h-full w-full place-items-center rounded-[.95rem] bg-ink-950/85 text-[13px] font-black text-white">
+      <header className="fun-post-header relative flex items-center gap-2.5 px-4 pb-1 pt-4">
+        <span aria-hidden="true" className={cn('fun-avatar-ring grid h-10 w-10 shrink-0 place-items-center rounded-full bg-gradient-to-br p-[1.5px]', tone)}>
+          <span className="grid h-full w-full place-items-center rounded-full bg-ink-950/85 text-[13px] font-black text-white">
             {initial}
           </span>
         </span>
         <div className="min-w-0 flex-1">
           <div className="flex min-w-0 items-center gap-1.5">
             <h2 className="truncate text-[12.5px] font-black leading-4 text-white">{post.owner.firstName}</h2>
-            <span className={cn('inline-flex shrink-0 items-center rounded-full border px-2 py-[3px] text-[7px] font-black leading-none', categoryStyles[post.category])}>
+            <span className={cn('inline-flex shrink-0 items-center rounded-full border px-1.5 py-[3px] text-[7px] font-black leading-none', categoryStyles[post.category])}>
               {post.category}
             </span>
           </div>
@@ -288,9 +272,9 @@ function FunPostCard({
             aria-label="منوی بیشتر"
             aria-haspopup="menu"
             aria-expanded={menuOpen}
-            className="grid h-9 w-9 place-items-center rounded-full border border-white/[.06] bg-white/[.03] text-slate-400 transition hover:bg-white/[.07] hover:text-slate-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-fuchsia-300/40 active:scale-90"
+            className="grid h-8 w-8 place-items-center rounded-full text-slate-500 transition hover:bg-white/[.06] hover:text-slate-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-fuchsia-300/40 active:scale-90"
           >
-            <MoreHorizontal size={16} />
+            <MoreHorizontal size={17} />
           </button>
           {menuOpen && (
             <div
@@ -345,66 +329,47 @@ function FunPostCard({
       </header>
 
       {post.caption && (
-        <div className="fun-post-body relative px-4 pb-3.5 pt-1.5">
-          <div className="fun-post-quote rounded-[1.1rem] px-3.5 py-3">
-            {headline && (
-              <p className="fun-post-caption break-words text-[13.5px] font-extrabold leading-[1.8] text-white">
-                {headline}
-              </p>
-            )}
-            {body && (
-              <p className={cn('fun-post-caption break-words whitespace-pre-wrap text-[11.5px] font-medium leading-[1.9] text-slate-300/90', headline && 'mt-1.5')}>
-                {body}
-              </p>
-            )}
-          </div>
+        <div className="fun-post-body relative px-4 pb-3 pt-2">
+          {headline && (
+            <p className="fun-post-caption break-words text-[14px] font-extrabold leading-[1.75] text-white">
+              {headline}
+            </p>
+          )}
+          {body && (
+            <p className={cn('fun-post-caption break-words whitespace-pre-wrap text-[11.5px] font-medium leading-[1.9] text-slate-300/85', headline && 'mt-1.5')}>
+              {body}
+            </p>
+          )}
         </div>
       )}
 
-      <div className="fun-post-actions relative flex items-center justify-between px-3 pb-2.5">
-        <div className="flex items-center gap-1.5">
-          <button
-            type="button"
-            onClick={onLike}
-            disabled={liking}
-            aria-pressed={post.liked}
-            aria-label={post.liked ? 'برداشتن لایک' : 'لایک کردن'}
-            className={cn(
-              'fun-like fun-action-pill flex min-h-9 items-center gap-1.5 rounded-full px-3 text-[10px] font-black transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-300/35 active:scale-90',
-              post.liked
-                ? 'fun-action-pill--liked text-rose-100'
-                : 'text-slate-300 hover:text-rose-200'
-            )}
-          >
-            {liking
-              ? <LoaderCircle size={15} className="animate-spin" />
-              : <Heart size={15} fill={post.liked ? 'currentColor' : 'none'} strokeWidth={post.liked ? 2 : 1.8} />}
-            <span>{formatCount(post.likeCount)}</span>
-          </button>
-          <button
-            type="button"
-            onClick={() => toast('به‌زودی فعال می‌شود', { icon: '💬' })}
-            aria-label="نمایش نظرات"
-            className="fun-action-pill flex min-h-9 items-center gap-1.5 rounded-full px-3 text-[10px] font-black text-slate-300 transition hover:text-sky-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-300/35 active:scale-90"
-          >
-            <MessageCircle size={15} strokeWidth={1.8} />
-            <span>{formatCount(post.commentCount)}</span>
-          </button>
-          <button
-            type="button"
-            onClick={onShare}
-            disabled={sharing}
-            aria-label="اشتراک‌گذاری"
-            className="fun-action-pill flex min-h-9 items-center gap-1.5 rounded-full px-3 text-[10px] font-black text-slate-300 transition hover:text-fuchsia-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-fuchsia-300/35 active:scale-90 disabled:cursor-wait disabled:opacity-60"
-          >
-            {sharing ? <LoaderCircle size={14} className="animate-spin" /> : <Share2 size={14} strokeWidth={1.8} />}
-            <span>{formatCount(post.shareCount)}</span>
-          </button>
-        </div>
-        <span className="flex items-center gap-1 pl-1 text-[9px] font-bold text-slate-500" title={`${faNumber(post.viewCount)} بازدید`}>
-          <Eye size={12} />
-          {formatCount(post.viewCount)}
-        </span>
+      <div className="fun-post-actions relative mt-0.5 flex items-center gap-1 border-t border-white/[.055] px-2 py-1.5">
+        <button
+          type="button"
+          onClick={onLike}
+          disabled={liking}
+          aria-pressed={post.liked}
+          aria-label={post.liked ? 'برداشتن لایک' : 'لایک کردن'}
+          className={cn(
+            'fun-like fun-action-btn flex min-h-9 items-center gap-1.5 rounded-full px-3 text-[10.5px] font-black transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-300/35 active:scale-90',
+            post.liked ? 'text-rose-300' : 'text-slate-400 hover:text-rose-300'
+          )}
+        >
+          {liking
+            ? <LoaderCircle size={17} className="animate-spin" />
+            : <Heart size={17} fill={post.liked ? 'currentColor' : 'none'} strokeWidth={post.liked ? 2 : 1.9} />}
+          <span>{formatCount(post.likeCount)}</span>
+        </button>
+        <button
+          type="button"
+          onClick={onShare}
+          disabled={sharing}
+          aria-label="اشتراک‌گذاری"
+          className="fun-action-btn flex min-h-9 items-center gap-1.5 rounded-full px-3 text-[10.5px] font-black text-slate-400 transition hover:text-fuchsia-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-fuchsia-300/35 active:scale-90 disabled:cursor-wait disabled:opacity-60"
+        >
+          {sharing ? <LoaderCircle size={16} className="animate-spin" /> : <Share2 size={16} strokeWidth={1.9} />}
+          <span>{formatCount(post.shareCount)}</span>
+        </button>
       </div>
     </article>
   );
@@ -615,9 +580,7 @@ export function FunPage() {
     : realPosts.map(post => ({
         ...post,
         category: 'فان' as FunCategory,
-        commentCount: 0,
         shareCount: localShareCounts[post._id] ?? post.shareCount,
-        viewCount: Math.max(post.likeCount * 8, 24),
       }));
 
   const toggleLike = (post: FunPostWithMeta) => {
