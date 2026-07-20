@@ -381,11 +381,6 @@ button { touch-action: manipulation; }
 .premium-cycle-control { border:1px solid rgba(255,255,255,.07); border-radius:16px; background:rgba(255,255,255,.025); }
 .premium-cycle-control button.is-active { border:1px solid rgba(248,207,105,.18); background:rgba(248,207,105,.09); color:#f8fafc; box-shadow:inset 0 1px rgba(255,255,255,.045),0 7px 18px rgba(0,0,0,.12); }
 .premium-confirm-icon { border:1px solid rgba(110,231,183,.17); background:rgba(52,211,153,.08); color:#6ee7b7; box-shadow:0 12px 28px rgba(0,0,0,.18); }
-.premium-switch { border:1px solid rgba(255,255,255,.09); background:rgba(255,255,255,.06); transition:background .2s ease,border-color .2s ease; }
-.premium-switch span { position:absolute; top:3px; right:3px; width:19px; height:19px; border-radius:50%; background:#718096; box-shadow:0 3px 8px rgba(0,0,0,.3); transition:transform .22s cubic-bezier(.22,1,.36,1),background .2s ease; }
-.premium-switch.is-on { border-color:rgba(110,231,183,.25); background:rgba(52,211,153,.17); }
-.premium-switch.is-on span { background:#6ee7b7; transform:translateX(-20px); }
-.premium-switch:disabled { opacity:.45; }
 .referral-card { transition: transform .35s cubic-bezier(.22,1,.36,1),border-color .35s ease; }
 .referral-card:active { transform: scale(.99); border-color: rgba(125,211,252,.28); }
 .fun-hero { background: radial-gradient(circle at 12% 24%,rgba(240,79,199,.12),transparent 30%),linear-gradient(145deg,#340640,#170724 52%,#071827); }

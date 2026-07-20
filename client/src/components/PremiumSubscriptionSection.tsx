@@ -8,7 +8,6 @@ import {
   Coins,
   Crown,
   Gift,
-  History,
   RefreshCw,
   ShieldCheck,
   Zap
@@ -43,7 +42,6 @@ export function PremiumSubscriptionSection() {
   const [sheetOpen, setSheetOpen] = useState(false);
   const [selectedCycle, setSelectedCycle] = useState<SubscriptionCycle>('annual');
   const [purchaseIntent, setPurchaseIntent] = useState<PurchaseIntentResponse|null>(null);
-  const [confirmingCancel, setConfirmingCancel] = useState(false);
   const subscriptionQuery = useQuery({
     queryKey: ['subscription'],
     queryFn: async () => (await api.get<SubscriptionData>('/subscription')).data
@@ -73,22 +71,6 @@ export function PremiumSubscriptionSection() {
     },
     onError: error => toast.error((error as Error).message)
   });
-  const autoRenew = useMutation({
-    mutationFn: async (enabled: boolean) => (await api.patch('/subscription/auto-renew', { autoRenew: enabled })).data,
-    onSuccess: async (_data, enabled) => { toast.success(enabled ? 'تمدید خودکار فعال شد' : 'تمدید خودکار غیرفعال شد'); await refresh(); },
-    onError: error => toast.error((error as Error).message)
-  });
-  const cancel = useMutation({
-    mutationFn: async () => (await api.post('/subscription/cancel')).data,
-    onSuccess: async () => { notify('success'); setConfirmingCancel(false); toast.success('لغو برای پایان دوره ثبت شد'); await refresh(); },
-    onError: error => toast.error((error as Error).message)
-  });
-  const resume = useMutation({
-    mutationFn: async () => (await api.post('/subscription/resume')).data,
-    onSuccess: async () => { notify('success'); toast.success('عضویت دوباره فعال شد'); await refresh(); },
-    onError: error => toast.error((error as Error).message)
-  });
-
   if (subscriptionQuery.isLoading) return <PremiumLoadingCard/>;
   if (subscriptionQuery.error || !subscriptionQuery.data) {
     return <button type="button" onClick={() => subscriptionQuery.refetch()} className="flex min-h-16 w-full items-center justify-between rounded-2xl border border-white/[.07] bg-white/[.025] px-4 text-right">
@@ -98,27 +80,16 @@ export function PremiumSubscriptionSection() {
 
   const data = subscriptionQuery.data;
   const active = data.subscription?.status === 'active' ? data.subscription : null;
-  const openSheet = () => { impact('light'); setPurchaseIntent(null); setConfirmingCancel(false); setSheetOpen(true); };
-  const closeSheet = () => { if (!confirmPurchase.isPending) { setSheetOpen(false); setPurchaseIntent(null); setConfirmingCancel(false); } };
+  const openSheet = () => { impact('light'); setPurchaseIntent(null); setSheetOpen(true); };
+  const closeSheet = () => { if (!confirmPurchase.isPending) { setSheetOpen(false); setPurchaseIntent(null); } };
 
   return <>
     <section className="profile-animate" style={{ animationDelay: '110ms' }} aria-labelledby="premium-title">
       {active ? <ActivePremiumCard subscription={active} onManage={openSheet}/> : <PremiumOfferCard data={data} onOpen={openSheet}/>} 
     </section>
-    {sheetOpen && <PlayerModalFrame label={active ? 'مدیریت عضویت پریمیوم' : 'خرید عضویت پریمیوم'} onClose={closeSheet} className="premium-sheet mx-auto max-w-xl">
+    {sheetOpen && <PlayerModalFrame label={active ? 'جزئیات عضویت پریمیوم' : 'خرید عضویت پریمیوم'} onClose={closeSheet} className={cn('premium-sheet mx-auto', active ? 'max-w-md rounded-t-[1.5rem]' : 'max-w-xl')}>
       {active
-        ? <ManageSubscription
-            data={data}
-            autoRenewPending={autoRenew.isPending}
-            cancelPending={cancel.isPending}
-            resumePending={resume.isPending}
-            confirmingCancel={confirmingCancel}
-            onToggleAutoRenew={enabled => autoRenew.mutate(enabled)}
-            onStartCancel={() => setConfirmingCancel(true)}
-            onDismissCancel={() => setConfirmingCancel(false)}
-            onCancel={() => cancel.mutate()}
-            onResume={() => resume.mutate()}
-          />
+        ? <ManageSubscription data={data}/>
         : <PurchaseSubscription
             data={data}
             selectedCycle={selectedCycle}
@@ -172,7 +143,7 @@ function ActivePremiumCard({ subscription, onManage }: { subscription: NonNullab
     <div className="premium-grid absolute inset-0" aria-hidden="true"/>
     <div className="relative flex items-start gap-3">
       <span className="premium-crown grid h-12 w-12 shrink-0 place-items-center rounded-2xl"><Crown size={22}/></span>
-      <div className="min-w-0 flex-1"><div className="flex items-center gap-1.5"><span className="h-1.5 w-1.5 rounded-full bg-emerald-300 shadow-[0_0_10px_rgba(110,231,183,.7)]"/><p className="text-[7px] font-black text-emerald-300">عضویت فعال</p></div><h2 id="premium-title" className="mt-1 text-[15px] font-black">پریمیوم {cycleLabels[subscription.cycle]}</h2><p className="mt-1 text-[8px] text-slate-400">{subscription.cancelAtPeriodEnd ? 'دسترسی تا پایان دوره برقرار است' : subscription.autoRenew ? 'تمدید خودکار روشن است' : 'تمدید خودکار خاموش است'}</p></div>
+      <div className="min-w-0 flex-1"><div className="flex items-center gap-1.5"><span className="h-1.5 w-1.5 rounded-full bg-emerald-300 shadow-[0_0_10px_rgba(110,231,183,.7)]"/><p className="text-[7px] font-black text-emerald-300">عضویت فعال</p></div><h2 id="premium-title" className="mt-1 text-[15px] font-black">پریمیوم {cycleLabels[subscription.cycle]}</h2><p className="mt-1 text-[8px] text-slate-400">دسترسی پریمیوم فعال است</p></div>
       <button type="button" onClick={onManage} className="grid h-10 w-10 shrink-0 place-items-center rounded-xl border border-white/[.08] bg-white/[.045] text-slate-300" aria-label="مدیریت عضویت"><ChevronLeft size={17}/></button>
     </div>
     <div className="relative mt-4 flex items-end justify-between gap-3"><div><span className="text-[7px] text-slate-500">پایان دوره</span><strong className="mt-1 block text-[10px] text-white">{subscriptionDate(subscription.currentPeriodEnd)}</strong></div><strong className="text-xs font-black text-amber-300">{faNumber(remainingDays)} روز مانده</strong></div>
@@ -226,7 +197,6 @@ function PurchaseSubscription({ data, selectedCycle, purchaseIntent, purchasePen
       </div>
       <div className="mt-5 space-y-4">{data.plan.benefits.map((benefit, index) => <div key={benefit.id} className="flex items-start gap-3"><span className="mt-0.5 grid h-8 w-8 shrink-0 place-items-center rounded-xl bg-amber-200/[.08] text-amber-300">{index === 0 ? <Zap size={15}/> : index === 1 ? <Coins size={15}/> : <Crown size={15}/>}</span><div><strong className="block text-[10px] text-slate-100">{benefit.title}</strong><p className="mt-1 text-[8px] leading-4 text-slate-500">{benefit.description}</p></div><Check size={14} className="mr-auto mt-2 shrink-0 text-emerald-300"/></div>)}</div>
       <LoadingButton loading={purchasePending} disabled={unavailable} onClick={onPurchase} className="mt-6 w-full">{unavailable ? 'درگاه پرداخت در حال آماده‌سازی' : <><ShieldCheck size={18}/>ادامه و پرداخت امن</>}</LoadingButton>
-      <p className="mt-3 text-center text-[8px] text-slate-600">امکان لغو تمدید از همین بخش وجود دارد</p>
     </div>
   </div>;
 }
@@ -235,29 +205,29 @@ function ReceiptRow({ label, value, accent, strong }: { label: string; value: st
   return <div className="flex min-h-12 items-center justify-between gap-3 text-[10px]"><span className="text-slate-500">{label}</span><strong className={cn(accent ? 'text-amber-300' : 'text-slate-200', strong && 'text-sm text-white')}>{value}</strong></div>;
 }
 
-interface ManageProps {
-  data: SubscriptionData;
-  autoRenewPending: boolean;
-  cancelPending: boolean;
-  resumePending: boolean;
-  confirmingCancel: boolean;
-  onToggleAutoRenew: (enabled: boolean) => void;
-  onStartCancel: () => void;
-  onDismissCancel: () => void;
-  onCancel: () => void;
-  onResume: () => void;
-}
-
-function ManageSubscription({ data, autoRenewPending, cancelPending, resumePending, confirmingCancel, onToggleAutoRenew, onStartCancel, onDismissCancel, onCancel, onResume }: ManageProps) {
+function ManageSubscription({ data }: { data: SubscriptionData }) {
   const subscription = data.subscription!;
-  const completedTransactions = data.transactions.filter(transaction => transaction.status === 'completed');
-  return <div className="premium-sheet-scroll overflow-y-auto px-4 pb-[max(24px,var(--safe-bottom))]">
-    <div className="mx-auto max-w-md py-2">
-      <div className="flex items-center gap-3 border-b border-white/[.07] pb-5"><span className="premium-crown grid h-14 w-14 shrink-0 place-items-center rounded-2xl"><Crown size={24}/></span><div className="min-w-0"><div className="flex items-center gap-1.5 text-[8px] font-black text-emerald-300"><span className="h-1.5 w-1.5 rounded-full bg-emerald-300"/>عضویت فعال</div><h2 className="mt-1 text-lg font-black">پریمیوم {cycleLabels[subscription.cycle]}</h2><p className="mt-1 text-[8px] text-slate-500">شروع عضویت: {subscriptionDate(subscription.startedAt)}</p></div></div>
-      <div className="grid grid-cols-2 divide-x divide-x-reverse divide-white/[.07] border-b border-white/[.07] py-5"><div className="px-2"><CalendarDays size={15} className="text-cyan-300"/><span className="mt-2 block text-[7px] text-slate-500">اعتبار تا</span><strong className="mt-1 block text-[10px]">{subscriptionDate(subscription.currentPeriodEnd)}</strong></div><div className="px-3"><Gift size={15} className="text-amber-300"/><span className="mt-2 block text-[7px] text-slate-500">هدیه این دوره</span><strong className="mt-1 block text-[10px] text-amber-200">{faNumber(subscription.bonusCoins)} سکه</strong></div></div>
-      {subscription.cancelAtPeriodEnd ? <div className="mt-5 border-r-2 border-amber-300/50 pr-3"><strong className="block text-[10px] text-amber-200">لغو در پایان دوره</strong><p className="mt-1 text-[8px] leading-5 text-slate-500">مزایا تا {subscriptionDate(subscription.currentPeriodEnd)} برقرار می‌مانند.</p><LoadingButton loading={resumePending} onClick={onResume} className="mt-3 min-h-10 w-full bg-none py-2 text-[9px]"><RefreshCw size={15}/>ادامه عضویت</LoadingButton></div> : <div className="mt-5 flex min-h-16 items-center gap-3 border-b border-white/[.07] pb-5"><span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-cyan-300/[.08] text-cyan-300"><RefreshCw size={16}/></span><div className="min-w-0 flex-1"><strong className="block text-[10px]">تمدید خودکار</strong><p className="mt-1 text-[7.5px] text-slate-500">{subscription.autoRenew ? `در ${subscriptionDate(subscription.currentPeriodEnd)} تمدید می‌شود` : 'پرداخت بعدی به‌صورت خودکار انجام نمی‌شود'}</p></div><button type="button" role="switch" aria-checked={subscription.autoRenew} aria-label="تمدید خودکار" disabled={autoRenewPending} onClick={() => onToggleAutoRenew(!subscription.autoRenew)} className={cn('premium-switch relative h-7 w-12 shrink-0 rounded-full', subscription.autoRenew && 'is-on')}><span/></button></div>}
-      <div className="mt-6"><div className="flex items-center gap-2"><History size={15} className="text-slate-400"/><h3 className="text-[11px] font-black">سوابق پرداخت</h3></div>{completedTransactions.length ? <div className="mt-3 divide-y divide-white/[.055]">{completedTransactions.map(transaction => <div key={transaction._id} className="flex min-h-14 items-center justify-between gap-3"><div><strong className="block text-[9px]">عضویت {cycleLabels[transaction.cycle]}</strong><span className="mt-1 block text-[7px] text-slate-600">{subscriptionDate(transaction.completedAt || transaction.createdAt)}</span></div><div className="text-left"><strong className="block text-[9px] text-slate-300">{toman(transaction.price)}</strong><span className="mt-1 inline-flex items-center gap-1 text-[6.5px] text-emerald-300"><CheckCircle2 size={9}/>موفق</span></div></div>)}</div> : <p className="mt-3 text-[8px] text-slate-600">هنوز پرداخت تکمیل‌شده‌ای ثبت نشده است.</p>}</div>
-      {!subscription.cancelAtPeriodEnd && <div className="mt-6 border-t border-white/[.07] pt-5">{confirmingCancel ? <div className="border-r-2 border-rose-300/45 pr-3"><strong className="text-[10px] text-rose-200">تمدید عضویت لغو شود؟</strong><p className="mt-1 text-[8px] leading-5 text-slate-500">دسترسی فعلی تا پایان دوره حفظ می‌شود و هزینه دیگری دریافت نخواهد شد.</p><div className="mt-3 grid grid-cols-2 gap-2"><button type="button" onClick={onDismissCancel} disabled={cancelPending} className="btn-secondary min-h-10 py-2 text-[9px]">بازگشت</button><LoadingButton loading={cancelPending} onClick={onCancel} className="min-h-10 border-rose-300/20 bg-none bg-rose-300/[.08] py-2 text-[9px] text-rose-200 shadow-none">تأیید لغو</LoadingButton></div></div> : <button type="button" onClick={onStartCancel} className="min-h-10 text-[9px] font-bold text-rose-300/80">لغو عضویت در پایان دوره</button>}</div>}
+  return <div className="px-4 pb-[max(20px,var(--safe-bottom))]">
+    <div className="mx-auto max-w-md">
+      <div className="flex items-center gap-3 pb-4">
+        <span className="premium-crown grid h-11 w-11 shrink-0 place-items-center rounded-xl"><Crown size={20}/></span>
+        <div className="min-w-0 flex-1">
+          <div className="flex items-center gap-1.5 text-[8px] font-black text-emerald-300"><span className="h-1.5 w-1.5 rounded-full bg-emerald-300 shadow-[0_0_8px_rgba(110,231,183,.55)]"/>عضویت فعال</div>
+          <h2 className="mt-1 text-base font-black text-white">پریمیوم</h2>
+          <p className="mt-0.5 text-[7.5px] text-slate-500">فعال از {subscriptionDate(subscription.startedAt)}</p>
+        </div>
+        <ShieldCheck size={19} className="shrink-0 text-emerald-300/80" aria-hidden="true"/>
+      </div>
+      <div className="grid grid-cols-2 divide-x divide-x-reverse divide-white/[.07] border-y border-white/[.07] py-3.5">
+        <div className="flex min-w-0 items-center gap-2.5 px-2">
+          <span className="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-cyan-300/[.08] text-cyan-300"><CalendarDays size={14}/></span>
+          <div className="min-w-0"><span className="block text-[7px] text-slate-500">اعتبار تا</span><strong className="mt-1 block text-[9px] leading-4 text-slate-100">{subscriptionDate(subscription.currentPeriodEnd)}</strong></div>
+        </div>
+        <div className="flex min-w-0 items-center gap-2.5 px-3">
+          <span className="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-amber-200/[.08] text-amber-300"><Gift size={14}/></span>
+          <div className="min-w-0"><span className="block text-[7px] text-slate-500">هدیه این دوره</span><strong className="mt-1 block text-[9px] leading-4 text-amber-200">{faNumber(subscription.bonusCoins)} سکه</strong></div>
+        </div>
+      </div>
     </div>
   </div>;
 }
