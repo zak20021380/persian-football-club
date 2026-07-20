@@ -19,7 +19,46 @@ export interface FunPost { _id: Id; caption?: string; imageUrl?: string; likeCou
 export interface FunFeedPage { items: FunPost[]; nextCursor: string|null; }
 export interface CoinPackage { _id: Id; title: string; coins: number; price: number; originalPrice?: number; badge?: string; active: boolean; sortOrder: number; }
 export interface CoinTransaction { _id: Id; type: 'purchase'|'daily_reward'; status: 'pending'|'processing'|'completed'|'failed'; coins: number; balanceAfter?: number; packageTitle?: string; price?: number; currency: 'IRT'; provider: 'test'|'none'; completedAt?: string; createdAt: string; }
-export interface StoreData { balance: number; packages: CoinPackage[]; dailyReward: { amount: number; claimable: boolean; nextClaimAt: string|null }; transactions: CoinTransaction[]; paymentMode: 'test'|'unavailable'; }
+export interface StoreData { balance: number; packages: CoinPackage[]; dailyReward: { amount: number; baseAmount: number; premiumMultiplier: 1|2; claimable: boolean; nextClaimAt: string|null }; transactions: CoinTransaction[]; paymentMode: 'test'|'unavailable'; }
+export type SubscriptionCycle = 'monthly'|'annual';
+export interface PremiumPlan {
+  id: 'premium';
+  title: string;
+  description: string;
+  cycles: Record<SubscriptionCycle, { price: number; originalPrice?: number; bonusCoins: number }>;
+  benefits: Array<{ id: string; title: string; description: string }>;
+}
+export interface PremiumSubscription {
+  _id: Id;
+  planId: 'premium';
+  planTitle: string;
+  status: 'active'|'expired';
+  cycle: SubscriptionCycle;
+  price: number;
+  currency: 'IRT';
+  bonusCoins: number;
+  autoRenew: boolean;
+  cancelAtPeriodEnd: boolean;
+  startedAt: string;
+  currentPeriodStart: string;
+  currentPeriodEnd: string;
+  canceledAt?: string;
+}
+export interface SubscriptionTransaction {
+  _id: Id;
+  planTitle: string;
+  cycle: SubscriptionCycle;
+  status: 'pending'|'processing'|'completed'|'failed';
+  price: number;
+  currency: 'IRT';
+  bonusCoins: number;
+  balanceAfter?: number;
+  periodStart?: string;
+  periodEnd?: string;
+  completedAt?: string;
+  createdAt: string;
+}
+export interface SubscriptionData { plan: PremiumPlan; subscription: PremiumSubscription|null; transactions: SubscriptionTransaction[]; paymentMode: 'test'|'unavailable'; }
 export type BuiltInSquadFormation = '4-3-3'|'4-4-2'|'4-2-3-1'|'3-5-2'|'3-4-3'|'5-3-2'|'4-1-4-1';
 export type SquadFormation = BuiltInSquadFormation|'custom';
 export type TransferOfferStatus = 'active'|'accepted'|'rejected'|'cancelled'|'countered'|'expired';

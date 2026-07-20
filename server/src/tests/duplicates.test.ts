@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   CoinTransaction, FantasyPlayer, FunPost, FunPostLike, FunPostReport, ImportantMatch, PlayerMatchStat, Prediction, QuizAttempt, Referral,
-  Reminder, SponsorEvent, Squad, Team, TransferOffer, User
+  Reminder, SponsorEvent, Squad, Subscription, SubscriptionTransaction, Team, TransferOffer, User
 } from '../models/index.js';
 
 function hasUniqueIndex(indexes: ReturnType<typeof Prediction.schema.indexes>, keys: string[]) {
@@ -21,6 +21,9 @@ describe('database duplicate prevention', () => {
   it('allows one report per user and fun post', () => expect(hasUniqueIndex(FunPostReport.schema.indexes(), ['postId','reporterId'])).toBe(true));
   it('deduplicates coin purchase requests per user', () => expect(hasUniqueIndex(CoinTransaction.schema.indexes(), ['userId','idempotencyKey'])).toBe(true));
   it('deduplicates payment provider confirmations', () => expect(hasUniqueIndex(CoinTransaction.schema.indexes(), ['provider','providerReference'])).toBe(true));
+  it('allows one premium subscription per user', () => expect(hasUniqueIndex(Subscription.schema.indexes(), ['userId'])).toBe(true));
+  it('deduplicates subscription purchase requests', () => expect(hasUniqueIndex(SubscriptionTransaction.schema.indexes(), ['userId','idempotencyKey'])).toBe(true));
+  it('deduplicates subscription payment confirmations', () => expect(hasUniqueIndex(SubscriptionTransaction.schema.indexes(), ['provider','providerReference'])).toBe(true));
   it('allows only one squad per user', () => expect(hasUniqueIndex(Squad.schema.indexes(), ['userId'])).toBe(true));
   it('deduplicates transfer offer requests', () => expect(hasUniqueIndex(TransferOffer.schema.indexes(), ['senderId','clientRequestId'])).toBe(true));
   it('deduplicates team external API IDs', () => expect(hasUniqueIndex(Team.schema.indexes(), ['externalApiId'])).toBe(true));

@@ -5,22 +5,24 @@ import { env } from '../config/env.js';
 import { verifyLiveMembership } from '../middleware/auth.js';
 import { CoinPackage, CoinTransaction, User } from '../models/index.js';
 import { claimDailyCoins, confirmTestPurchase, createPurchase } from '../services/coinStore.js';
+import { hasActivePremiumSubscription } from '../services/subscription.js';
 import { asyncHandler } from '../utils/asyncHandler.js';
 
 const router = Router();
 router.use(verifyLiveMembership);
 
 router.get('/', asyncHandler(async (req, res) => {
-  const [user, packages, transactions] = await Promise.all([
+  const [user, packages, transactions, premiumActive] = await Promise.all([
     User.findById(req.authUser!._id).select('coinBalance dailyRewardAvailableAt').lean(),
     CoinPackage.find({ active: true }).sort({ sortOrder: 1, createdAt: 1 }).lean(),
-    CoinTransaction.find({ userId: req.authUser!._id }).sort({ createdAt: -1 }).limit(30).select('-idempotencyKey -providerReference -failureReason').lean()
+    CoinTransaction.find({ userId: req.authUser!._id }).sort({ createdAt: -1 }).limit(30).select('-idempotencyKey -providerReference -failureReason').lean(),
+    hasActivePremiumSubscription(req.authUser!._id)
   ]);
   const nextClaimAt = user?.dailyRewardAvailableAt ?? null;
   res.json({
     balance: user?.coinBalance ?? 0,
     packages,
-    dailyReward: { amount: env.DAILY_COIN_REWARD, claimable: !nextClaimAt || new Date(nextClaimAt).getTime() <= Date.now(), nextClaimAt },
+    dailyReward: { amount: env.DAILY_COIN_REWARD * (premiumActive ? 2 : 1), baseAmount: env.DAILY_COIN_REWARD, premiumMultiplier: premiumActive ? 2 : 1, claimable: !nextClaimAt || new Date(nextClaimAt).getTime() <= Date.now(), nextClaimAt },
     transactions,
     paymentMode: env.DEMO_DATA_ENABLED ? 'test' : 'unavailable'
   });

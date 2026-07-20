@@ -37,7 +37,6 @@ const demoCoinPackages: DemoCoinPackage[] = [
 ];
 
 const enNumber = (value: number) => value.toLocaleString('en-US');
-const toman = (value: number) => `${enNumber(value)} تومان`;
 
 function countdown(target: string | null, now: number): string {
   if (!target) return 'آماده دریافت';

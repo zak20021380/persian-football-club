@@ -20,6 +20,8 @@ export * from './FunPostReport.js';
 export * from './FunPostShare.js';
 export * from './CoinPackage.js';
 export * from './CoinTransaction.js';
+export * from './Subscription.js';
+export * from './SubscriptionTransaction.js';
 export * from './ClubPlayer.js';
 export * from './Squad.js';
 export * from './TransferOffer.js';

@@ -3,6 +3,7 @@ import { env } from '../config/env.js';
 import { CoinPackage, CoinTransaction, User } from '../models/index.js';
 import { AppError } from '../utils/errors.js';
 import { paymentService, type PaymentIntent } from './payment.js';
+import { hasActivePremiumSubscription } from './subscription.js';
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
@@ -24,10 +25,11 @@ async function atomic<T>(work: (session: ClientSession | null) => Promise<T>): P
 export async function claimDailyCoins(userId: Types.ObjectId) {
   const now = new Date();
   const nextClaimAt = new Date(now.getTime() + DAY_MS);
+  const rewardAmount = env.DAILY_COIN_REWARD * (await hasActivePremiumSubscription(userId, now) ? 2 : 1);
   return atomic(async session => {
     const user = await User.findOneAndUpdate(
       { _id: userId, $or: [{ dailyRewardAvailableAt: { $exists: false } }, { dailyRewardAvailableAt: { $lte: now } }] },
-      { $inc: { coinBalance: env.DAILY_COIN_REWARD }, $set: { dailyRewardAvailableAt: nextClaimAt } },
+      { $inc: { coinBalance: rewardAmount }, $set: { dailyRewardAvailableAt: nextClaimAt } },
       { new: true, session }
     );
     if (!user) {
@@ -37,7 +39,7 @@ export async function claimDailyCoins(userId: Types.ObjectId) {
       userId,
       type: 'daily_reward',
       status: 'completed',
-      coins: env.DAILY_COIN_REWARD,
+      coins: rewardAmount,
       balanceAfter: user.coinBalance,
       currency: 'IRT',
       provider: 'none',

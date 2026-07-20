@@ -25,6 +25,7 @@ import { AppError } from '../utils/errors.js';
 import { asyncHandler } from '../utils/asyncHandler.js';
 import funRouter from './fun.js';
 import storeRouter from './store.js';
+import subscriptionRouter from './subscription.js';
 import clubRouter from './club.js';
 import adminFantasyRouter from './adminFantasy.js';
 
@@ -72,6 +73,7 @@ router.get('/sponsors/:id/redirect', asyncHandler(async (req, res) => {
 router.use(authenticate);
 router.use('/fun', funRouter);
 router.use('/store', storeRouter);
+router.use('/subscription', subscriptionRouter);
 router.use('/club', clubRouter);
 
 router.get('/bootstrap', asyncHandler(async (req, res) => {

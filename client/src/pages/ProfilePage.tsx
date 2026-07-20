@@ -30,6 +30,7 @@ import { Link } from 'react-router-dom';
 import { BrandMark } from '@/components/BrandMark';
 import { ClubCrest } from '@/components/ClubCrest';
 import { WalletShortcut } from '@/components/WalletShortcut';
+import { PremiumSubscriptionSection } from '@/components/PremiumSubscriptionSection';
 import { Card, ErrorState, LoadingButton, PageSkeleton } from '@/components/ui';
 import { useBootstrap } from '@/hooks/useBootstrap';
 import { api } from '@/lib/api';
@@ -378,6 +379,10 @@ export function ProfilePage() {
         <ProfileStat icon={<Trophy size={13}/>} label="امتیاز کل" value={faNumber(user.points)} tone="text-amber-300"/>
         <ProfileStat icon={<Medal size={13}/>} label="رتبه هفته" value={`#${faNumber(user.weeklyRank ?? 0)}`} tone="text-emerald-300"/>
         <ProfileStat icon={<Flame size={13}/>} label="استریک" value={`${faNumber(user.streak)} روز`} tone="text-orange-300"/>
+      </div>
+
+      <div className="mt-6 px-4">
+        <PremiumSubscriptionSection/>
       </div>
 
       <div className="mt-6 space-y-6 px-4">
